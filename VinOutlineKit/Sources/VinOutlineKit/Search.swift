@@ -52,15 +52,16 @@ public final class Search: Identifiable, DocumentContainer {
 					if let error {
 						continuation.resume(throwing: error)
 					} else {
-						let documents = foundItems.compactMap {
-							if let entityID = EntityID(description: $0.uniqueIdentifier) {
-								if let document = AccountManager.shared.findDocument(entityID) {
-									return document
+						let documentIDs = foundItems.compactMap { EntityID(description: $0.uniqueIdentifier) }
+						Task {
+							var documents = [Document]()
+							for documentID in documentIDs {
+								if let document = await AccountManager.shared.findDocument(documentID) {
+									documents.append(document)
 								}
 							}
-							return nil
+							continuation.resume(returning: documents)
 						}
-						continuation.resume(returning: documents)
 					}
 				}
 				
@@ -78,23 +79,6 @@ public final class Search: Identifiable, DocumentContainer {
 	
 	deinit {
 		searchQuery?.cancel()
-	}
-	
-}
-
-// MARK: Helpers
-
-private extension Search {
-	
-	func toDocuments(_ searchItems: [CSSearchableItem]) -> [Document] {
-		return searchItems.compactMap {
-			if let entityID = EntityID(description: $0.uniqueIdentifier) {
-				if let document = AccountManager.shared.findDocument(entityID) {
-					return document
-				}
-			}
-			return nil
-		}
 	}
 	
 }

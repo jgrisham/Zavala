@@ -21,12 +21,12 @@ final class AccountFile: ManagedResourceFile {
 		super.init(fileURL: fileURL)
 	}
 	
-	public override func fileDidLoad(data: Data) {
-		accountManager?.loadAccountFileData(data, accountType: accountType)
+	public override func fileDidLoad(data: Data) async {
+		await accountManager?.loadAccountFileData(data, accountType: accountType)
 	}
 	
-	public override func fileWillSave() -> Data? {
-		return accountManager?.buildAccountFileData(accountType: accountType)
+	public override func fileWillSave() async -> Data? {
+		return await accountManager?.buildAccountFileData(accountType: accountType)
 	}
 	
 }

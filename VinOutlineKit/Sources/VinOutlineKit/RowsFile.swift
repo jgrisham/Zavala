@@ -26,11 +26,11 @@ final class RowsFile: ManagedResourceFile {
 		super.init(fileURL: fileURL)
 	}
 	
-	public override func fileDidLoad(data: Data) {
+	public override func fileDidLoad(data: Data) async {
 		outline?.loadRowFileData(data)
 	}
 	
-	public override func fileWillSave() -> Data? {
+	public override func fileWillSave() async -> Data? {
 		return outline?.buildRowFileData()
 	}
 	

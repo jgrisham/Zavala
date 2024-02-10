@@ -23,11 +23,11 @@ final class ImagesFile: ManagedResourceFile {
 		super.init(fileURL: fileURL)
 	}
 	
-	public override func fileDidLoad(data: Data) {
+	public override func fileDidLoad(data: Data) async {
 		outline?.loadImageFileData(data)
 	}
 	
-	public override func fileWillSave() -> Data? {
+	public override func fileWillSave() async -> Data? {
 		return outline?.buildImageFileData()
 	}
 	

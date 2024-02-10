@@ -12,7 +12,7 @@ public extension Notification.Name {
 	static let AccountManagerAccountsDidChange = Notification.Name(rawValue: "AccountManagerAccountsDidChange")
 }
 
-public final class AccountManager {
+public actor AccountManager {
 	
 	public static var shared: AccountManager!
 	
@@ -52,27 +52,26 @@ public final class AccountManager {
 
 	var accountsDictionary = [Int: Account]()
 
-	var accountsFolder: URL
-	var localAccountFolder: URL
-	var localAccountFile: URL
-	var cloudKitAccountFolder: URL
-	var cloudKitAccountFile: URL
+	let accountsFolder: URL
+	let localAccountFolder: URL
+	let localAccountFile: URL
+	let cloudKitAccountFolder: URL
+	let cloudKitAccountFile: URL
 
 	private var accountFiles = [Int: AccountFile]()
+	private var notificationsTask: Task<(), Never>?
 	
-	public init(accountsFolderPath: String, errorHandler: ErrorHandler) {
+	public init(accountsFolderPath: String) {
 		self.accountsFolder = URL(fileURLWithPath: accountsFolderPath, isDirectory: true)
 		self.localAccountFolder = accountsFolder.appendingPathComponent(AccountType.local.folderName)
 		self.localAccountFile = localAccountFolder.appendingPathComponent(AccountFile.filenameComponent)
 		self.cloudKitAccountFolder = accountsFolder.appendingPathComponent(AccountType.cloudKit.folderName)
 		self.cloudKitAccountFile = cloudKitAccountFolder.appendingPathComponent(AccountFile.filenameComponent)
-		
-		NotificationCenter.default.addObserver(self, selector: #selector(accountMetadataDidChange(_:)), name: .AccountMetadataDidChange, object: nil)
-		NotificationCenter.default.addObserver(self, selector: #selector(accountTagsDidChange(_:)), name: .AccountTagsDidChange, object: nil)
-		NotificationCenter.default.addObserver(self, selector: #selector(accountDocumentsDidChange(_:)), name: .AccountDocumentsDidChange, object: nil)
-		NotificationCenter.default.addObserver(self, selector: #selector(documentTitleDidChange(_:)), name: .DocumentTitleDidChange, object: nil)
-		NotificationCenter.default.addObserver(self, selector: #selector(documentMetadataDidChange(_:)), name: .DocumentMetaDataDidChange, object: nil)
+	}
 
+	// MARK: API
+	
+	public func startUp(errorHandler: ErrorHandler) async {
 		// The local account must always exist, even if it's empty.
 		if FileManager.default.fileExists(atPath: localAccountFile.path) {
 			initializeFile(accountType: .local)
@@ -93,9 +92,54 @@ public final class AccountManager {
 			initializeFile(accountType: .cloudKit)
 			cloudKitAccount?.initializeCloudKit(firstTime: false, errorHandler: errorHandler)
 		}
-	}
+		
+		notificationsTask = Task {
+			await withTaskGroup(of: Void.self) { group in
+				
+				group.addTask { [weak self] in
+					for await note in NotificationCenter.default.notifications(named: .AccountMetadataDidChange) {
+						let account = note.object as! Account
+						await self?.markAsDirty(account)
+					}
+				}
 
-	// MARK: API
+				group.addTask { [weak self] in
+					for await note in NotificationCenter.default.notifications(named: .AccountTagsDidChange) {
+						let account = note.object as! Account
+						await self?.markAsDirty(account)
+					}
+				}
+
+				group.addTask { [weak self] in
+					for await note in NotificationCenter.default.notifications(named: .AccountDocumentsDidChange) {
+						let account = note.object as! Account
+						await self?.markAsDirty(account)
+					}
+				}
+
+				group.addTask { [weak self] in
+					for await note in NotificationCenter.default.notifications(named: .DocumentTitleDidChange) {
+						guard let document = note.object as? Document, let account = document.account else { return }
+						await self?.markAsDirty(account)
+
+						if let outline = document.outline {
+							account.fixAltLinks(excluding: outline)
+						}
+
+						account.disambiguate(document: document)					}
+				}
+
+				group.addTask { [weak self] in
+					for await note in NotificationCenter.default.notifications(named: .AccountDocumentsDidChange) {
+						guard let account = (note.object as? Document)?.account else { return }
+						await self?.markAsDirty(account)
+					}
+				}
+
+			}
+		}
+
+	}
 	
 	public func createCloudKitAccount(errorHandler: ErrorHandler) {
 		do {
@@ -149,6 +193,16 @@ public final class AccountManager {
 		}
 	}
 	
+	public func findDocumentContainers(_ entityIDs: [EntityID]) -> [DocumentContainer] {
+		var containers = [DocumentContainer]()
+		for entityID in entityIDs {
+			if let container = findDocumentContainer(entityID) {
+				containers.append(container)
+			}
+		}
+		return containers
+	}
+	
 	public func findDocument(_ entityID: EntityID) -> Document? {
 		switch entityID {
 		case .document(let accountID, let documentUUID):
@@ -200,39 +254,6 @@ private extension AccountManager {
 	
 	func accountManagerAccountsDidChange() {
 		NotificationCenter.default.post(name: .AccountManagerAccountsDidChange, object: self, userInfo: nil)
-	}
-
-	// MARK: Notifications
-	
-	@objc func accountMetadataDidChange(_ note: Notification) {
-		let account = note.object as! Account
-		markAsDirty(account)
-	}
-
-	@objc func accountTagsDidChange(_ note: Notification) {
-		let account = note.object as! Account
-		markAsDirty(account)
-	}
-
-	@objc func accountDocumentsDidChange(_ note: Notification) {
-		let account = note.object as! Account
-		markAsDirty(account)
-	}
-
-	@objc func documentTitleDidChange(_ note: Notification) {
-		guard let document = note.object as? Document, let account = document.account else { return }
-		markAsDirty(account)
-		
-		if let outline = document.outline {
-			account.fixAltLinks(excluding: outline)
-		}
-
-		account.disambiguate(document: document)
-	}
-	
-	@objc func documentMetadataDidChange(_ note: Notification) {
-		guard let account = (note.object as? Document)?.account else { return }
-		markAsDirty(account)
 	}
 
 	func sort(_ accounts: [Account]) -> [Account] {

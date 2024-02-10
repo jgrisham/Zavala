@@ -12,8 +12,10 @@ public final class TagsDocuments: DocumentProvider {
     private let tags: [Tag]
 
 	public var documents: [Document] {
-		let documents = AccountManager.shared.activeDocuments
-		return documents.filter { $0.hasAllTags(tags) }
+		get async throws {
+			let documents = await AccountManager.shared.activeDocuments
+			return documents.filter { $0.hasAllTags(tags) }
+		}
 	}
 
     public init(tags: [Tag]) {

@@ -19,23 +19,25 @@ public struct Pin: Equatable {
 	public let containerIDs: [EntityID]?
 	public let documentID: EntityID?
 	
-	public var containers: [DocumentContainer]? {
-		var containers = [DocumentContainer]()
+	public var containers: [DocumentContainer] {
+		get async {
+			if let containerIDs {
+				return await AccountManager.shared.findDocumentContainers(containerIDs)
+			}
+
+			if let documentID, let container = await AccountManager.shared.findDocumentContainer(.allDocuments(documentID.accountID)) {
+				return [container]
+			}
 		
-		if let containerIDs {
-            containers = containerIDs.compactMap { AccountManager.shared.findDocumentContainer($0) }
+			return []
 		}
-		
-		if containers.isEmpty, let documentID, let container = AccountManager.shared.findDocumentContainer(.allDocuments(documentID.accountID)) {
-			containers = [container]
-		}
-		
-		return containers
 	}
 	
 	public var document: Document? {
-		guard let documentID else { return nil }
-		return AccountManager.shared.findDocument(documentID)
+		get async {
+			guard let documentID else { return nil }
+			return await AccountManager.shared.findDocument(documentID)
+		}
 	}
 	
 	public var userInfo: [AnyHashable: AnyHashable] {
