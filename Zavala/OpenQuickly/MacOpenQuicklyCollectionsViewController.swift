@@ -19,6 +19,8 @@ class MacOpenQuicklyCollectionsViewController: UICollectionViewController {
 	
 	var dataSource: UICollectionViewDiffableDataSource<CollectionsSection, CollectionsItem>!
 
+	var documentContainersDictionary = [EntityID: DocumentContainer]()
+
 	override func viewDidLoad() {
         super.viewDidLoad()
 
@@ -29,7 +31,11 @@ class MacOpenQuicklyCollectionsViewController: UICollectionViewController {
 		
 		collectionView.collectionViewLayout = createLayout()
 		configureDataSource()
-		applySnapshot()
+		
+		Task {
+			await rebuildContainersDictionary()
+			await applySnapshot()
+		}
     }
 
     // MARK: UICollectionView
@@ -51,7 +57,10 @@ private extension MacOpenQuicklyCollectionsViewController {
 	func updateSelections() {
 		guard let selectedIndexes = collectionView.indexPathsForSelectedItems else { return }
 		let items = selectedIndexes.compactMap { dataSource.itemIdentifier(for: $0) }
-		delegate?.documentContainerSelectionsDidChange(self, documentContainers: items.toContainers())
+		
+		Task {
+			await delegate?.documentContainerSelectionsDidChange(self, documentContainers: items.toContainers())
+		}
 	}
 	
 	func createLayout() -> UICollectionViewLayout {
@@ -76,11 +85,11 @@ private extension MacOpenQuicklyCollectionsViewController {
 			cell.accessories = [.outlineDisclosure()]
 		}
 		
-		let rowRegistration = UICollectionView.CellRegistration<ConsistentCollectionViewListCell, CollectionsItem> { (cell, indexPath, item) in
+		let rowRegistration = UICollectionView.CellRegistration<ConsistentCollectionViewListCell, CollectionsItem> { [weak self] (cell, indexPath, item) in
 			cell.highlightImageInWhite = true
 			var contentConfiguration = UIListContentConfiguration.sidebarSubtitleCell()
 
-			if case .documentContainer(let entityID) = item.id, let container = AccountManager.shared.findDocumentContainer(entityID) {
+			if case .documentContainer(let entityID) = item.id, let container = self?.documentContainersDictionary[entityID] {
 				contentConfiguration.text = container.name
 				contentConfiguration.image = container.image
 			}
@@ -99,14 +108,14 @@ private extension MacOpenQuicklyCollectionsViewController {
 		}
 	}
 
-	func applySnapshot() {
-		if let snapshot = localAccountSnapshot() {
+	func applySnapshot() async {
+		if let snapshot = await localAccountSnapshot() {
 			applySnapshot(snapshot, section: .localAccount, animated: true)
 		} else {
 			applySnapshot(NSDiffableDataSourceSectionSnapshot<CollectionsItem>(), section: .localAccount, animated: true)
 		}
 
-		if let snapshot = self.cloudKitAccountSnapshot() {
+		if let snapshot = await self.cloudKitAccountSnapshot() {
 			applySnapshot(snapshot, section: .cloudKitAccount, animated: false)
 		} else {
 			applySnapshot(NSDiffableDataSourceSectionSnapshot<CollectionsItem>(), section: .cloudKitAccount, animated: false)
@@ -125,8 +134,8 @@ private extension MacOpenQuicklyCollectionsViewController {
 		}
 	}
 	
-	func localAccountSnapshot() -> NSDiffableDataSourceSectionSnapshot<CollectionsItem>? {
-		let localAccount = AccountManager.shared.localAccount
+	func localAccountSnapshot() async -> NSDiffableDataSourceSectionSnapshot<CollectionsItem>? {
+		let localAccount = await AccountManager.shared.localAccount
 		
 		guard localAccount.isActive else { return nil }
 		
@@ -141,8 +150,8 @@ private extension MacOpenQuicklyCollectionsViewController {
 		return snapshot
 	}
 	
-	func cloudKitAccountSnapshot() -> NSDiffableDataSourceSectionSnapshot<CollectionsItem>? {
-		guard let cloudKitAccount = AccountManager.shared.cloudKitAccount else { return nil }
+	func cloudKitAccountSnapshot() async -> NSDiffableDataSourceSectionSnapshot<CollectionsItem>? {
+		guard let cloudKitAccount = await AccountManager.shared.cloudKitAccount else { return nil }
 		
 		var snapshot = NSDiffableDataSourceSectionSnapshot<CollectionsItem>()
 		let header = CollectionsItem.item(id: .header(.cloudKitAccount))
@@ -155,4 +164,15 @@ private extension MacOpenQuicklyCollectionsViewController {
 		return snapshot
 	}
 
+	func rebuildContainersDictionary() async {
+		var containersDictionary = [EntityID: DocumentContainer]()
+		
+		let containers = await AccountManager.shared.documentContainers
+		for container in containers {
+			containersDictionary[container.id] = container
+		}
+		
+		self.documentContainersDictionary = containersDictionary
+	}
+	
 }

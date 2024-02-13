@@ -21,7 +21,7 @@ extension CollectionsViewController: UICollectionViewDragDelegate {
 		
 		guard let item = dataSource.itemIdentifier(for: indexPath),
 			  case .documentContainer(let entityID) = item.id,
-			  let container = AccountManager.shared.findDocumentContainer(entityID)	else {
+			  let container = documentContainersDictionary[entityID]	else {
 			return []
 		}
 

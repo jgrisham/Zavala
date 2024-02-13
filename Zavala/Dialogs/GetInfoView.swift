@@ -14,8 +14,8 @@ struct GetInfoView: View {
 	@Environment(\.dismiss) var dismiss
 	@ObservedObject var getInfoViewModel: GetInfoViewModel
 	
-	init(outline: Outline) {
-		getInfoViewModel = GetInfoViewModel(outline: outline)
+	init(outline: Outline) async {
+		getInfoViewModel = await GetInfoViewModel(outline: outline)
 	}
 	
 #if targetEnvironment(macCatalyst)
@@ -152,7 +152,7 @@ class GetInfoViewModel: ObservableObject {
 	var updatedLabel: String
 	var wordCount: Int
 	
-	init(outline: Outline) {
+	init(outline: Outline) async {
 		self.outline = outline
 		
 		self.title = outline.title ?? ""
@@ -175,7 +175,7 @@ class GetInfoViewModel: ObservableObject {
 			updatedLabel = ""
 		}
 		
-		wordCount = outline.wordCount
+		wordCount = await outline.wordCount
 	}
 	
 	func update() {

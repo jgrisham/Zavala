@@ -42,13 +42,16 @@ class CollectionsViewController: UICollectionViewController, MainControllerIdent
         
         return selectedIndexPaths.compactMap { indexPath in
             if let entityID = dataSource.itemIdentifier(for: indexPath)?.entityID {
-                return AccountManager.shared.findDocumentContainer(entityID)
+                return documentContainersDictionary[entityID]
             }
             return nil
         }
 	}
 
 	var dataSource: UICollectionViewDiffableDataSource<CollectionsSection, CollectionsItem>!
+	
+	var documentContainersDictionary = [EntityID: DocumentContainer]()
+	
 	private var applyChangeDebouncer = Debouncer(duration: 0.5)
 	private var reloadVisibleDebouncer = Debouncer(duration: 0.5)
 
@@ -99,13 +102,15 @@ class CollectionsViewController: UICollectionViewController, MainControllerIdent
 	
 	// MARK: API
 	
-	func startUp() {
+	func startUp() async {
+		await rebuildContainersDictionary()
+
 		collectionView.remembersLastFocusedIndexPath = true
 		collectionView.dragDelegate = self
 		collectionView.dropDelegate = self
 		collectionView.collectionViewLayout = createLayout()
 		configureDataSource()
-		applyInitialSnapshot()
+		await applyInitialSnapshot()
 	}
 	
 	func selectDocumentContainers(_ containers: [DocumentContainer]?, isNavigationBranch: Bool, animated: Bool) async {
@@ -339,10 +344,10 @@ extension CollectionsViewController {
 			}
 		}
 		
-		let rowRegistration = UICollectionView.CellRegistration<ConsistentCollectionViewListCell, CollectionsItem> { (cell, indexPath, item) in
+		let rowRegistration = UICollectionView.CellRegistration<ConsistentCollectionViewListCell, CollectionsItem> { [weak self] (cell, indexPath, item) in
 			var contentConfiguration = UIListContentConfiguration.sidebarSubtitleCell()
 			
-			if case .documentContainer(let entityID) = item.id, let container = AccountManager.shared.findDocumentContainer(entityID) {
+			if case .documentContainer(let entityID) = item.id, let container = self?.documentContainersDictionary[entityID] {
 				contentConfiguration.text = container.name
 				contentConfiguration.image = container.image
 				
@@ -374,8 +379,8 @@ extension CollectionsViewController {
 		return snapshot
 	}
 	
-	private func localAccountSnapshot() -> NSDiffableDataSourceSectionSnapshot<CollectionsItem>? {
-		let localAccount = AccountManager.shared.localAccount
+	private func localAccountSnapshot() async -> NSDiffableDataSourceSectionSnapshot<CollectionsItem>? {
+		let localAccount = await AccountManager.shared.localAccount
 		
 		guard localAccount.isActive else { return nil }
 		
@@ -390,8 +395,8 @@ extension CollectionsViewController {
 		return snapshot
 	}
 	
-	private func cloudKitAccountSnapshot() -> NSDiffableDataSourceSectionSnapshot<CollectionsItem>? {
-		guard let cloudKitAccount = AccountManager.shared.cloudKitAccount else { return nil }
+	private func cloudKitAccountSnapshot() async -> NSDiffableDataSourceSectionSnapshot<CollectionsItem>? {
+		guard let cloudKitAccount = await AccountManager.shared.cloudKitAccount else { return nil }
 		
 		var snapshot = NSDiffableDataSourceSectionSnapshot<CollectionsItem>()
 		let header = CollectionsItem.item(id: .header(.cloudKitAccount))
@@ -404,21 +409,21 @@ extension CollectionsViewController {
 		return snapshot
 	}
 	
-	private func applyInitialSnapshot() {
+	private func applyInitialSnapshot() async {
 		if traitCollection.userInterfaceIdiom == .mac {
 			applySnapshot(searchSnapshot(), section: .search, animated: false)
 		}
-		applyChangeSnapshot()
+		await applyChangeSnapshot()
 	}
 	
-	private func applyChangeSnapshot() {
-		if let snapshot = localAccountSnapshot() {
+	private func applyChangeSnapshot() async {
+		if let snapshot = await localAccountSnapshot() {
 			applySnapshot(snapshot, section: .localAccount, animated: true)
 		} else {
 			applySnapshot(NSDiffableDataSourceSectionSnapshot<CollectionsItem>(), section: .localAccount, animated: true)
 		}
 
-		if let snapshot = self.cloudKitAccountSnapshot() {
+		if let snapshot = await self.cloudKitAccountSnapshot() {
 			applySnapshot(snapshot, section: .cloudKitAccount, animated: true)
 		} else {
 			applySnapshot(NSDiffableDataSourceSectionSnapshot<CollectionsItem>(), section: .cloudKitAccount, animated: true)
@@ -509,7 +514,10 @@ private extension CollectionsViewController {
 	
 	func debounceApplyChangeSnapshot() {
 		applyChangeDebouncer.debounce { [weak self] in
-			self?.applyChangeSnapshot()
+			Task {
+				await self?.rebuildContainersDictionary()
+				await self?.applyChangeSnapshot()
+			}
 		}
 	}
 	
@@ -525,7 +533,7 @@ private extension CollectionsViewController {
 
 			let containers: [DocumentContainer] = items.compactMap { item in
 				if case .documentContainer(let entityID) = item.id {
-					return AccountManager.shared.findDocumentContainer(entityID)
+					return self.documentContainersDictionary[entityID]
 				}
 				return nil
 			}
@@ -598,4 +606,14 @@ private extension CollectionsViewController {
 		return action
 	}
 
+	func rebuildContainersDictionary() async {
+		var containersDictionary = [EntityID: DocumentContainer]()
+		
+		let containers = await AccountManager.shared.documentContainers
+		for container in containers {
+			containersDictionary[container.id] = container
+		}
+		
+		self.documentContainersDictionary = containersDictionary
+	}
 }

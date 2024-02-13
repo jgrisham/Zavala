@@ -51,8 +51,10 @@ class MacOpenQuicklyViewController: UIViewController {
 			self.openDocument(documentID)
 		}
 
-		let searchItems = AccountManager.shared.activeDocuments.map { SearchTextFieldItem(title: $0.title ?? "", associatedObject: $0.id) }
-		searchTextField.filterItems(searchItems)
+		Task {
+			let searchItems = await AccountManager.shared.activeDocuments.map { SearchTextFieldItem(title: $0.title ?? "", associatedObject: $0.id) }
+			searchTextField.filterItems(searchItems)
+		}
 	}
 
 	override func viewDidAppear(_ animated: Bool) {

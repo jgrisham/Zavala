@@ -14,15 +14,19 @@ struct RequestReview {
 	
 	// Only prompt every 30 days if they have 10 active documents and the app version is different
 	static func request() {
-		if BuildInfo.shared.versionNumber != AppDefaults.shared.lastReviewPromptAppVersion &&
-			Date().addingTimeInterval(-2592000) > AppDefaults.shared.lastReviewPromptDate ?? .distantPast &&
-			AccountManager.shared.activeDocuments.count >= 10 {
+		Task {
+			let activeDocumentsCount = await AccountManager.shared.activeDocuments.count
 			
-			AppDefaults.shared.lastReviewPromptAppVersion = BuildInfo.shared.versionNumber
-			AppDefaults.shared.lastReviewPromptDate = Date()
-			
-			guard let scene = UIApplication.shared.foregroundActiveScene else { return }
-			SKStoreReviewController.requestReview(in: scene)
+			if BuildInfo.shared.versionNumber != AppDefaults.shared.lastReviewPromptAppVersion &&
+				Date().addingTimeInterval(-2592000) > AppDefaults.shared.lastReviewPromptDate ?? .distantPast &&
+				activeDocumentsCount >= 10 {
+				
+				AppDefaults.shared.lastReviewPromptAppVersion = BuildInfo.shared.versionNumber
+				AppDefaults.shared.lastReviewPromptDate = Date()
+				
+				guard let scene = await UIApplication.shared.foregroundActiveScene else { return }
+				await SKStoreReviewController.requestReview(in: scene)
+			}
 		}
 	}
 	

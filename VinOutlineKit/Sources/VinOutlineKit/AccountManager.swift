@@ -19,11 +19,11 @@ public actor AccountManager {
 	public var localAccount: Account {
 		return accountsDictionary[AccountType.local.rawValue]!
 	}
-
+	
 	public var cloudKitAccount: Account? {
 		return accountsDictionary[AccountType.cloudKit.rawValue]
 	}
-
+	
 	public var isSyncAvailable: Bool {
 		return cloudKitAccount?.cloudKitManager?.isSyncAvailable ?? false
 	}
@@ -31,11 +31,11 @@ public actor AccountManager {
 	public var accounts: [Account] {
 		return accountsDictionary.values.map { $0 }
 	}
-
+	
 	public var activeAccounts: [Account] {
 		return Array(accountsDictionary.values.filter { $0.isActive })
 	}
-
+	
 	public var sortedActiveAccounts: [Account] {
 		return sort(activeAccounts)
 	}
@@ -46,6 +46,10 @@ public actor AccountManager {
 	
 	public var activeDocuments: [Document] {
 		return activeAccounts.reduce(into: [Document]()) { $0.append(contentsOf: $1.documents ?? [Document]() ) }
+	}
+	
+	public var documentContainers: [DocumentContainer] {
+		return accounts.reduce(into: [DocumentContainer]()) { $0.append(contentsOf: $1.documentContainers) }
 	}
 	
 	var logger = Logger(subsystem: Bundle.main.bundleIdentifier!, category: "VinOutlineKit")
