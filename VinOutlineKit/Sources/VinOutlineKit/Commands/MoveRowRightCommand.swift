@@ -25,16 +25,20 @@ public final class MoveRowRightCommand: OutlineCommand {
 	}
 	
 	public override func perform() {
-		saveCursorCoordinates()
-		moveRightRows = outline.moveRowsRight(rows, rowStrings: newRowStrings)
-		registerUndo()
+		Task {
+			saveCursorCoordinates()
+			moveRightRows = await outline.moveRowsRight(rows, rowStrings: newRowStrings)
+			registerUndo()
+		}
 	}
 	
 	public override func undo() {
-		guard let moveRightRows else { return }
-		outline.moveRowsLeft(moveRightRows, rowStrings: oldRowStrings)
-		registerRedo()
-		restoreCursorPosition()
+		Task {
+			guard let moveRightRows else { return }
+			await outline.moveRowsLeft(moveRightRows, rowStrings: oldRowStrings)
+			registerRedo()
+			restoreCursorPosition()
+		}
 	}
 	
 }

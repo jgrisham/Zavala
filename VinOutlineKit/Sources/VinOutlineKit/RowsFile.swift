@@ -15,10 +15,10 @@ final class RowsFile: ManagedResourceFile {
 	
 	private weak var outline: Outline?
 	
-	init?(outline: Outline) {
+	init?(outline: Outline) async {
 		self.outline = outline
 
-		guard let account = outline.account else {
+		guard let account = await outline.account else {
 			return nil
 		}
 

@@ -119,11 +119,11 @@ public actor AccountManager {
 
 				group.addTask { [weak self] in
 					for await note in NotificationCenter.default.notifications(named: .DocumentTitleDidChange) {
-						guard let document = note.object as? Document, let account = document.account else { return }
+						guard let document = note.object as? Document, let account = await document.account else { return }
 						await self?.markAsDirty(account)
 
 						if let outline = document.outline {
-							account.fixAltLinks(excluding: outline)
+							await account.fixAltLinks(excluding: outline)
 						}
 
 						account.disambiguate(document: document)					}
@@ -131,7 +131,7 @@ public actor AccountManager {
 
 				group.addTask { [weak self] in
 					for await note in NotificationCenter.default.notifications(named: .AccountDocumentsDidChange) {
-						guard let account = (note.object as? Document)?.account else { return }
+						guard let account = await (note.object as? Document)?.account else { return }
 						await self?.markAsDirty(account)
 					}
 				}

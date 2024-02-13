@@ -107,7 +107,7 @@ extension Row: VCKModel {
 		isCloudKitMerging = true
 	}
 	
-	public func buildRecord() -> CKRecord {
+	public func buildRecord() async -> CKRecord {
 		guard let zoneID = outline?.zoneID,
 			  let outlineRecordName = outline?.id.description
 		else {

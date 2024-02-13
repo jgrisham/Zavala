@@ -17,14 +17,14 @@ class DocumentIndexer {
 	}
 	
 	static func updateIndex(forDocument document: Document) {
-		DispatchQueue.main.async {
-			let searchableItem = makeSearchableItem(forDocument: document)
-			CSSearchableIndex.default().indexSearchableItems([searchableItem])
+		Task {
+			let searchableItem = await makeSearchableItem(forDocument: document)
+			try? await CSSearchableIndex.default().indexSearchableItems([searchableItem])
 		}
 	}
 	
-	static func makeSearchableItem(forDocument document: Document) -> CSSearchableItem {
-		let attributeSet = makeSearchableItemAttributes(forDocument: document)
+	static func makeSearchableItem(forDocument document: Document) async -> CSSearchableItem {
+		let attributeSet = await makeSearchableItemAttributes(forDocument: document)
 		let identifier = attributeSet.relatedUniqueIdentifier
 		return CSSearchableItem(uniqueIdentifier: identifier, domainIdentifier: "io.vincode", attributeSet: attributeSet)
 	}
@@ -35,14 +35,14 @@ class DocumentIndexer {
 
 private extension DocumentIndexer {
 	
-	static func makeSearchableItemAttributes(forDocument document: Document) -> CSSearchableItemAttributeSet {
+	static func makeSearchableItemAttributes(forDocument document: Document) async -> CSSearchableItemAttributeSet {
 		let attributeSet = CSSearchableItemAttributeSet(contentType: UTType.text)
 		attributeSet.title = document.title ?? ""
 		if let keywords = document.tags?.map({ $0.name }) {
 			attributeSet.keywords = keywords
 		}
 		attributeSet.relatedUniqueIdentifier = document.id.description
-		attributeSet.textContent = document.textContent
+		attributeSet.textContent = await document.textContent
 		attributeSet.contentModificationDate = document.updated
 		return attributeSet
 	}

@@ -29,31 +29,35 @@ public final class RemoteDropRowCommand: OutlineCommand {
 	}
 	
 	public override func perform() {
-		saveCursorCoordinates()
-		
-		var newRows = [Row]()
-		for rowGroup in rowGroups {
-			let newRow = rowGroup.attach(to: outline)
-			newRows.append(newRow)
+		Task {
+			saveCursorCoordinates()
+			
+			var newRows = [Row]()
+			for rowGroup in rowGroups {
+				let newRow = rowGroup.attach(to: outline)
+				newRows.append(newRow)
+			}
+			rows = newRows
+			
+			await outline.createRows(rows, afterRow: afterRow, prefersEnd: prefersEnd)
+			registerUndo()
 		}
-		rows = newRows
-		
-		outline.createRows(rows, afterRow: afterRow, prefersEnd: prefersEnd)
-		registerUndo()
 	}
 	
 	public override func undo() {
-		var allRows = [Row]()
-		
-		func deleteVisitor(_ visited: Row) {
-			allRows.append(visited)
-			visited.rows.forEach { $0.visit(visitor: deleteVisitor) }
+		Task {
+			var allRows = [Row]()
+			
+			func deleteVisitor(_ visited: Row) {
+				allRows.append(visited)
+				visited.rows.forEach { $0.visit(visitor: deleteVisitor) }
+			}
+			rows.forEach { $0.visit(visitor: deleteVisitor(_:)) }
+			
+			await outline.deleteRows(allRows)
+			registerRedo()
+			restoreCursorPosition()
 		}
-		rows.forEach { $0.visit(visitor: deleteVisitor(_:)) }
-		
-		outline.deleteRows(allRows)
-		registerRedo()
-		restoreCursorPosition()
 	}
 	
 }

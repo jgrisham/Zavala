@@ -28,18 +28,22 @@ public final class CompleteCommand: OutlineCommand {
 	}
 	
 	override public func perform() {
-		saveCursorCoordinates()
-		let (impacted, newCursorIndex) = outline.complete(rows: rows, rowStrings: newRowStrings)
-		completedRows = impacted
-		self.newCursorIndex = newCursorIndex
-		registerUndo()
+		Task {
+			saveCursorCoordinates()
+			let (impacted, newCursorIndex) = await outline.complete(rows: rows, rowStrings: newRowStrings)
+			completedRows = impacted
+			self.newCursorIndex = newCursorIndex
+			registerUndo()
+		}
 	}
 	
 	override public func undo() {
-		guard let completedRows else { return }
-		outline.uncomplete(rows: completedRows, rowStrings: oldRowStrings)
-		registerRedo()
-		restoreCursorPosition()
+		Task {
+			guard let completedRows else { return }
+			await outline.uncomplete(rows: completedRows, rowStrings: oldRowStrings)
+			registerRedo()
+			restoreCursorPosition()
+		}
 	}
 	
 }

@@ -82,6 +82,7 @@
 		5181A93F2554D92000C153E8 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 5181A93D2554D92000C153E8 /* Main.storyboard */; };
 		5181A9412554D92100C153E8 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5181A9402554D92100C153E8 /* Assets.xcassets */; };
 		5181A9442554D92100C153E8 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 5181A9422554D92100C153E8 /* LaunchScreen.storyboard */; };
+		518413902B7AFF4700E3ED90 /* RSAppMovementMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 519965DB2624EEE500D8468B /* RSAppMovementMonitor.swift */; };
 		5188FAA92602A9CE0020B7DA /* OutlineEditor.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 5188FAA82602A9CE0020B7DA /* OutlineEditor.storyboard */; };
 		518F2E38257AEA4C00D05D99 /* ConsistentCollectionViewListCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 518F2E37257AEA4C00D05D99 /* ConsistentCollectionViewListCell.swift */; };
 		519184EE270FAFE100B7E177 /* GetImagesForOutlineIntentHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 519184ED270FAFE100B7E177 /* GetImagesForOutlineIntentHandler.swift */; };
@@ -105,7 +106,6 @@
 		5196726A2B61B1CD006A564A /* AppKitDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = 519672692B61B1CD006A564A /* AppKitDefaults.swift */; };
 		519897C42ADE13F3008A6FA4 /* ButtonGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 519897C32ADE13F3008A6FA4 /* ButtonGroup.swift */; };
 		519897C62ADE1C4A008A6FA4 /* About.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 519897C52ADE1C4A008A6FA4 /* About.storyboard */; };
-		519965DC2624EEE500D8468B /* RSAppMovementMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 519965DB2624EEE500D8468B /* RSAppMovementMonitor.swift */; };
 		519A2324260A9B900056051E /* OutlineFontField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 519A2323260A9B900056051E /* OutlineFontField.swift */; };
 		51A1EC422723246C00463A15 /* EditRowsIntentHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51A1EC412723246C00463A15 /* EditRowsIntentHandler.swift */; };
 		51A1EC4427243B3600463A15 /* GenericRowIdentifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51A1EC4327243B3600463A15 /* GenericRowIdentifier.swift */; };
@@ -1186,7 +1186,7 @@
 			files = (
 				5196726A2B61B1CD006A564A /* AppKitDefaults.swift in Sources */,
 				51E2BCBD290EFB15002BA7B2 /* AppKitImageAssets.swift in Sources */,
-				519965DC2624EEE500D8468B /* RSAppMovementMonitor.swift in Sources */,
+				518413902B7AFF4700E3ED90 /* RSAppMovementMonitor.swift in Sources */,
 				51E060EE25A4B5E600194066 /* AppKitWrapper.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

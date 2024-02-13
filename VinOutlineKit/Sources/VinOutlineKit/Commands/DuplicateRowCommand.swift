@@ -18,23 +18,27 @@ public final class DuplicateRowCommand: OutlineCommand {
 	}
 	
 	public override func perform() {
-		saveCursorCoordinates()
-		if let newRows {
-			outline.createRows(newRows, afterRow: rows.sortedByDisplayOrder().first)
-		} else {
-			newRows = outline.duplicateRows(rows)
+		Task {
+			saveCursorCoordinates()
+			if let newRows {
+				await outline.createRows(newRows, afterRow: rows.sortedByDisplayOrder().first)
+			} else {
+				newRows = outline.duplicateRows(rows)
+			}
+			registerUndo()
 		}
-		registerUndo()
 	}
 	
 	public override func undo() {
-		guard let newRows else {
-			return
-		}
+		Task {
+			guard let newRows else {
+				return
+			}
 
-		outline.deleteRows(newRows)
-		registerRedo()
-		restoreCursorPosition()
+			await outline.deleteRows(newRows)
+			registerRedo()
+			restoreCursorPosition()
+		}
 	}
 	
 }

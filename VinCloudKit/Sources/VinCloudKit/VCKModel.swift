@@ -42,7 +42,7 @@ public protocol VCKModel {
 	var isCloudKitMerging: Bool { get set }
 	
 	func apply(_ error: CKError)
-	func buildRecord() -> CKRecord
+	func buildRecord() async -> CKRecord
 	func clearSyncData()
 	
 }

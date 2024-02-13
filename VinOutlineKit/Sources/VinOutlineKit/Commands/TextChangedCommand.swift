@@ -31,15 +31,19 @@ public final class TextChangedCommand: OutlineCommand {
 	}
 	
 	public override func perform() {
-		outline.updateRow(row, rowStrings: newRowStrings, applyChanges: applyChanges)
-		applyChanges = true
-		registerUndo()
+		Task {
+			await outline.updateRow(row, rowStrings: newRowStrings, applyChanges: applyChanges)
+			applyChanges = true
+			registerUndo()
+		}
 	}
 	
 	public override func undo() {
-		outline.updateRow(row, rowStrings: oldRowStrings, applyChanges: applyChanges)
-		registerRedo()
-		restoreCursorPosition()
+		Task {
+			await outline.updateRow(row, rowStrings: oldRowStrings, applyChanges: applyChanges)
+			registerRedo()
+			restoreCursorPosition()
+		}
 	}
 	
 }

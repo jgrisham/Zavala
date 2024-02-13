@@ -90,7 +90,7 @@ class CloudKitOutlineZoneDelegate: VCKZoneDelegate {
 		
 		for update in updates.values {
 			Task { @MainActor in
-				account?.apply(update)
+				await account?.apply(update)
 			}
 		}
 		

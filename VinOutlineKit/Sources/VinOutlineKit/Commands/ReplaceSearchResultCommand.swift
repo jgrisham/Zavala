@@ -40,16 +40,18 @@ public final class ReplaceSearchResultCommand: OutlineCommand {
 	}
 	
 	public override func undo() {
-		for coordinate in coordinates {
-			coordinate.range.length = oldRangeLength ?? 0
+		Task {
+			for coordinate in coordinates {
+				coordinate.range.length = oldRangeLength ?? 0
+			}
+			
+			for (row, rowStrings) in oldRowStrings {
+				await outline.updateRow(row, rowStrings: rowStrings, applyChanges: true)
+			}
+			
+			registerRedo()
+			restoreCursorPosition()
 		}
-		
-		for (row, rowStrings) in oldRowStrings {
-			outline.updateRow(row, rowStrings: rowStrings, applyChanges: true)
-		}
-		
-		registerRedo()
-		restoreCursorPosition()
 	}
 	
 }

@@ -330,7 +330,7 @@ private extension CloudKitManager {
 		
 		logger.info("Sending \(requests.count) requests.")
 		
-		let (loadedDocuments, modifications) = loadDocumentsAndStageModifications(requests: requests)
+		let (loadedDocuments, modifications) = await loadDocumentsAndStageModifications(requests: requests)
 
 		// Send the grouped changes
 		
@@ -360,7 +360,7 @@ private extension CloudKitManager {
 					}
 				} catch {
 					if let ckError = error as? CKError, ckError.code == .userDeletedZone {
-						account?.deleteAllDocuments(with: zoneID)
+						await account?.deleteAllDocuments(with: zoneID)
 						throw VCKError.userDeletedZone
 					} else {
 						throw error
@@ -446,7 +446,7 @@ private extension CloudKitManager {
 			try await zone.fetchChangesInZone(incremental: false)
 		} catch {
 			if let ckError = error as? CKError, ckError.code == .userDeletedZone {
-				account?.deleteAllDocuments(with: zoneID)
+				await account?.deleteAllDocuments(with: zoneID)
 				throw VCKError.userDeletedZone
 			} else {
 				throw error
@@ -454,7 +454,7 @@ private extension CloudKitManager {
 		}
 	}
 	
-	func loadDocumentsAndStageModifications(requests: Set<CloudKitActionRequest>) -> ([Document], [CKRecordZone.ID: ([VCKModel], [CKRecord.ID])]) {
+	func loadDocumentsAndStageModifications(requests: Set<CloudKitActionRequest>) async -> ([Document], [CKRecordZone.ID: ([VCKModel], [CKRecord.ID])]) {
 		var loadedDocuments = [Document]()
 		var modifications = [CKRecordZone.ID: ([VCKModel], [CKRecord.ID])]()
 
@@ -504,7 +504,7 @@ private extension CloudKitManager {
 				continue
 			}
 			
-			document.load()
+			await document.load()
 			loadedDocuments.append(document)
 
 			guard let outline = document.outline, let zoneID = outline.zoneID else { continue }

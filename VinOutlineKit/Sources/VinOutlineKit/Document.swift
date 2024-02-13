@@ -33,10 +33,12 @@ public enum Document: Equatable, Hashable, Codable {
 	}
 	
 	public var account: Account? {
-		if case .outline(let outline) = self {
-			return outline.account
+		get async {
+			if case .outline(let outline) = self {
+				return await outline.account
+			}
+			return nil
 		}
-		return nil
 	}
 	
 	public var outline: Outline? {
@@ -61,16 +63,20 @@ public enum Document: Equatable, Hashable, Codable {
 	}
 	
 	public var textContent: String {
-		switch self {
-		case .outline(let outline):
-			return outline.textContent()
+		get async {
+			switch self {
+			case .outline(let outline):
+				return await outline.textContent()
+			}
 		}
 	}
 	
 	public var formattedPlainText: String {
-		switch self {
-		case .outline(let outline):
-			return outline.markdownList()
+		get async {
+			switch self {
+			case .outline(let outline):
+				return await outline.markdownList()
+			}
 		}
 	}
 	
@@ -247,10 +253,10 @@ public enum Document: Equatable, Hashable, Codable {
 		}
 	}
 
-	public func load() {
+	public func load() async {
 		switch self {
 		case .outline(let outline):
-			outline.load()
+			await outline.load()
 		}
 	}
 
@@ -289,10 +295,10 @@ public enum Document: Equatable, Hashable, Codable {
 		}
 	}
 
-	public func delete() {
+	public func delete() async {
 		switch self {
 		case .outline(let outline):
-			outline.delete()
+			await outline.delete()
 		}
 	}
 	
@@ -303,10 +309,10 @@ public enum Document: Equatable, Hashable, Codable {
 		}
 	}
 	
-	public func duplicate() -> Document {
+	public func duplicate() async -> Document {
 		switch self {
 		case .outline(let outline):
-			return Document.outline(outline.duplicate())
+			return Document.outline(await outline.duplicate())
 		}
 	}
 	

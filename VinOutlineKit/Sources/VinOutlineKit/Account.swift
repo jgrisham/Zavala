@@ -168,7 +168,7 @@ public final class Account: Identifiable, Equatable, Codable {
 		accountMetadataDidChange()
 	}
 	
-	public func importOPML(_ url: URL, tags: [Tag]?) throws -> Document {
+	public func importOPML(_ url: URL, tags: [Tag]?) async throws -> Document {
 		guard url.startAccessingSecurityScopedResource() else { throw AccountError.securityScopeError }
 		defer {
 			url.stopAccessingSecurityScopedResource()
@@ -183,11 +183,11 @@ public final class Account: Identifiable, Equatable, Codable {
 		guard fileError == nil else { throw fileError! }
 		guard let opmlData = fileData else { throw AccountError.fileReadError }
 		
-		return try importOPML(opmlData, tags: tags)
+		return try await importOPML(opmlData, tags: tags)
 	}
 
 	@discardableResult
-	public func importOPML(_ opmlData: Data, tags: [Tag]?, images: [String:  Data]? = nil) throws -> Document {
+	public func importOPML(_ opmlData: Data, tags: [Tag]?, images: [String:  Data]? = nil) async throws -> Document {
 		let opmlString = try convertOPMLAttributeNewlines(opmlData)
 		
 		guard let opmlNode = try? VinXML.XMLDocument(xml: opmlString, caseSensitive: false)?.root else {
@@ -206,7 +206,7 @@ public final class Account: Identifiable, Equatable, Codable {
 			title = VinOutlineKitStringAssets.noTitle
 		}
 		
-		let outline = Outline(parentID: id, title: title)
+		let outline = await Outline(parentID: id, title: title)
 		let document = Document.outline(outline)
 		documents?.append(document)
 		accountDocumentsDidChange()
@@ -256,7 +256,7 @@ public final class Account: Identifiable, Equatable, Codable {
 		}
 
 		if let rowNodes {
-			outline.importRows(outline: outline, rowNodes: rowNodes, images: images)
+			await outline.importRows(outline: outline, rowNodes: rowNodes, images: images)
 		}
 		
 		outline.zoneID = cloudKitManager?.outlineZone.zoneID
@@ -265,9 +265,8 @@ public final class Account: Identifiable, Equatable, Codable {
 		
 		saveToCloudKit(document)
 		
-		outline.updateAllLinkRelationships()
-		
-		fixAltLinks(excluding: outline)
+		await outline.updateAllLinkRelationships()
+		await fixAltLinks(excluding: outline)
 		
 		outline.forceSave()
 		outline.unloadRows()
@@ -283,8 +282,8 @@ public final class Account: Identifiable, Equatable, Codable {
 		}
 	}
 	
-	public func createOutline(title: String? = nil, tags: [Tag]? = nil) -> Document {
-		let outline = Outline(parentID: id, title: title)
+	public func createOutline(title: String? = nil, tags: [Tag]? = nil) async -> Document {
+		let outline = await Outline(parentID: id, title: title)
 		if documents == nil {
 			documents = [Document]()
 		}
@@ -307,16 +306,16 @@ public final class Account: Identifiable, Equatable, Codable {
 		return document
 	}
 	
-	func apply(_ update: CloudKitOutlineUpdate) {
+	func apply(_ update: CloudKitOutlineUpdate) async {
 		guard !update.isDelete else {
 			guard let document = findDocument(documentUUID: update.documentID.documentUUID) else { return }
-			deleteDocument(document, updateCloudKit: false)
+			await deleteDocument(document, updateCloudKit: false)
 			return
 		}
 		
 		if let document = findDocument(documentUUID: update.documentID.documentUUID) {
 			let outline = document.outline!
-			outline.load()
+			await outline.load()
 			outline.apply(update)
 			outline.forceSave()
 			outline.unload()
@@ -324,7 +323,7 @@ public final class Account: Identifiable, Equatable, Codable {
 			guard update.saveOutlineRecord != nil else {
 				return
 			}
-			let outline = Outline(id: update.documentID)
+			let outline = await Outline(id: update.documentID)
 			outline.zoneID = update.zoneID
 
 			outline.apply(update)
@@ -357,8 +356,8 @@ public final class Account: Identifiable, Equatable, Codable {
 		saveToCloudKit(mutableDocument)
 	}
 
-	public func deleteDocument(_ document: Document) {
-		deleteDocument(document, updateCloudKit: true)
+	public func deleteDocument(_ document: Document) async {
+		await deleteDocument(document, updateCloudKit: true)
 	}
 	
 	public func findDocumentContainer(_ entityID: EntityID) -> DocumentContainer? {
@@ -480,10 +479,10 @@ public final class Account: Identifiable, Equatable, Codable {
 		return documents?.first(where: { $0.shareRecordID == shareRecordID })
 	}
 	
-	func deleteAllDocuments(with zoneID: CKRecordZone.ID) {
+	func deleteAllDocuments(with zoneID: CKRecordZone.ID) async {
 		for doc in documents ?? [Document]() {
 			if doc.zoneID == zoneID {
-				deleteDocument(doc, updateCloudKit: false)
+				await deleteDocument(doc, updateCloudKit: false)
 			}
 		}
 	}
@@ -492,10 +491,10 @@ public final class Account: Identifiable, Equatable, Codable {
 		return idToTagsDictionary[tagID]
 	}
 
-	func fixAltLinks(excluding: Outline) {
+	func fixAltLinks(excluding: Outline) async {
 		for outline in documents?.compactMap({ $0.outline }) ?? [Outline]() {
 			if outline != excluding {
-				outline.fixAltLinks()
+				await outline.fixAltLinks()
 			}
 		}
 	}
@@ -550,7 +549,7 @@ private extension Account {
 		tagsDictionaryNeedUpdate = false
 	}
 	
-	func deleteDocument(_ document: Document, updateCloudKit: Bool) {
+	func deleteDocument(_ document: Document, updateCloudKit: Bool) async {
 		documents?.removeAll(where: { $0.id == document.id})
 		accountDocumentsDidChange()
 		
@@ -562,7 +561,7 @@ private extension Account {
 			deleteTag(tag)
 		}
 
-		document.delete()
+		await document.delete()
 	}
 	
 	func saveToCloudKit(_ document: Document) {

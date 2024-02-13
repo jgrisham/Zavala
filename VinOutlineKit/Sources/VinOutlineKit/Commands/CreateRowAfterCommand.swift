@@ -21,19 +21,23 @@ public final class CreateRowAfterCommand: OutlineCommand {
 	}
 	
 	override public func perform() {
-		saveCursorCoordinates()
-		if row == nil {
-			row = Row(outline: outline)
+		Task {
+			saveCursorCoordinates()
+			if row == nil {
+				row = Row(outline: outline)
+			}
+			newCursorIndex = await outline.createRow(row!, afterRow: afterRow, rowStrings: rowStrings)
+			registerUndo()
 		}
-		newCursorIndex = outline.createRow(row!, afterRow: afterRow, rowStrings: rowStrings)
-		registerUndo()
 	}
 	
 	override public func undo() {
-		guard let row else { return }
-		outline.deleteRows([row])
-		registerRedo()
-		restoreCursorPosition()
+		Task {
+			guard let row else { return }
+			await outline.deleteRows([row])
+			registerRedo()
+			restoreCursorPosition()
+		}
 	}
 	
 }

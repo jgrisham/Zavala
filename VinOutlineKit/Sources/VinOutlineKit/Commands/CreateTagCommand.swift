@@ -18,17 +18,21 @@ public final class CreateTagCommand: OutlineCommand {
 	}
 	
 	public override func perform() {
-		guard let tag = outline.account?.createTag(name: tagName) else { return }
-		self.tag = tag
-		outline.createTag(tag)
-		registerUndo()
+		Task {
+			guard let tag = await outline.account?.createTag(name: tagName) else { return }
+			self.tag = tag
+			outline.createTag(tag)
+			registerUndo()
+		}
 	}
 	
 	public override func undo() {
-		guard let tag else { return }
-		outline.deleteTag(tag)
-		outline.account?.deleteTag(tag)
-		registerRedo()
+		Task {
+			guard let tag else { return }
+			outline.deleteTag(tag)
+			await outline.account?.deleteTag(tag)
+			registerRedo()
+		}
 	}
 	
 }

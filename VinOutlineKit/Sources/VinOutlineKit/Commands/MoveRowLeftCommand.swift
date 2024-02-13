@@ -32,18 +32,22 @@ public final class MoveRowLeftCommand: OutlineCommand {
 	}
 	
 	public override func perform() {
-		saveCursorCoordinates()
-		moveLeftRows = outline.moveRowsLeft(rows, rowStrings: newRowStrings)
-		registerUndo()
+		Task {
+			saveCursorCoordinates()
+			moveLeftRows = await outline.moveRowsLeft(rows, rowStrings: newRowStrings)
+			registerUndo()
+		}
 	}
 	
 	public override func undo() {
-		guard let moveLeftRows else { return }
-		let movedLeft = Set(moveLeftRows)
-		let moveLeftRestore = restoreMoves.filter { movedLeft.contains($0.row) }
-		outline.moveRows(moveLeftRestore, rowStrings: oldRowStrings)
-		registerRedo()
-		restoreCursorPosition()
+		Task {
+			guard let moveLeftRows else { return }
+			let movedLeft = Set(moveLeftRows)
+			let moveLeftRestore = restoreMoves.filter { movedLeft.contains($0.row) }
+			await outline.moveRows(moveLeftRestore, rowStrings: oldRowStrings)
+			registerRedo()
+			restoreCursorPosition()
+		}
 	}
 	
 }

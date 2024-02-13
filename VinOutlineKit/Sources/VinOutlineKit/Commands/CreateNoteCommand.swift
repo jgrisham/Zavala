@@ -27,17 +27,21 @@ public final class CreateNoteCommand: OutlineCommand {
 	}
 	
 	public override func perform() {
-		saveCursorCoordinates()
-		let (impacted, newCursorIndex) = outline.createNotes(rows: rows, rowStrings: newRowStrings)
-		noteCreatedRows = impacted
-		self.newCursorIndex = newCursorIndex
-		registerUndo()
+		Task {
+			saveCursorCoordinates()
+			let (impacted, newCursorIndex) = await outline.createNotes(rows: rows, rowStrings: newRowStrings)
+			noteCreatedRows = impacted
+			self.newCursorIndex = newCursorIndex
+			registerUndo()
+		}
 	}
 	
 	public override func undo() {
-		outline.deleteNotes(rows: noteCreatedRows ?? [Row](), rowStrings: oldRowStrings)
-		registerRedo()
-		restoreCursorPosition()
+		Task {
+			await outline.deleteNotes(rows: noteCreatedRows ?? [Row](), rowStrings: oldRowStrings)
+			registerRedo()
+			restoreCursorPosition()
+		}
 	}
 	
 }

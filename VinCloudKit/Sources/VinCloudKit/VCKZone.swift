@@ -222,6 +222,11 @@ public extension VCKZone {
 			return ([], [])
 		}
 
+		var recordsToSave = [CKRecord]()
+		for modelToSave in modelsToSave {
+			recordsToSave.append(await modelToSave.buildRecord())
+		}
+
 		return try await withCheckedThrowingContinuation { continuation in
 			
 			var perRecordError: Error?
@@ -232,7 +237,6 @@ public extension VCKZone {
 			var modelsToRetry = [VCKModel]()
 			var deletesToRetry = [CKRecord.ID]()
 			
-			let recordsToSave = modelsToSave.compactMap { $0.buildRecord() }
 			let op = CKModifyRecordsOperation(recordsToSave: recordsToSave, recordIDsToDelete: recordIDsToDelete)
 			op.savePolicy = strategy.recordSavePolicy
 			op.isAtomic = true

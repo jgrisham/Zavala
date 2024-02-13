@@ -290,21 +290,6 @@ public final class Row: NSObject, NSCopying, RowContainer, Codable, Identifiable
 		get {
 			return RowStrings.both(topic, note)
 		}
-		set {
-			switch newValue {
-			case .topicMarkdown(let topicMarkdown):
-				self.topic = convertMarkdown(topicMarkdown, isInNotes: false)
-			case .noteMarkdown(let noteMarkdown):
-				self.note = convertMarkdown(noteMarkdown, isInNotes: true)
-			case .topic(let topic):
-				self.topic = topic
-			case .note(let note):
-				self.note = note
-			case .both(let topic, let note):
-				self.topic = topic
-				self.note = note
-			}
-		}
 	}
 	
 	public var searchResultCoordinates = NSHashTable<SearchResultCoordinates>.weakObjects()
@@ -384,7 +369,7 @@ public final class Row: NSObject, NSCopying, RowContainer, Codable, Identifiable
 	}
 	
 
-	public init(outline: Outline, topicMarkdown: String?, noteMarkdown: String? = nil) {
+	public init(outline: Outline, topicMarkdown: String?, noteMarkdown: String? = nil) async {
 		self.isComplete = false
 		self.id = UUID().uuidString
 		self.outline = outline
@@ -392,8 +377,8 @@ public final class Row: NSObject, NSCopying, RowContainer, Codable, Identifiable
 		self.isExpanded = true
 		self.rowOrder = OrderedSet<String>()
 		super.init()
-		self.topic = convertMarkdown(topicMarkdown, isInNotes: false)
-		self.note = convertMarkdown(noteMarkdown, isInNotes: true)
+		self.topic = await convertMarkdown(topicMarkdown, isInNotes: false)
+		self.note = await convertMarkdown(noteMarkdown, isInNotes: true)
 	}
 	
 	public init(from decoder: Decoder) throws {
@@ -465,6 +450,22 @@ public final class Row: NSObject, NSCopying, RowContainer, Codable, Identifiable
 		try container.encode(rowOrder, forKey: .rowOrder)
 	}
 	
+	public func apply(_ rowStrings: RowStrings) async {
+		switch rowStrings {
+		case .topicMarkdown(let topicMarkdown):
+			self.topic = await convertMarkdown(topicMarkdown, isInNotes: false)
+		case .noteMarkdown(let noteMarkdown):
+			self.note = await convertMarkdown(noteMarkdown, isInNotes: true)
+		case .topic(let topic):
+			self.topic = topic
+		case .note(let note):
+			self.note = note
+		case .both(let topic, let note):
+			self.topic = topic
+			self.note = note
+		}
+	}
+	
 	public func topicMarkdown(representation: DataRepresentation) -> String? {
 		return convertAttrString(topic, isInNotes: false, representation: representation)
 	}
@@ -486,14 +487,14 @@ public final class Row: NSObject, NSCopying, RowContainer, Codable, Identifiable
 		return row
 	}
 	
-	public func importRow(topicMarkdown: String?, noteMarkdown: String?, images: [String: Data]?) {
+	public func importRow(topicMarkdown: String?, noteMarkdown: String?, images: [String: Data]?) async {
 		guard let regEx = try? NSRegularExpression(pattern: Self.markdownImagePattern, options: []) else {
 			return
 		}
 		
 		var matchedImages = [Image]()
 		
-		func importMarkdown(_ markdown: String?, isInNotes: Bool) -> NSAttributedString? {
+		func importMarkdown(_ markdown: String?, isInNotes: Bool) async -> NSAttributedString? {
 			
 			#if canImport(UIKit)
 			if let markdown {
@@ -523,7 +524,7 @@ public final class Row: NSObject, NSCopying, RowContainer, Codable, Identifiable
 					}
 				}
 				
-				resolveAltLinks(attrString: attrString)
+				await resolveAltLinks(attrString: attrString)
 				
 				return attrString
 			}
@@ -532,8 +533,8 @@ public final class Row: NSObject, NSCopying, RowContainer, Codable, Identifiable
 			return nil
 		}
 		
-		self.topic = importMarkdown(topicMarkdown, isInNotes: false)
-		self.note = importMarkdown(noteMarkdown, isInNotes: true)
+		self.topic = await importMarkdown(topicMarkdown, isInNotes: false)
+		self.note = await importMarkdown(noteMarkdown, isInNotes: true)
 		
 		detectData()
 		
@@ -658,18 +659,18 @@ public final class Row: NSObject, NSCopying, RowContainer, Codable, Identifiable
 		return visitor.markdown
 	}
 	
-	public func resolveAltLinks() -> AltLinkResolvingActions {
+	public func resolveAltLinks() async -> AltLinkResolvingActions {
 		var actionsTaken = AltLinkResolvingActions()
 		
 		if let topic {
 			let mutableTopic = NSMutableAttributedString(attributedString: topic)
-			actionsTaken.formUnion(resolveAltLinks(attrString: mutableTopic))
+			await actionsTaken.formUnion(resolveAltLinks(attrString: mutableTopic))
 			self.topic = mutableTopic
 		}
 		
 		if let note {
 			let mutableNote = NSMutableAttributedString(attributedString: note)
-			actionsTaken.formUnion(resolveAltLinks(attrString: mutableNote))
+			await actionsTaken.formUnion(resolveAltLinks(attrString: mutableNote))
 			self.note = mutableNote
 		}
 		
@@ -784,6 +785,7 @@ private extension Row {
 
 		let result = NSMutableAttributedString(attributedString: attrString)
 		
+		// Rather than fix this code to work with Swift 6, it should be removed. We shouldn't be changing the URL. I would prefer that it points back at Zavala.
 		result.enumerateAttribute(.link, in: .init(location: 0, length: result.length), options: []) { (value, range, _) in
 			guard let url = value as? URL,
 				  let entityID = EntityID(url: url),
@@ -805,7 +807,7 @@ private extension Row {
 		return result.markdownRepresentation
 	}
 	
-	func convertMarkdown(_ markdown: String?, isInNotes: Bool) -> NSAttributedString? {
+	func convertMarkdown(_ markdown: String?, isInNotes: Bool) async -> NSAttributedString? {
 		guard let markdown, let regEx = try? NSRegularExpression(pattern: Self.markdownImagePattern, options: []) else {
 			return nil
 		}
@@ -837,7 +839,7 @@ private extension Row {
 			}
 		}
 		
-		resolveAltLinks(attrString: result)
+		await resolveAltLinks(attrString: result)
 
 		return result
 		#else
@@ -861,23 +863,36 @@ private extension Row {
 	}
 	
 	@discardableResult
-	func resolveAltLinks(attrString: NSMutableAttributedString) -> AltLinkResolvingActions {
-		var actionsTaken = AltLinkResolvingActions()
-		
-		attrString.enumerateAttribute(.link, in: .init(location: 0, length: attrString.length), options: []) { (value, range, _) in
-			guard let url = value as? URL, url.scheme == nil else { return }
-
-			if let documentURL = outline?.account?.findDocument(filename: url.path)?.id.url {
-				attrString.removeAttribute(.link, range: range)
-				attrString.addAttribute(.link, value: documentURL, range: range)
-				actionsTaken.insert(.fixedAltLink)
-			} else {
-				outline?.hasAltLinks = true
-				actionsTaken.insert(.foundAltLink)
+	func resolveAltLinks(attrString: NSMutableAttributedString) async -> AltLinkResolvingActions {
+		return await withTaskGroup(of: (URL, NSRange)?.self, returning: AltLinkResolvingActions.self) { taskGroup in
+			attrString.enumerateAttribute(.link, in: .init(location: 0, length: attrString.length), options: []) { [weak self] (value, range, _) in
+				guard let url = value as? URL, url.scheme == nil, let outline = self?.outline else { return }
+				
+				taskGroup.addTask {
+					if let documentURL = await outline.account?.findDocument(filename: url.path)?.id.url {
+						return (documentURL, range)
+					} else {
+						return nil
+					}
+				}
 			}
+			
+			var actionsTaken = AltLinkResolvingActions()
+
+			for await result in taskGroup {
+				if let result {
+					attrString.removeAttribute(.link, range: result.1)
+					attrString.addAttribute(.link, value: result.0, range: result.1)
+					actionsTaken.insert(.fixedAltLink)
+				} else {
+					outline?.hasAltLinks = true
+					actionsTaken.insert(.foundAltLink)
+				}
+				
+			}
+			
+			return actionsTaken
 		}
-		
-		return actionsTaken
 	}
 	
 }

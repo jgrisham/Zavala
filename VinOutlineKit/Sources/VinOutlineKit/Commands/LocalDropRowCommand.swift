@@ -28,15 +28,19 @@ public final class LocalDropRowCommand: OutlineCommand {
 	}
 	
 	public override func perform() {
-		saveCursorCoordinates()
-		outline.moveRows(rowMoves, rowStrings: nil)
-		registerUndo()
+		Task {
+			saveCursorCoordinates()
+			await outline.moveRows(rowMoves, rowStrings: nil)
+			registerUndo()
+		}
 	}
 	
 	public override func undo() {
-		outline.moveRows(restoreMoves, rowStrings: nil)
-		registerRedo()
-		restoreCursorPosition()
+		Task {
+			await outline.moveRows(restoreMoves, rowStrings: nil)
+			registerRedo()
+			restoreCursorPosition()
+		}
 	}
 	
 }

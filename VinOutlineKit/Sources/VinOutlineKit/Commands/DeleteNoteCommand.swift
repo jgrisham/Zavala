@@ -26,17 +26,21 @@ public final class DeleteNoteCommand: OutlineCommand {
 	}
 	
 	public override func perform() {
-		saveCursorCoordinates()
-		let (impacted, newCursorIndex) = outline.deleteNotes(rows: rows, rowStrings: newRowStrings)
-		deletedRowNotes = impacted
-		self.newCursorIndex = newCursorIndex
-		registerUndo()
+		Task {
+			saveCursorCoordinates()
+			let (impacted, newCursorIndex) = await outline.deleteNotes(rows: rows, rowStrings: newRowStrings)
+			deletedRowNotes = impacted
+			self.newCursorIndex = newCursorIndex
+			registerUndo()
+		}
 	}
 	
 	public override func undo() {
-		outline.restoreNotes(deletedRowNotes ?? [Row: NSAttributedString]())
-		registerRedo()
-		restoreCursorPosition()
+		Task {
+			outline.restoreNotes(deletedRowNotes ?? [Row: NSAttributedString]())
+			registerRedo()
+			restoreCursorPosition()
+		}
 	}
 	
 }

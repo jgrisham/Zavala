@@ -23,8 +23,8 @@ class IndexRequestHandler: CSIndexExtensionRequestHandler {
 			await withTaskGroup(of: Void.self) { taskGroup in
 				for document in await AccountManager.shared.documents {
 					autoreleasepool {
-						let searchableItem = DocumentIndexer.makeSearchableItem(forDocument: document)
 						taskGroup.addTask {
+							let searchableItem = await DocumentIndexer.makeSearchableItem(forDocument: document)
 							await withCheckedContinuation { continuation in
 								searchableIndex.indexSearchableItems([searchableItem]) { _ in
 									continuation.resume()
@@ -51,8 +51,8 @@ class IndexRequestHandler: CSIndexExtensionRequestHandler {
 				for description in identifiers {
 					if let entityID = EntityID(description: description), let document = await AccountManager.shared.findDocument(entityID) {
 						autoreleasepool {
-							let searchableItem = DocumentIndexer.makeSearchableItem(forDocument: document)
 							taskGroup.addTask {
+								let searchableItem = await DocumentIndexer.makeSearchableItem(forDocument: document)
 								await withCheckedContinuation { continuation in
 									searchableIndex.indexSearchableItems([searchableItem]) { _ in
 										continuation.resume()

@@ -64,12 +64,14 @@ extension Outline: VCKModel {
 	}
 	
 	func requestCloudKitUpdate(for entityID: EntityID) {
-		guard let cloudKitManager = account?.cloudKitManager else { return }
-		if batchCloudKitRequests > 0 {
-			cloudKitRequestsIDs.insert(entityID)
-		} else {
-			guard let zoneID else { return }
-			cloudKitManager.addRequest(CloudKitActionRequest(zoneID: zoneID, id: entityID))
+		Task {
+			guard let cloudKitManager = await account?.cloudKitManager else { return }
+			if batchCloudKitRequests > 0 {
+				cloudKitRequestsIDs.insert(entityID)
+			} else {
+				guard let zoneID else { return }
+				cloudKitManager.addRequest(CloudKitActionRequest(zoneID: zoneID, id: entityID))
+			}
 		}
 	}
 
@@ -80,13 +82,15 @@ extension Outline: VCKModel {
 	}
 
 	func endCloudKitBatchRequest() {
-		batchCloudKitRequests = batchCloudKitRequests - 1
-		guard batchCloudKitRequests == 0, let cloudKitManager = account?.cloudKitManager, let zoneID else { return }
+		Task {
+			batchCloudKitRequests = batchCloudKitRequests - 1
+			guard batchCloudKitRequests == 0, let cloudKitManager = await account?.cloudKitManager, let zoneID else { return }
 
-		let requests = cloudKitRequestsIDs.map { CloudKitActionRequest(zoneID: zoneID, id: $0) }
-		cloudKitManager.addRequests(Set(requests))
-		
-		cloudKitRequestsIDs = Set<EntityID>()
+			let requests = cloudKitRequestsIDs.map { CloudKitActionRequest(zoneID: zoneID, id: $0) }
+			cloudKitManager.addRequests(Set(requests))
+			
+			cloudKitRequestsIDs = Set<EntityID>()
+		}
 	}
 
 	func apply(_ update: CloudKitOutlineUpdate) {
@@ -278,7 +282,7 @@ extension Outline: VCKModel {
 		isCloudKitMerging = true
 	}
     
-    public func buildRecord() -> CKRecord {
+    public func buildRecord() async -> CKRecord {
         let record: CKRecord = {
             if let syncMetaData = cloudKitMetaData, let record = CKRecord(syncMetaData) {
                 return record
@@ -321,7 +325,12 @@ extension Outline: VCKModel {
         record[Outline.CloudKitRecord.Fields.rowOrder] = Array(recordRowOrder)
 
         if let recordTagIDs = merge(client: tagIDs, ancestor: ancestorTagIDs, server: serverTagIDs) {
-            let recordTags = recordTagIDs.compactMap{ account!.findTag(tagID: $0) }
+            var recordTags = [Tag]()
+			for recordTagID in recordTagIDs {
+				if let tag = await account!.findTag(tagID: recordTagID) {
+					recordTags.append(tag)
+				}
+			}
             record[Outline.CloudKitRecord.Fields.tagNames] = recordTags.map { $0.name }
         }
 
