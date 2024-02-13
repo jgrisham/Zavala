@@ -90,7 +90,7 @@ class CollectionsViewController: UICollectionViewController, MainControllerIdent
 			collectionView.refreshControl!.tintColor = .clear
 		}
         
-		NotificationCenter.default.addObserver(self, selector: #selector(accountManagerAccountsDidChange(_:)), name: .AccountManagerAccountsDidChange, object: nil)
+		NotificationCenter.default.addObserver(self, selector: #selector(activeAccountsDidChange(_:)), name: .ActiveAccountsDidChange, object: nil)
 		NotificationCenter.default.addObserver(self, selector: #selector(accountDidReload(_:)), name: .AccountDidReload, object: nil)
 		NotificationCenter.default.addObserver(self, selector: #selector(accountMetadataDidChange(_:)), name: .AccountMetadataDidChange, object: nil)
 		NotificationCenter.default.addObserver(self, selector: #selector(accountTagsDidChange(_:)), name: .AccountTagsDidChange, object: nil)
@@ -137,7 +137,7 @@ class CollectionsViewController: UICollectionViewController, MainControllerIdent
 	
 	// MARK: Notifications
 	
-	@objc func accountManagerAccountsDidChange(_ note: Notification) {
+	@objc func activeAccountsDidChange(_ note: Notification) {
 		debounceApplyChangeSnapshot()
 	}
 

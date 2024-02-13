@@ -52,27 +52,23 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 		
 		#endif
 
-		mainSplitViewController.startUp()
+		Task {
+			await mainSplitViewController.startUp()
 
-		if let userActivity = connectionOptions.userActivities.first ?? session.stateRestorationActivity {
-			Task {
+			if let userActivity = connectionOptions.userActivities.first ?? session.stateRestorationActivity {
 				await mainSplitViewController.handle(userActivity, isNavigationBranch: true)
+				return
 			}
-			return
-		}
-		
-		if let url = connectionOptions.urlContexts.first?.url, let documentID = EntityID(url: url) {
-			Task {
+			
+			if let url = connectionOptions.urlContexts.first?.url, let documentID = EntityID(url: url) {
 				await mainSplitViewController.handleDocument(documentID, isNavigationBranch: true)
+				return
 			}
-			return
-		}
-		
-		if let userInfo = AppDefaults.shared.lastMainWindowState {
-			Task {
+			
+			if let userInfo = AppDefaults.shared.lastMainWindowState {
 				await mainSplitViewController.handle(userInfo, isNavigationBranch: true)
+				AppDefaults.shared.lastMainWindowState = nil
 			}
-			AppDefaults.shared.lastMainWindowState = nil
 		}
 	}
 	

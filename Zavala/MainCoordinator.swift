@@ -300,45 +300,47 @@ extension MainCoordinator {
 	}
 	
 	func showGetInfo(outline: Outline) {
-		let getInfoView = GetInfoView(outline: outline)
-		let hostingController = UIHostingController(rootView: getInfoView)
-		hostingController.modalPresentationStyle = .formSheet
+		Task { @MainActor in
+			let getInfoView = await GetInfoView(outline: outline)
+			let hostingController = UIHostingController(rootView: getInfoView)
+			hostingController.modalPresentationStyle = .formSheet
 
-		if traitCollection.userInterfaceIdiom == .mac {
-			hostingController.preferredContentSize = CGSize(width: 350, height: 520)
-		} else {
-			hostingController.preferredContentSize = CGSize(width: 425, height: 660)
+			if traitCollection.userInterfaceIdiom == .mac {
+				hostingController.preferredContentSize = CGSize(width: 350, height: 520)
+			} else {
+				hostingController.preferredContentSize = CGSize(width: 425, height: 660)
+			}
+
+			present(hostingController, animated: true)
 		}
-
-		present(hostingController, animated: true)
 	}
 	
-	func exportPDFDocs() {
-		exportPDFDocsForOutlines(selectedOutlines)
+	func exportPDFDocs() async {
+		await exportPDFDocsForOutlines(selectedOutlines)
 	}
 	
-	func exportPDFLists() {
-		exportPDFListsForOutlines(selectedOutlines)
+	func exportPDFLists() async {
+		await exportPDFListsForOutlines(selectedOutlines)
 	}
 	
-	func exportMarkdownDocs() {
+	func exportMarkdownDocs() async {
 		exportMarkdownDocsForOutlines(selectedOutlines)
 	}
 	
-	func exportMarkdownLists() {
+	func exportMarkdownLists() async {
 		exportMarkdownListsForOutlines(selectedOutlines)
 	}
 	
-	func exportOPMLs() {
+	func exportOPMLs() async {
 		exportOPMLsForOutlines(selectedOutlines)
 	}
 	
-	func exportPDFDocsForOutlines(_ outlines: [Outline]) {
+	func exportPDFDocsForOutlines(_ outlines: [Outline]) async {
         let pdfs = outlines.map { (outline: $0, attrString: $0.printDoc()) }
 		exportPDFsForOutline(pdfs)
 	}
 	
-	func exportPDFListsForOutlines(_ outlines: [Outline]) {
+	func exportPDFListsForOutlines(_ outlines: [Outline]) async {
         let pdfs = outlines.map { (outline: $0, attrString: $0.printList()) }
 		exportPDFsForOutline(pdfs)
 	}

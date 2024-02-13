@@ -319,7 +319,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 		
 		NotificationCenter.default.addObserver(self, selector: #selector(pinWasVisited), name: .PinWasVisited, object: nil)
 		NotificationCenter.default.addObserver(self, selector: #selector(accountDocumentsDidChange), name: .AccountDocumentsDidChange, object: nil)
-		NotificationCenter.default.addObserver(self, selector: #selector(accountManagerAccountsDidChange), name: .AccountManagerAccountsDidChange, object: nil)
+		NotificationCenter.default.addObserver(self, selector: #selector(activeAccountsDidChange), name: .AccountManagerAccountsDidChange, object: nil)
 		NotificationCenter.default.addObserver(self, selector: #selector(accountMetadataDidChange), name: .AccountMetadataDidChange, object: nil)
 		NotificationCenter.default.addObserver(self, selector: #selector(documentTitleDidChange), name: .DocumentTitleDidChange, object: nil)
 
@@ -355,48 +355,48 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 		}
 	}
 	
-	func application(_ application: UIApplication, handlerFor intent: INIntent) -> Any? {
-		switch intent {
-		case is AddOutlineIntent:
-			return AddOutlineIntentHandler()
-		case is AddOutlineTagIntent:
-			return AddOutlineTagIntentHandler()
-		case is AddRowsIntent:
-			return AddRowsIntentHandler()
-		case is CopyRowsIntent:
-			return CopyRowsIntentHandler()
-		case is EditOutlineIntent:
-			return EditOutlineIntentHandler()
-		case is EditRowsIntent:
-			return EditRowsIntentHandler()
-		case is ExportIntent:
-			return ExportIntentHandler()
-		case is GetCurrentOutlineIntent:
-			return GetCurrentOutlineIntentHandler(mainCoordinator: mainCoordinator)
-		case is GetCurrentTagsIntent:
-			return GetCurrentTagsIntentHandler(mainCoordinator: mainCoordinator)
-		case is GetImagesForOutlineIntent:
-			return GetImagesForOutlineIntentHandler()
-		case is GetOutlinesIntent:
-			return GetOutlinesIntentHandler()
-		case is GetRowsIntent:
-			return GetRowsIntentHandler()
-		case is ImportIntent:
-			return ImportIntentHandler()
-		case is MoveRowsIntent:
-			return MoveRowsIntentHandler()
-		case is RemoveOutlineIntent:
-			return RemoveOutlineIntentHandler()
-		case is RemoveOutlineTagIntent:
-			return RemoveOutlineTagIntentHandler()
-		case is RemoveRowsIntent:
-			return RemoveRowsIntentHandler()
-		case is ShowOutlineIntent:
-			return ShowOutlineIntentHandler(mainCoordinator: mainCoordinator)
-		default:
-			fatalError("Unhandled intent type: \(intent)")
-		}
-	}
+//	func application(_ application: UIApplication, handlerFor intent: INIntent) -> Any? {
+//		switch intent {
+//		case is AddOutlineIntent:
+//			return AddOutlineIntentHandler()
+//		case is AddOutlineTagIntent:
+//			return AddOutlineTagIntentHandler()
+//		case is AddRowsIntent:
+//			return AddRowsIntentHandler()
+//		case is CopyRowsIntent:
+//			return CopyRowsIntentHandler()
+//		case is EditOutlineIntent:
+//			return EditOutlineIntentHandler()
+//		case is EditRowsIntent:
+//			return EditRowsIntentHandler()
+//		case is ExportIntent:
+//			return ExportIntentHandler()
+//		case is GetCurrentOutlineIntent:
+//			return GetCurrentOutlineIntentHandler(mainCoordinator: mainCoordinator)
+//		case is GetCurrentTagsIntent:
+//			return GetCurrentTagsIntentHandler(mainCoordinator: mainCoordinator)
+//		case is GetImagesForOutlineIntent:
+//			return GetImagesForOutlineIntentHandler()
+//		case is GetOutlinesIntent:
+//			return GetOutlinesIntentHandler()
+//		case is GetRowsIntent:
+//			return GetRowsIntentHandler()
+//		case is ImportIntent:
+//			return ImportIntentHandler()
+//		case is MoveRowsIntent:
+//			return MoveRowsIntentHandler()
+//		case is RemoveOutlineIntent:
+//			return RemoveOutlineIntentHandler()
+//		case is RemoveOutlineTagIntent:
+//			return RemoveOutlineTagIntentHandler()
+//		case is RemoveRowsIntent:
+//			return RemoveRowsIntentHandler()
+//		case is ShowOutlineIntent:
+//			return ShowOutlineIntentHandler(mainCoordinator: mainCoordinator)
+//		default:
+//			fatalError("Unhandled intent type: \(intent)")
+//		}
+//	}
 	
 	// MARK: UISceneSession Lifecycle
 

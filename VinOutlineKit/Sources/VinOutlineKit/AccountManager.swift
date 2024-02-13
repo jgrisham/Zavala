@@ -8,10 +8,6 @@
 import Foundation
 import OSLog
 
-public extension Notification.Name {
-	static let AccountManagerAccountsDidChange = Notification.Name(rawValue: "AccountManagerAccountsDidChange")
-}
-
 public actor AccountManager {
 	
 	public static var shared: AccountManager!
@@ -156,7 +152,8 @@ public actor AccountManager {
 		let cloudKitAccount = Account(accountType: .cloudKit)
 		accountsDictionary[AccountType.cloudKit.rawValue] = cloudKitAccount
 		initializeFile(accountType: .cloudKit)
-		accountManagerAccountsDidChange()
+		
+		activeAccountsDidChange()
 
 		cloudKitAccount.initializeCloudKit(firstTime: true, errorHandler: errorHandler)
 	}
@@ -172,7 +169,7 @@ public actor AccountManager {
 
 		try? FileManager.default.removeItem(atPath: cloudKitAccountFolder.path)
 
-		accountManagerAccountsDidChange()
+		activeAccountsDidChange()
 
 		cloudKitAccount.cloudKitManager?.accountDidDelete(account: cloudKitAccount)
 	}
@@ -256,8 +253,8 @@ public actor AccountManager {
 
 private extension AccountManager {
 	
-	func accountManagerAccountsDidChange() {
-		NotificationCenter.default.post(name: .AccountManagerAccountsDidChange, object: self, userInfo: nil)
+	func activeAccountsDidChange() {
+		NotificationCenter.default.post(name: .ActiveAccountsDidChange, object: self, userInfo: nil)
 	}
 
 	func sort(_ accounts: [Account]) -> [Account] {

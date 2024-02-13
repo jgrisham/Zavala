@@ -19,6 +19,7 @@ public extension Notification.Name {
 	static let AccountMetadataDidChange = Notification.Name(rawValue: "AccountMetadataDidChange")
 	static let AccountDocumentsDidChange = Notification.Name(rawValue: "AccountDocumentsDidChange")
 	static let AccountTagsDidChange = Notification.Name(rawValue: "AccountTagsDidChange")
+	static let ActiveAccountsDidChange = Notification.Name(rawValue: "ActiveAccountsDidChange")
 }
 
 public enum AccountError: LocalizedError {
@@ -152,12 +153,14 @@ public final class Account: Identifiable, Equatable, Codable {
 		guard isActive == false else { return }
 		isActive = true
 		accountMetadataDidChange()
+		activeAccountsDidChange()
 	}
 	
 	public func deactivate() {
 		guard isActive == true else { return }
 		isActive = false
 		accountMetadataDidChange()
+		activeAccountsDidChange()
 	}
 	
 	func store(changeToken: Data?, key: VCKChangeTokenKey) {
@@ -525,6 +528,10 @@ private extension Account {
 	func accountTagsDidChange() {
 		tagsDictionaryNeedUpdate = true
 		NotificationCenter.default.post(name: .AccountTagsDidChange, object: self, userInfo: nil)
+	}
+
+	func activeAccountsDidChange() {
+		NotificationCenter.default.post(name: .ActiveAccountsDidChange, object: self, userInfo: nil)
 	}
 	
 	func rebuildDocumentsDictionary() {

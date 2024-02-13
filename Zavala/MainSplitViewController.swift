@@ -123,30 +123,29 @@ class MainSplitViewController: UISplitViewController, MainCoordinator {
 	// MARK: Notifications
 	
 	@objc func accountDocumentsDidChange(_ note: Notification) {
-		cleanUpNavigationStacks()
+		Task {
+			await cleanUpNavigationStacks()
+		}
 	}
 
-	@objc func accountManagerAccountsDidChange(_ note: Notification) {
-		cleanUpNavigationStacks()
-	}
-
-	@objc func accountMetadataDidChange(_ note: Notification) {
-		cleanUpNavigationStacks()
+	@objc func activeAccountsDidChange(_ note: Notification) {
+		Task {
+			await cleanUpNavigationStacks()
+		}
 	}
 
 	// MARK: API
 	
-	func startUp() {
+	func startUp() async {
 		collectionsViewController?.navigationController?.delegate = self
 		collectionsViewController?.delegate = self
 		documentsViewController?.navigationController?.delegate = self
 		documentsViewController?.delegate = self
-		collectionsViewController?.startUp()
+		await collectionsViewController?.startUp()
 		editorViewController?.delegate = self
 		
 		NotificationCenter.default.addObserver(self, selector: #selector(accountDocumentsDidChange(_:)), name: .AccountDocumentsDidChange, object: nil)
-		NotificationCenter.default.addObserver(self, selector: #selector(accountManagerAccountsDidChange(_:)), name: .AccountManagerAccountsDidChange, object: nil)
-		NotificationCenter.default.addObserver(self, selector: #selector(accountMetadataDidChange(_:)), name: .AccountMetadataDidChange, object: nil)
+		NotificationCenter.default.addObserver(self, selector: #selector(activeAccountsDidChange(_:)), name: .ActiveAccountsDidChange, object: nil)
 	}
 	
 	func handle(_ activity: NSUserActivity, isNavigationBranch: Bool) async {
@@ -168,7 +167,7 @@ class MainSplitViewController: UISplitViewController, MainCoordinator {
 			goForwardStack = goForwardStackUserInfos.compactMap { Pin(userInfo: $0) }
 		}
 
-		cleanUpNavigationStacks()
+		await cleanUpNavigationStacks()
 		
 		if let collectionsWidth = userInfo[UserInfoKeys.collectionsWidth] as? CGFloat {
 			preferredPrimaryColumnWidth = collectionsWidth
@@ -180,14 +179,15 @@ class MainSplitViewController: UISplitViewController, MainCoordinator {
 
 		let pin = Pin(userInfo: userInfo[Pin.UserInfoKeys.pin])
 		
-		guard let documentContainers = pin.containers, !documentContainers.isEmpty else {
+		let documentContainers = await pin.containers
+		guard documentContainers.isEmpty else {
 			return
 		}
 		
 		await collectionsViewController?.selectDocumentContainers(documentContainers, isNavigationBranch: isNavigationBranch, animated: false)
 		lastMainControllerToAppear = .documents
 
-		guard let document = pin.document else {
+		guard let document = await pin.document else {
 			return
 		}
 		
@@ -195,7 +195,7 @@ class MainSplitViewController: UISplitViewController, MainCoordinator {
 	}
 	
 	func handleDocument(_ documentID: EntityID, isNavigationBranch: Bool) async {
-		guard let account = AccountManager.shared.findAccount(accountID: documentID.accountID),
+		guard let account = await AccountManager.shared.findAccount(accountID: documentID.accountID),
 			  let document = account.findDocument(documentID) else { return }
 		
 		if let collectionsTags = selectedTags, document.hasAnyTag(collectionsTags) {
@@ -210,9 +210,9 @@ class MainSplitViewController: UISplitViewController, MainCoordinator {
 	}
 	
 	func handlePin(_ pin: Pin) async {
-		guard let documentContainers = pin.containers else { return }
+		let documentContainers = await pin.containers
 		await collectionsViewController?.selectDocumentContainers(documentContainers, isNavigationBranch: true, animated: false)
-		documentsViewController?.selectDocument(pin.document, isNavigationBranch: true, animated: false)
+		await documentsViewController?.selectDocument(pin.document, isNavigationBranch: true, animated: false)
 	}
 	
 	func importOPMLs(urls: [URL]) {
@@ -487,58 +487,60 @@ extension MainSplitViewController: DocumentsDelegate {
 									isNavigationBranch: Bool,
 									animated: Bool) {
 		
-		// Don't overlay the Document Container title if we are just switching Document Containers
-		if !documents.isEmpty {
-			view.window?.windowScene?.title = documents.title
-		}
-		
-		guard documents.count == 1, let document = documents.first else {
-			activityManager.invalidateSelectDocument()
-			editorViewController?.edit(nil, isNew: isNew)
-			if documents.isEmpty {
-				editorViewController?.showMessage(.noSelectionLabel)
-			} else {
-				editorViewController?.showMessage(.multipleSelectionsLabel)
+		Task {
+			// Don't overlay the Document Container title if we are just switching Document Containers
+			if !documents.isEmpty {
+				view.window?.windowScene?.title = documents.title
 			}
-			return
-		}
-		
-		// This prevents the same document from entering the backward stack more than once in a row.
-		// If the first item on the backward stack equals the new document and there is nothing stored
-		// in the last pin, we know they clicked on a document twice without one between.
-		if let first = goBackwardStack.first, first.document == document && lastPin == nil{
-			goBackwardStack.removeFirst()
-		}
-		
-		if isNavigationBranch, let lastPin, lastPin.document != document {
-			goBackwardStack.insert(lastPin, at: 0)
-			goBackwardStack = Array(goBackwardStack.prefix(10))
-			self.lastPin = nil
-			goForwardStack.removeAll()
-		}
-
-		activityManager.selectingDocument(documentContainers, document)
-		
-		if animated {
-			show(.secondary)
-		} else {
-			UIView.performWithoutAnimation {
-				self.show(.secondary)
-			}
-		}
-
-		lastPin = Pin(containers: documentContainers, document: document)
-		
-        if let search = documentContainers.first as? Search {
-			if search.searchText.isEmpty {
+			
+			guard documents.count == 1, let document = documents.first else {
+				activityManager.invalidateSelectDocument()
 				editorViewController?.edit(nil, isNew: isNew)
+				if documents.isEmpty {
+					editorViewController?.showMessage(.noSelectionLabel)
+				} else {
+					editorViewController?.showMessage(.multipleSelectionsLabel)
+				}
+				return
+			}
+			
+			// This prevents the same document from entering the backward stack more than once in a row.
+			// If the first item on the backward stack equals the new document and there is nothing stored
+			// in the last pin, we know they clicked on a document twice without one between.
+			if let first = goBackwardStack.first, await first.document == document && lastPin == nil{
+				goBackwardStack.removeFirst()
+			}
+			
+			if isNavigationBranch, let lastPin, await lastPin.document != document {
+				goBackwardStack.insert(lastPin, at: 0)
+				goBackwardStack = Array(goBackwardStack.prefix(10))
+				self.lastPin = nil
+				goForwardStack.removeAll()
+			}
+			
+			activityManager.selectingDocument(documentContainers, document)
+			
+			if animated {
+				show(.secondary)
 			} else {
-				editorViewController?.edit(document.outline, isNew: isNew, searchText: search.searchText)
+				UIView.performWithoutAnimation {
+					self.show(.secondary)
+				}
+			}
+			
+			lastPin = Pin(containers: documentContainers, document: document)
+			
+			if let search = documentContainers.first as? Search {
+				if search.searchText.isEmpty {
+					editorViewController?.edit(nil, isNew: isNew)
+				} else {
+					editorViewController?.edit(document.outline, isNew: isNew, searchText: search.searchText)
+					pinWasVisited(Pin(containers: documentContainers, document: document))
+				}
+			} else {
+				editorViewController?.edit(document.outline, isNew: isNew)
 				pinWasVisited(Pin(containers: documentContainers, document: document))
 			}
-		} else {
-			editorViewController?.edit(document.outline, isNew: isNew)
-			pinWasVisited(Pin(containers: documentContainers, document: document))
 		}
 	}
 
@@ -772,7 +774,8 @@ private extension MainSplitViewController {
 	func selectDefaultDocumentContainer() async {
 		let accountID = AppDefaults.shared.lastSelectedAccountID
 		
-		guard let account = AccountManager.shared.findAccount(accountID: accountID) ?? AccountManager.shared.activeAccounts.first else {
+		let firstActiveAccount = await AccountManager.shared.activeAccounts.first
+		guard let account = await AccountManager.shared.findAccount(accountID: accountID) ?? firstActiveAccount else {
 			return
 		}
 		
@@ -781,8 +784,8 @@ private extension MainSplitViewController {
 		await collectionsViewController?.selectDocumentContainers([documentContainer], isNavigationBranch: true, animated: true)
 	}
 	
-	func cleanUpNavigationStacks() {
-		let allDocumentIDs = AccountManager.shared.activeDocuments.map { $0.id }
+	func cleanUpNavigationStacks() async {
+		let allDocumentIDs = await AccountManager.shared.activeDocuments.map { $0.id }
 		
 		var replacementGoBackwardStack = [Pin]()
 		for pin in goBackwardStack {
@@ -830,7 +833,7 @@ private extension MainSplitViewController {
 		
 		Task {
 			await collectionsViewController?.selectDocumentContainers(pin.containers, isNavigationBranch: false, animated: false)
-			documentsViewController?.selectDocument(pin.document, isNavigationBranch: false, animated: false)
+			await documentsViewController?.selectDocument(pin.document, isNavigationBranch: false, animated: false)
 		}
 	}
 	
@@ -850,7 +853,7 @@ private extension MainSplitViewController {
 		
 		Task {
 			await collectionsViewController?.selectDocumentContainers(pin.containers, isNavigationBranch: false, animated: false)
-			documentsViewController?.selectDocument(pin.document, isNavigationBranch: false, animated: false)
+			await documentsViewController?.selectDocument(pin.document, isNavigationBranch: false, animated: false)
 		}
 	}
 	
