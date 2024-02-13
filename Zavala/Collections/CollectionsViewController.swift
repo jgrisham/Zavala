@@ -175,8 +175,8 @@ class CollectionsViewController: UICollectionViewController, MainControllerIdent
 	// MARK: Actions
 	
 	@objc func sync() {
-		if AccountManager.shared.isSyncAvailable {
-			Task {
+		Task {
+			if await AccountManager.shared.isSyncAvailable {
 				await AccountManager.shared.sync()
 			}
 		}
@@ -278,9 +278,9 @@ extension CollectionsViewController {
     private func updateSelections() {
         guard let selectedIndexes = collectionView.indexPathsForSelectedItems else { return }
         let items = selectedIndexes.compactMap { dataSource.itemIdentifier(for: $0) }
-		let containers = items.toContainers()
         
 		Task {
+			let containers = await items.toContainers()
 			await delegate?.documentContainerSelectionsDidChange(self, documentContainers: containers, isNavigationBranch: true, animated: true)
 		}
     }
@@ -458,7 +458,7 @@ extension CollectionsViewController {
 			collectionView.deselectAll()
 		}
 		
-		let containers = items.toContainers()
+		let containers = await items.toContainers()
 		await delegate?.documentContainerSelectionsDidChange(self, documentContainers: containers, isNavigationBranch: isNavigationBranch, animated: animated)
 	}
 	

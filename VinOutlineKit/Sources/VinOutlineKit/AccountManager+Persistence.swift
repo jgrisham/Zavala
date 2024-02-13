@@ -22,6 +22,11 @@ public extension AccountManager {
 		let initialLoad = accountsDictionary[accountType.rawValue] == nil
 		accountsDictionary[accountType.rawValue] = account
 		
+		for document in account.documents ?? [] {
+			var mutableDocument = document
+			mutableDocument.account = account
+		}
+		
 		if !initialLoad {
 			account.accountDidReload()
 		}

@@ -81,13 +81,16 @@ final class CollectionsItem: NSObject, NSCopying, Identifiable {
 
 extension Array where Element == CollectionsItem {
 	
-	func toContainers() -> [DocumentContainer] {
-		return self.compactMap { item in
-			if case .documentContainer(let entityID) = item.id {
-				return AccountManager.shared.findDocumentContainer(entityID)
+	func toContainers() async -> [DocumentContainer] {
+		var containers = [DocumentContainer]()
+		
+		for item in self {
+			if case .documentContainer(let entityID) = item.id, let container = await AccountManager.shared.findDocumentContainer(entityID) {
+				containers.append(container)
 			}
-			return nil
 		}
+		
+		return containers
 	}
 	
 }

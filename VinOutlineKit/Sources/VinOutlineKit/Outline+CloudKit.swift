@@ -93,11 +93,11 @@ extension Outline: VCKModel {
 		}
 	}
 
-	func apply(_ update: CloudKitOutlineUpdate) {
+	func apply(_ update: CloudKitOutlineUpdate) async {
 		var updatedRowIDs = Set<String>()
 		
 		if let record = update.saveOutlineRecord {
-			let outlineUpdatedRows = apply(record)
+			let outlineUpdatedRows = await apply(record)
 			updatedRowIDs.formUnion(outlineUpdatedRows)
 		}
 		

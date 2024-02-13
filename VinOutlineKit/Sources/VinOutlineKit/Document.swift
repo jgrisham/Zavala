@@ -33,11 +33,17 @@ public enum Document: Equatable, Hashable, Codable {
 	}
 	
 	public var account: Account? {
-		get async {
+		get {
 			if case .outline(let outline) = self {
-				return await outline.account
+				return outline.account
 			}
 			return nil
+		}
+		set {
+			switch self {
+			case .outline(let outline):
+				outline.account = newValue
+			}
 		}
 	}
 	

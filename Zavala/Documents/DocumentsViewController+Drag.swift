@@ -23,19 +23,23 @@ extension DocumentsViewController: UICollectionViewDragDelegate {
 			itemProvider.suggestedName = filename
 			itemProvider.registerFileRepresentation(forTypeIdentifier: DataRepresentation.opml.typeIdentifier, visibility: .all) { (completionHandler) -> Progress? in
 				let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
-				do {
-					let opml = outline.opml()
-					try opml.write(to: tempFile, atomically: true, encoding: String.Encoding.utf8)
-					completionHandler(tempFile, true, nil)
-				} catch {
-					completionHandler(nil, false, error)
+				Task {
+					do {
+						let opml = await outline.opml()
+						try opml.write(to: tempFile, atomically: true, encoding: String.Encoding.utf8)
+						completionHandler(tempFile, true, nil)
+					} catch {
+						completionHandler(nil, false, error)
+					}
 				}
 				return nil
 			}
 
 			itemProvider.registerDataRepresentation(for: UTType.utf8PlainText, visibility: .all) { completion in
-				let data = outline.markdownList().data(using: .utf8)
-				completion(data, nil)
+				Task {
+					let data = await outline.markdownList().data(using: .utf8)
+					completion(data, nil)
+				}
 				return nil
 			}
 		}

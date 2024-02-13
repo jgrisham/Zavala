@@ -206,7 +206,7 @@ public final class Account: Identifiable, Equatable, Codable {
 			title = VinOutlineKitStringAssets.noTitle
 		}
 		
-		let outline = await Outline(parentID: id, title: title)
+		let outline = await Outline(account: self, parentID: id, title: title)
 		let document = Document.outline(outline)
 		documents?.append(document)
 		accountDocumentsDidChange()
@@ -283,7 +283,7 @@ public final class Account: Identifiable, Equatable, Codable {
 	}
 	
 	public func createOutline(title: String? = nil, tags: [Tag]? = nil) async -> Document {
-		let outline = await Outline(parentID: id, title: title)
+		let outline = await Outline(account: self, parentID: id, title: title)
 		if documents == nil {
 			documents = [Document]()
 		}
@@ -316,17 +316,17 @@ public final class Account: Identifiable, Equatable, Codable {
 		if let document = findDocument(documentUUID: update.documentID.documentUUID) {
 			let outline = document.outline!
 			await outline.load()
-			outline.apply(update)
+			await outline.apply(update)
 			outline.forceSave()
 			outline.unload()
 		} else {
 			guard update.saveOutlineRecord != nil else {
 				return
 			}
-			let outline = await Outline(id: update.documentID)
+			let outline = await Outline(account: self, id: update.documentID)
 			outline.zoneID = update.zoneID
 
-			outline.apply(update)
+			await outline.apply(update)
 			outline.forceSave()
 			outline.unload()
 			

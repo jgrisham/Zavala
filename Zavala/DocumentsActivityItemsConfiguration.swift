@@ -52,30 +52,27 @@ extension DocumentsActivityItemsConfiguration: UIActivityItemsConfigurationReadi
 			let itemProvider = NSItemProvider()
 			
 			itemProvider.registerDataRepresentation(for: UTType.utf8PlainText, visibility: .all) { completion in
-				if Thread.isMainThread {
-					let data = document.formattedPlainText.data(using: .utf8)
+				Task {
+					let data = await document.formattedPlainText.data(using: .utf8)
 					completion(data, nil)
-				} else {
-					DispatchQueue.main.async {
-						let data = document.formattedPlainText.data(using: .utf8)
-						completion(data, nil)
-					}
 				}
 				return nil
 			}
 			
-			if document.isCloudKit, let container = AccountManager.shared.cloudKitAccount?.cloudKitContainer {
-				let sharingOptions = CKAllowedSharingOptions(allowedParticipantPermissionOptions: .readWrite, allowedParticipantAccessOptions: .any)
+			Task {
+				if document.isCloudKit, let container = await AccountManager.shared.cloudKitAccount?.cloudKitContainer {
+					let sharingOptions = CKAllowedSharingOptions(allowedParticipantPermissionOptions: .readWrite, allowedParticipantAccessOptions: .any)
 
-				if let shareRecord = document.shareRecord {
-					itemProvider.registerCKShare(shareRecord, container: container, allowedSharingOptions: sharingOptions)
-				} else {
-					itemProvider.registerCKShare(container: container, allowedSharingOptions: sharingOptions) {
-						let share = try await AccountManager.shared.cloudKitAccount!.generateCKShare(for: document)
-						Task { 
-							await AccountManager.shared.sync()
+					if let shareRecord = document.shareRecord {
+						itemProvider.registerCKShare(shareRecord, container: container, allowedSharingOptions: sharingOptions)
+					} else {
+						itemProvider.registerCKShare(container: container, allowedSharingOptions: sharingOptions) {
+							let share = try await AccountManager.shared.cloudKitAccount!.generateCKShare(for: document)
+							Task {
+								await AccountManager.shared.sync()
+							}
+							return share
 						}
-						return share
 					}
 				}
 			}

@@ -401,11 +401,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		return expandAllInOutlineUnavailable
 	}
 	
-	public var account: Account? {
-		get async {
-			return await AccountManager.shared.findAccount(accountID: id.accountID)
-		}
-	}
+	public weak var account: Account?
 	
 	public var tags: [Tag] {
 		guard let account else { return [Tag]() }
@@ -633,7 +629,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	private var selectionLocation: Int?
 	private var selectionLength: Int?
 
-	init(id: EntityID) async {
+	init(account: Account, id: EntityID) async {
 		self.id = id
 		self.created = Date()
 		self.updated = Date()
@@ -641,7 +637,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		imagesFile = await ImagesFile(outline: self)
 	}
 
-	init(parentID: EntityID, title: String?) async {
+	init(account: Account, parentID: EntityID, title: String?) async {
 		self.id = .document(parentID.accountID, UUID().uuidString)
 		self.title = title
 		self.created = Date()
@@ -2479,7 +2475,9 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	}
 	
 	public func duplicate() async -> Outline {
-		let outline = await Outline(id: .document(id.accountID, UUID().uuidString))
+		guard let account else { fatalError("Account should always be available.") }
+
+		let outline = await Outline(account: account, id: .document(id.accountID, UUID().uuidString))
 
 		outline.title = title
 		outline.ownerName = ownerName

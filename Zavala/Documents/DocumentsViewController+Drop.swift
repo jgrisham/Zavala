@@ -22,9 +22,9 @@ extension DocumentsViewController: UICollectionViewDropDelegate {
 			let provider = dropItem.dragItem.itemProvider
 			provider.loadDataRepresentation(forTypeIdentifier: DataRepresentation.opml.typeIdentifier) { [weak self] (opmlData, error) in
 				guard let opmlData else { return }
-				DispatchQueue.main.async {
+				Task {
                     let tags = self?.documentContainers?.compactMap { ($0 as? TagDocuments)?.tag }
-					if let document = try? account.importOPML(opmlData, tags: tags) {
+					if let document = try? await account.importOPML(opmlData, tags: tags) {
 						DocumentIndexer.updateIndex(forDocument: document)
 					}
 				}
