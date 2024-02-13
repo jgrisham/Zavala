@@ -10,7 +10,7 @@ import OSLog
 
 public actor AccountManager {
 	
-	public static var shared: AccountManager!
+	nonisolated(unsafe) public static var shared: AccountManager!
 	
 	public var localAccount: Account {
 		return accountsDictionary[AccountType.local.rawValue]!
