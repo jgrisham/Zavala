@@ -789,7 +789,7 @@ private extension MainSplitViewController {
 		
 		var replacementGoBackwardStack = [Pin]()
 		for pin in goBackwardStack {
-			if let documentID = pin.documentID {
+			if let documentID = pin.document?.id {
 				if allDocumentIDs.contains(documentID) {
 					replacementGoBackwardStack.append(pin)
 				}
@@ -801,7 +801,7 @@ private extension MainSplitViewController {
 		
 		var replacementGoForwardStack = [Pin]()
 		for pin in goForwardStack {
-			if let documentID = pin.documentID {
+			if let documentID = pin.document?.id {
 				if allDocumentIDs.contains(documentID) {
 					replacementGoForwardStack.append(pin)
 				}
@@ -811,7 +811,7 @@ private extension MainSplitViewController {
 		}
 		goForwardStack = replacementGoForwardStack
 		
-		if let lastPinDocumentID = lastPin?.documentID, !allDocumentIDs.contains(lastPinDocumentID) {
+		if let lastPinDocumentID = lastPin?.document?.id, !allDocumentIDs.contains(lastPinDocumentID) {
 			self.lastPin = nil
 		}
 	}

@@ -16,34 +16,49 @@ public struct Pin: Equatable {
 		public static let pin = "pin"
 	}
 	
-	public let containerIDs: [EntityID]?
-	public let documentID: EntityID?
-	
-	public var containers: [DocumentContainer] {
-		get async {
-			if let containerIDs {
-				return await AccountManager.shared.findDocumentContainers(containerIDs)
-			}
-
-			if let documentID, let container = await AccountManager.shared.findDocumentContainer(.allDocuments(documentID.accountID)) {
-				return [container]
-			}
-		
-			return []
-		}
-	}
-	
-	public var document: Document? {
-		get async {
-			guard let documentID else { return nil }
-			return await AccountManager.shared.findDocument(documentID)
-		}
-	}
+	public let containers: [DocumentContainer]?
+	public let document: Document?
 	
 	public var userInfo: [AnyHashable: AnyHashable] {
+		let containerIDs = containers?.map({ $0.id })
+		let documentID = document?.id
+		return Self.userInfo(containerIDs: containerIDs, documentID: documentID)
+	}
+	
+	public init(containers: [DocumentContainer]? = nil, document: Document? = nil) {
+        self.containers = containers
+		self.document = document
+	}
+
+	public init(userInfo: Any?) async {
+		guard let userInfo = userInfo as? [AnyHashable: AnyHashable] else {
+			self.containers = nil
+			self.document = nil
+			return
+		}
+		
+		if let userInfos = userInfo["containerIDs"] as? [[AnyHashable : AnyHashable]] {
+            let containerIDs = userInfos.compactMap { EntityID(userInfo: $0) }
+			containers = await AccountManager.shared.findDocumentContainers(containerIDs)
+		} else {
+			self.containers = nil
+		}
+		
+		if let userInfo = userInfo["documentID"] as? [AnyHashable : AnyHashable] {
+			if let documentID = EntityID(userInfo: userInfo) {
+				self.document = await AccountManager.shared.findDocument(documentID)
+			} else {
+				self.document = nil
+			}
+		} else {
+			self.document = nil
+		}
+	}
+	
+	public static func userInfo(containerIDs: [EntityID]? = nil, documentID: EntityID? = nil) -> [AnyHashable: AnyHashable] {
 		var userInfo = [AnyHashable: AnyHashable]()
 		if let containerIDs {
-            userInfo["containerIDs"] = containerIDs.map { $0.userInfo }
+			userInfo["containerIDs"] = containerIDs.map { $0.userInfo }
 		}
 		if let documentID {
 			userInfo["documentID"] = documentID.userInfo
@@ -51,34 +66,15 @@ public struct Pin: Equatable {
 		return userInfo
 	}
 	
-	public init(containerIDs: [EntityID]? = nil, documentID: EntityID? = nil) {
-		self.containerIDs = containerIDs
-		self.documentID = documentID
-	}
-
-	public init(containers: [DocumentContainer]? = nil, document: Document? = nil) {
-        self.containerIDs = containers?.map { $0.id }
-		self.documentID = document?.id
-	}
-
-	public init(userInfo: Any?) {
-		guard let userInfo = userInfo as? [AnyHashable: AnyHashable] else {
-			self.containerIDs = nil
-			self.documentID = nil
-			return
+	public static func == (lhs: Pin, rhs: Pin) -> Bool {
+		guard lhs.document == rhs.document else {
+			return false
 		}
 		
-		if let userInfos = userInfo["containerIDs"] as? [[AnyHashable : AnyHashable]] {
-            self.containerIDs = userInfos.compactMap { EntityID(userInfo: $0) }
-		} else {
-			self.containerIDs = nil
-		}
+		let lhsContainerIDs = lhs.containers?.map { $0.id }
+		let rhsContainerIDs = rhs.containers?.map { $0.id }
 		
-		if let userInfo = userInfo["documentID"] as? [AnyHashable : AnyHashable] {
-			self.documentID = EntityID(userInfo: userInfo)
-		} else {
-			self.documentID = nil
-		}
+		return lhsContainerIDs == rhsContainerIDs
 	}
-	
+
 }

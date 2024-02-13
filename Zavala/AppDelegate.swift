@@ -1084,7 +1084,7 @@ private extension AppDelegate {
 	@objc func pinWasVisited(_ note: Notification) {
 		guard let pin = note.object as? Pin else { return }
 		
-		history.removeAll(where: { $0.documentID == pin.documentID })
+		history.removeAll(where: { $0.document?.id == pin.document?.id })
 		history.insert(pin, at: 0)
 		history = Array(history.prefix(15))
 		
@@ -1123,7 +1123,7 @@ private extension AppDelegate {
 			let allDocumentIDs = await AccountManager.shared.activeDocuments.map { $0.id }
 			
 			for pin in history {
-				if let documentID = pin.documentID {
+				if let documentID = pin.document?.id {
 					if !allDocumentIDs.contains(documentID) {
 						history.removeFirst(object: pin)
 						UIMenuSystem.main.setNeedsRebuild()

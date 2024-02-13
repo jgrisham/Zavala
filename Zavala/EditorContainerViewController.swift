@@ -49,7 +49,7 @@ class EditorContainerViewController: UIViewController, MainCoordinator {
 		sceneDelegate?.window?.windowScene?.title = editorViewController?.outline?.title
 	}
 
-	func handle(_ activity: NSUserActivity) {
+	func handle(_ activity: NSUserActivity) async {
 		guard activity.activityType != NSUserActivity.ActivityType.newOutline else {
 			let document = newOutlineDocument()
 			editorViewController?.edit(document?.outline, isNew: true)
@@ -62,21 +62,21 @@ class EditorContainerViewController: UIViewController, MainCoordinator {
 		guard let userInfo = activity.userInfo else { return }
 		
 		if let searchIdentifier = userInfo[CSSearchableItemActivityIdentifier] as? String, let documentID = EntityID(description: searchIdentifier) {
-			openDocument(documentID)
+			await openDocument(documentID)
 			return
 		}
 		
-		let pin = Pin(userInfo: userInfo[Pin.UserInfoKeys.pin])
-		if let documentID = pin.documentID {
-			openDocument(documentID)
+		let pin = await Pin(userInfo: userInfo[Pin.UserInfoKeys.pin])
+		if let documentID = pin.document?.id {
+			await openDocument(documentID)
 			return
 		}
 		
 		sceneDelegate?.closeWindow()
 	}
 	
-	func openDocument(_ documentID: EntityID) {
-		if let document = AccountManager.shared.findDocument(documentID), let outline = document.outline {
+	func openDocument(_ documentID: EntityID) async {
+		if let document = await AccountManager.shared.findDocument(documentID), let outline = document.outline {
 			sceneDelegate?.window?.windowScene?.title = outline.title
 			activityManager.selectingDocument(nil, document)
 			editorViewController?.edit(outline, isNew: false)
