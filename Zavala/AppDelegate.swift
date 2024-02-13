@@ -302,7 +302,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 			try? FileManager.default.moveItem(atPath: oldDocumentAccountsFolderPath, toPath: documentAccountsFolderPath)
 		}
 		
-		AccountManager.shared = AccountManager(accountsFolderPath: documentAccountsFolderPath, errorHandler: self)
+		AccountManager.shared = AccountManager(accountsFolderPath: documentAccountsFolderPath)
+		Task {
+			await AccountManager.shared.startUp(errorHandler: self)
+		}
 		let _ = OutlineFontCache.shared
 		
 		MetadataViewManager.provider = MetadataViewProvider()
@@ -319,8 +322,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 		
 		NotificationCenter.default.addObserver(self, selector: #selector(pinWasVisited), name: .PinWasVisited, object: nil)
 		NotificationCenter.default.addObserver(self, selector: #selector(accountDocumentsDidChange), name: .AccountDocumentsDidChange, object: nil)
-		NotificationCenter.default.addObserver(self, selector: #selector(activeAccountsDidChange), name: .AccountManagerAccountsDidChange, object: nil)
-		NotificationCenter.default.addObserver(self, selector: #selector(accountMetadataDidChange), name: .AccountMetadataDidChange, object: nil)
+		NotificationCenter.default.addObserver(self, selector: #selector(activeAccountsDidChange), name: .ActiveAccountsDidChange, object: nil)
 		NotificationCenter.default.addObserver(self, selector: #selector(documentTitleDidChange), name: .DocumentTitleDidChange, object: nil)
 
 		#if targetEnvironment(macCatalyst)
@@ -345,11 +347,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 	func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable : Any], fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
 		Task { @MainActor in
 			if UIApplication.shared.applicationState == .background {
-				AccountManager.shared.resume()
+				await AccountManager.shared.resume()
 			}
 			await AccountManager.shared.receiveRemoteNotification(userInfo: userInfo)
 			if UIApplication.shared.applicationState == .background {
-				AccountManager.shared.suspend()
+				await AccountManager.shared.suspend()
 			}
 			completionHandler(.newData)
 		}
@@ -456,23 +458,33 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 	}
 
 	@objc func exportPDFDocsCommand(_ sender: Any?) {
-		mainCoordinator?.exportPDFDocs()
+		Task {
+			await mainCoordinator?.exportPDFDocs()
+		}
 	}
 
 	@objc func exportPDFListsCommand(_ sender: Any?) {
-		mainCoordinator?.exportPDFLists()
+		Task {
+			await mainCoordinator?.exportPDFLists()
+		}
 	}
 
 	@objc func exportMarkdownDocsCommand(_ sender: Any?) {
-		mainCoordinator?.exportMarkdownDocs()
+		Task {
+			await mainCoordinator?.exportMarkdownDocs()
+		}
 	}
 
 	@objc func exportMarkdownListsCommand(_ sender: Any?) {
-		mainCoordinator?.exportMarkdownLists()
+		Task {
+			await mainCoordinator?.exportMarkdownLists()
+		}
 	}
 
 	@objc func exportOPMLsCommand(_ sender: Any?) {
-		mainCoordinator?.exportOPMLs()
+		Task {
+			await mainCoordinator?.exportOPMLs()
+		}
 	}
 
 	@objc func newWindow(_ sender: Any?) {
@@ -996,13 +1008,16 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 extension AppDelegate: AppKitPluginDelegate {
 	
 	func importOPML(_ url: URL) {
-		let accountID = AppDefaults.shared.lastSelectedAccountID
-		guard let account = AccountManager.shared.findAccount(accountID: accountID) ?? AccountManager.shared.activeAccounts.first else { return }
-		guard let document = try? account.importOPML(url, tags: nil) else { return }
+		Task {
+			let accountID = AppDefaults.shared.lastSelectedAccountID
+			let firstActiveAccount = await AccountManager.shared.activeAccounts.first
+			guard let account = await AccountManager.shared.findAccount(accountID: accountID) ?? firstActiveAccount else { return }
+			guard let document = try? await account.importOPML(url, tags: nil) else { return }
 
-		let activity = NSUserActivity(activityType: NSUserActivity.ActivityType.openEditor)
-		activity.userInfo = [Pin.UserInfoKeys.pin: Pin(document: document).userInfo]
-		UIApplication.shared.requestSceneSessionActivation(nil, userActivity: activity, options: nil, errorHandler: nil)
+			let activity = NSUserActivity(activityType: NSUserActivity.ActivityType.openEditor)
+			activity.userInfo = [Pin.UserInfoKeys.pin: Pin(document: document).userInfo]
+			UIApplication.shared.requestSceneSessionActivation(nil, userActivity: activity, options: nil, errorHandler: nil)
+		}
 	}
 	
 }
@@ -1024,39 +1039,45 @@ extension AppDelegate: ErrorHandler {
 private extension AppDelegate {
 	
 	@objc func willEnterForeground() {
-		checkForUserDefaultsChanges()
-		AccountManager.shared.resume()
-		
-		if let userInfos = AppDefaults.shared.documentHistory {
-			history = userInfos.compactMap { Pin(userInfo: $0) }
+		Task {
+			checkForUserDefaultsChanges()
+			await AccountManager.shared.resume()
+			
+			if let userInfos = AppDefaults.shared.documentHistory {
+				history = userInfos.compactMap { Pin(userInfo: $0) }
+			}
+			cleanUpHistory()
+			
+			UIMenuSystem.main.setNeedsRebuild()
 		}
-		cleanUpHistory()
-		
-		UIMenuSystem.main.setNeedsRebuild()
 	}
 	
 	@objc private func didEnterBackground() {
-		AccountManager.shared.suspend()
-		AppDefaults.shared.documentHistory = history.map { $0.userInfo }
+		Task {
+			await AccountManager.shared.suspend()
+			AppDefaults.shared.documentHistory = history.map { $0.userInfo }
+		}
 	}
 	
 	@objc private func checkForUserDefaultsChanges() {
-		let localAccount = AccountManager.shared.localAccount
-		
-		if AppDefaults.shared.enableLocalAccount != localAccount.isActive {
-			if AppDefaults.shared.enableLocalAccount {
-				localAccount.activate()
-			} else {
-				localAccount.deactivate()
+		Task {
+			let localAccount = await AccountManager.shared.localAccount
+			
+			if AppDefaults.shared.enableLocalAccount != localAccount.isActive {
+				if AppDefaults.shared.enableLocalAccount {
+					localAccount.activate()
+				} else {
+					localAccount.deactivate()
+				}
 			}
-		}
-		
-		let cloudKitAccount = AccountManager.shared.cloudKitAccount
-		
-		if AppDefaults.shared.enableCloudKit && cloudKitAccount == nil {
-			AccountManager.shared.createCloudKitAccount(errorHandler: self)
-		} else if !AppDefaults.shared.enableCloudKit && cloudKitAccount != nil {
-			AccountManager.shared.deleteCloudKitAccount()
+			
+			let cloudKitAccount = await AccountManager.shared.cloudKitAccount
+			
+			if AppDefaults.shared.enableCloudKit && cloudKitAccount == nil {
+				await AccountManager.shared.createCloudKitAccount(errorHandler: self)
+			} else if !AppDefaults.shared.enableCloudKit && cloudKitAccount != nil {
+				await AccountManager.shared.deleteCloudKitAccount()
+			}
 		}
 	}
 
@@ -1074,14 +1095,10 @@ private extension AppDelegate {
 		cleanUpHistory()
 	}
 
-	@objc func accountManagerAccountsDidChange() {
+	@objc func activeAccountsDidChange() {
 		cleanUpHistory()
 	}
 
-	@objc func accountMetadataDidChange() {
-		cleanUpHistory()
-	}
-	
 	@objc func documentTitleDidChange() {
 		UIMenuSystem.main.setNeedsRebuild()
 	}
@@ -1102,13 +1119,15 @@ private extension AppDelegate {
 	}
 
 	private func cleanUpHistory() {
-		let allDocumentIDs = AccountManager.shared.activeDocuments.map { $0.id }
-		
-		for pin in history {
-			if let documentID = pin.documentID {
-				if !allDocumentIDs.contains(documentID) {
-					history.removeFirst(object: pin)
-					UIMenuSystem.main.setNeedsRebuild()
+		Task {
+			let allDocumentIDs = await AccountManager.shared.activeDocuments.map { $0.id }
+			
+			for pin in history {
+				if let documentID = pin.documentID {
+					if !allDocumentIDs.contains(documentID) {
+						history.removeFirst(object: pin)
+						UIMenuSystem.main.setNeedsRebuild()
+					}
 				}
 			}
 		}

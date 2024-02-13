@@ -324,24 +324,36 @@ extension MainCoordinator {
 	}
 	
 	func exportMarkdownDocs() async {
-		exportMarkdownDocsForOutlines(selectedOutlines)
+		await exportMarkdownDocsForOutlines(selectedOutlines)
 	}
 	
 	func exportMarkdownLists() async {
-		exportMarkdownListsForOutlines(selectedOutlines)
+		await exportMarkdownListsForOutlines(selectedOutlines)
 	}
 	
 	func exportOPMLs() async {
-		exportOPMLsForOutlines(selectedOutlines)
+		await exportOPMLsForOutlines(selectedOutlines)
 	}
 	
 	func exportPDFDocsForOutlines(_ outlines: [Outline]) async {
-        let pdfs = outlines.map { (outline: $0, attrString: $0.printDoc()) }
+		var pdfs = [(outline: Outline, attrString: NSAttributedString)]()
+
+		for outline in outlines {
+			let attrString =  await outline.printDoc()
+			pdfs.append((outline, attrString))
+		}
+
 		exportPDFsForOutline(pdfs)
 	}
 	
 	func exportPDFListsForOutlines(_ outlines: [Outline]) async {
-        let pdfs = outlines.map { (outline: $0, attrString: $0.printList()) }
+		var pdfs = [(outline: Outline, attrString: NSAttributedString)]()
+
+		for outline in outlines {
+			let attrString =  await outline.printList()
+			pdfs.append((outline, attrString))
+		}
+
 		exportPDFsForOutline(pdfs)
 	}
 	
@@ -352,38 +364,47 @@ extension MainCoordinator {
             let textView = UITextView()
             textView.attributedText = pdf.attrString
             let data = textView.generatePDF()
-			let filename = pdf.outline.filename(representation: DataRepresentation.pdf)
+			let filename = pdf.outline.filename(representation: .pdf)
             exports.append((data: data, filename: filename))
         }
 		
 		export(exports)
 	}
 	
-	func exportMarkdownDocsForOutlines(_ outlines: [Outline]) {
-        export(outlines.compactMap {
-            if let data = $0.markdownDoc().data(using: .utf8) {
-				return (data: data, filename: $0.filename(representation: DataRepresentation.markdown))
-            }
-            return nil
-        })
+	func exportMarkdownDocsForOutlines(_ outlines: [Outline]) async {
+		var files = [(data: Data, filename: String)]()
+		
+		for outline in outlines {
+			if let data = await outline.markdownDoc().data(using: .utf8) {
+				files.append((data: data, filename: outline.filename(representation: .markdown)))
+			}
+		}
+        
+		export(files)
 	}
 	
-	func exportMarkdownListsForOutlines(_ outlines: [Outline]) {
-        export(outlines.compactMap {
-            if let data = $0.markdownList().data(using: .utf8) {
-                return (data: data, filename: $0.filename(representation: DataRepresentation.markdown))
-            }
-            return nil
-        })
+	func exportMarkdownListsForOutlines(_ outlines: [Outline]) async {
+		var files = [(data: Data, filename: String)]()
+		
+		for outline in outlines {
+			if let data = await outline.markdownList().data(using: .utf8) {
+				files.append((data: data, filename: outline.filename(representation: .markdown)))
+			}
+		}
+		
+		export(files)
 	}
 	
-	func exportOPMLsForOutlines(_ outlines: [Outline]) {
-        export(outlines.compactMap {
-            if let data = $0.opml().data(using: .utf8) {
-				return (data: data, filename: $0.filename(representation: DataRepresentation.opml))
-            }
-            return nil
-        })
+	func exportOPMLsForOutlines(_ outlines: [Outline]) async {
+		var files = [(data: Data, filename: String)]()
+		
+		for outline in outlines {
+			if let data = await outline.opml().data(using: .utf8) {
+				files.append((data: data, filename: outline.filename(representation: .opml)))
+			}
+		}
+		
+		export(files)
 	}
 	
     func export(_ exports: [(data: Data, filename: String)]) {
@@ -408,16 +429,18 @@ extension MainCoordinator {
 	}
 	
 	func printListsForOutlines(_ outlines: [Outline]) {
-		var pdfs = [Data]()
+		Task { @MainActor in
+			var pdfs = [Data]()
 
-		for outline in outlines {
-			let textView = UITextView()
-			textView.attributedText = outline.printList()
-			pdfs.append(textView.generatePDF())
+			for outline in outlines {
+				let textView = UITextView()
+				textView.attributedText = await outline.printList()
+				pdfs.append(textView.generatePDF())
+			}
+			
+			let title = ListFormatter.localizedString(byJoining: outlines.compactMap({ $0.title }).sorted())
+			printPDFs(pdfs, title: title)
 		}
-		
-		let title = ListFormatter.localizedString(byJoining: outlines.compactMap({ $0.title }).sorted())
-		printPDFs(pdfs, title: title)
 	}
 
 	func printDocs() {
@@ -425,16 +448,18 @@ extension MainCoordinator {
 	}
 
 	func printDocsForOutlines(_ outlines: [Outline]) {
-		var pdfs = [Data]()
+		Task { @MainActor in
+			var pdfs = [Data]()
 
-		for outline in outlines {
-			let textView = UITextView()
-			textView.attributedText = outline.printDoc()
-			pdfs.append(textView.generatePDF())
+			for outline in outlines {
+				let textView = UITextView()
+				textView.attributedText = await outline.printDoc()
+				pdfs.append(textView.generatePDF())
+			}
+			
+			let title = ListFormatter.localizedString(byJoining: outlines.compactMap({ $0.title }).sorted())
+			printPDFs(pdfs, title: title)
 		}
-		
-		let title = ListFormatter.localizedString(byJoining: outlines.compactMap({ $0.title }).sorted())
-		printPDFs(pdfs, title: title)
 	}
 
 	func pinWasVisited(_ pin: Pin) {

@@ -190,7 +190,7 @@ class DocumentsViewController: UICollectionViewController, MainControllerIdentif
 		deleteDocuments(selectedDocuments)
 	}
 	
-	func importOPMLs(urls: [URL]) {
+	func importOPMLs(urls: [URL]) async {
 		guard let documentContainers,
 			  let account = documentContainers.uniqueAccount else { return }
 
@@ -198,7 +198,7 @@ class DocumentsViewController: UICollectionViewController, MainControllerIdentif
 		for url in urls {
 			do {
 				let tags = documentContainers.compactMap { ($0 as? TagDocuments)?.tag }
-				document = try account.importOPML(url, tags: tags)
+				document = try await account.importOPML(url, tags: tags)
 				DocumentIndexer.updateIndex(forDocument: document!)
 			} catch {
 				self.presentError(title: .importFailedTitle, message: error.localizedDescription)
@@ -213,19 +213,19 @@ class DocumentsViewController: UICollectionViewController, MainControllerIdentif
 		}
 	}
 	
-	func createOutline(animated: Bool) {
-		guard let document = createOutlineDocument(title: "") else { return }
+	func createOutline(animated: Bool) async {
+		guard let document = await createOutlineDocument(title: "") else { return }
 		Task {
 			await loadDocuments(animated: animated)
 			selectDocument(document, isNew: true, animated: true)
 		}
 	}
 
-	func createOutlineDocument(title: String) -> Document? {
+	func createOutlineDocument(title: String) async -> Document? {
 		guard let documentContainers,
 			  let account = documentContainers.uniqueAccount else { return nil }
 
-        let document = account.createOutline(title: title, tags: documentContainers.tags)
+        let document = await account.createOutline(title: title, tags: documentContainers.tags)
 		
 		let defaults = AppDefaults.shared
 		document.outline?.update(checkSpellingWhileTyping: defaults.checkSpellingWhileTyping,
@@ -246,10 +246,10 @@ class DocumentsViewController: UICollectionViewController, MainControllerIdentif
 		self.present(controller, animated: true)
 	}
 	
-	func manageSharing() {
+	func manageSharing() async {
 		guard let document = selectedDocuments.first,
 			  let shareRecord = document.shareRecord,
-			  let container = AccountManager.shared.cloudKitAccount?.cloudKitContainer,
+			  let container = await AccountManager.shared.cloudKitAccount?.cloudKitContainer,
 			  let indexPath = collectionView.indexPathsForSelectedItems?.first,
 			  let cell = collectionView.cellForItem(at: indexPath) else {
 			return
@@ -292,8 +292,8 @@ class DocumentsViewController: UICollectionViewController, MainControllerIdentif
 	// MARK: Actions
 	
 	@objc func sync() {
-		if AccountManager.shared.isSyncAvailable {
-			Task {
+		Task {
+			if await AccountManager.shared.isSyncAvailable {
 				await AccountManager.shared.sync()
 			}
 		}
@@ -301,7 +301,9 @@ class DocumentsViewController: UICollectionViewController, MainControllerIdentif
 	}
 	
 	@objc func createOutline() {
-		createOutline(animated: true)
+		Task {
+			await createOutline(animated: true)
+		}
 	}
 
 	@objc func importOPML() {
@@ -320,7 +322,9 @@ class DocumentsViewController: UICollectionViewController, MainControllerIdentif
 extension DocumentsViewController: UIDocumentPickerDelegate {
 	
 	func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
-		importOPMLs(urls: urls)
+		Task {
+			await importOPMLs(urls: urls)
+		}
 	}
 	
 }
@@ -670,12 +674,14 @@ private extension DocumentsViewController {
 	func duplicateAction(documents: [Document]) -> UIAction {
 		let action = UIAction(title: .duplicateControlLabel, image: .duplicate) { action in
             for document in documents {
-                document.load()
-                let newDocument = document.duplicate()
-                document.account?.createDocument(newDocument)
-                newDocument.forceSave()
-                newDocument.unload()
-                document.unload()
+				Task {
+					await document.load()
+					let newDocument = await document.duplicate()
+					document.account?.createDocument(newDocument)
+					newDocument.forceSave()
+					newDocument.unload()
+					document.unload()
+				}
             }
 		}
 		return action
@@ -691,16 +697,18 @@ private extension DocumentsViewController {
 	}
 	
 	func manageSharingAction(document: Document, sourceView: UIView) -> UIAction? {
-		guard let shareRecord = document.shareRecord, let container = AccountManager.shared.cloudKitAccount?.cloudKitContainer else {
+		guard let shareRecord = document.shareRecord else {
 			return nil
 		}
 
 		let action = UIAction(title: .manageSharingEllipsisControlLabel, image: .collaborating) { [weak self] action in
-			guard let self else { return }
-			let controller = UICloudSharingController(share: shareRecord, container: container)
-			controller.popoverPresentationController?.sourceView = sourceView
-			controller.delegate = self
-			self.present(controller, animated: true)
+			Task {
+				guard let self, let container = await AccountManager.shared.cloudKitAccount?.cloudKitContainer else { return }
+				let controller = UICloudSharingController(share: shareRecord, container: container)
+				controller.popoverPresentationController?.sourceView = sourceView
+				controller.delegate = self
+				self.present(controller, animated: true)
+			}
 		}
 		return action
 	}
@@ -784,7 +792,9 @@ private extension DocumentsViewController {
 				self.delegate?.documentSelectionDidChange(self, documentContainers: documentContainers, documents: [], isNew: false, isNavigationBranch: true, animated: true)
 			}
 			for document in documents {
-				document.account?.deleteDocument(document)
+				Task {
+					await document.account?.deleteDocument(document)
+				}
 			}
 		}
 

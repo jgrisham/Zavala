@@ -48,6 +48,7 @@ class MacOpenQuicklyDocumentsViewController: UICollectionViewController {
 
 	weak var delegate: MacOpenQuicklyDocumentsDelegate?
 	private var documentContainers: [DocumentContainer]?
+	private var documentsDictionary = [EntityID: Document]()
 
 	private var dataSource: UICollectionViewDiffableDataSource<Int, DocumentsItem>!
 
@@ -60,7 +61,11 @@ class MacOpenQuicklyDocumentsViewController: UICollectionViewController {
 		
 		collectionView.collectionViewLayout = createLayout()
 		configureDataSource()
-		applySnapshot()
+		
+		Task {
+			await rebuildDocumentsDictionary()
+			applySnapshot()
+		}
 	}
 
 	func setDocumentContainers(_ documentContainers: [DocumentContainer]) {
@@ -82,7 +87,7 @@ class MacOpenQuicklyDocumentsViewController: UICollectionViewController {
 	
 	private func configureDataSource() {
 		let rowRegistration = UICollectionView.CellRegistration<ConsistentCollectionViewListCell, DocumentsItem> { [weak self] (cell, indexPath, item) in
-			guard let self, let document = AccountManager.shared.findDocument(item.id) else { return }
+			guard let self, let documentContainers, let document = documentsDictionary[item.id] else { return }
 			
 			var contentConfiguration = UIListContentConfiguration.subtitleCell()
 			cell.insetBackground = true
@@ -173,4 +178,16 @@ class MacOpenQuicklyDocumentsViewController: UICollectionViewController {
 			}
 		}
 	}
+	
+	func rebuildDocumentsDictionary() async {
+		var documentsDictionary = [EntityID: Document]()
+		
+		let documents = await AccountManager.shared.documents
+		for document in documents {
+			documentsDictionary[document.id] = document
+		}
+		
+		self.documentsDictionary = documentsDictionary
+	}
+
 }
