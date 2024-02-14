@@ -204,6 +204,8 @@ public actor AccountManager {
 		// Send out all the document delete events for this account to clean up the search index
 		cloudKitAccount.documents?.forEach { $0.documentDidDelete() }
 		
+		accountFiles[AccountType.cloudKit.rawValue]?.suspend()
+		
 		_accountsDictionary[AccountType.cloudKit.rawValue] = nil
 		accountFiles[AccountType.cloudKit.rawValue] = nil
 
