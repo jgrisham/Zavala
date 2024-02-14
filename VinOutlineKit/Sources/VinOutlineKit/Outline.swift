@@ -630,6 +630,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	private var selectionLength: Int?
 
 	init(account: Account, id: EntityID) async {
+		self.account = account
 		self.id = id
 		self.created = Date()
 		self.updated = Date()
@@ -638,6 +639,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	}
 
 	init(account: Account, parentID: EntityID, title: String?) async {
+		self.account = account
 		self.id = .document(parentID.accountID, UUID().uuidString)
 		self.title = title
 		self.created = Date()
