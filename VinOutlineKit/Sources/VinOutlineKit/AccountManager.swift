@@ -7,51 +7,80 @@
 
 import Foundation
 import OSLog
+import Semaphore
 
 public actor AccountManager {
 	
 	nonisolated(unsafe) public static var shared: AccountManager!
 	
-	public var localAccount: Account {
-		return accountsDictionary[AccountType.local.rawValue]!
+	public var localAccount: Account? {
+		get async {
+			return await accountsDictionary[AccountType.local.rawValue]
+		}
 	}
 	
 	public var cloudKitAccount: Account? {
-		return accountsDictionary[AccountType.cloudKit.rawValue]
+		get async {
+			return await accountsDictionary[AccountType.cloudKit.rawValue]
+		}
 	}
 	
 	public var isSyncAvailable: Bool {
-		return cloudKitAccount?.cloudKitManager?.isSyncAvailable ?? false
+		get async {
+			return await cloudKitAccount?.cloudKitManager?.isSyncAvailable ?? false
+		}
 	}
 	
 	public var accounts: [Account] {
-		return accountsDictionary.values.map { $0 }
+		get async {
+			return await accountsDictionary.values.map { $0 }
+		}
 	}
 	
 	public var activeAccounts: [Account] {
-		return Array(accountsDictionary.values.filter { $0.isActive })
+		get async {
+			return await Array(accountsDictionary.values.filter { $0.isActive })
+		}
 	}
 	
 	public var sortedActiveAccounts: [Account] {
-		return sort(activeAccounts)
+		get async {
+			return await sort(activeAccounts)
+		}
 	}
 	
 	public var documents: [Document] {
-		return accounts.reduce(into: [Document]()) { $0.append(contentsOf: $1.documents ?? [Document]() ) }
+		get async {
+			return await accounts.reduce(into: [Document]()) { $0.append(contentsOf: $1.documents ?? [Document]() ) }
+		}
 	}
 	
 	public var activeDocuments: [Document] {
-		return activeAccounts.reduce(into: [Document]()) { $0.append(contentsOf: $1.documents ?? [Document]() ) }
+		get async {
+			return await activeAccounts.reduce(into: [Document]()) { $0.append(contentsOf: $1.documents ?? [Document]() ) }
+		}
 	}
 	
 	public var documentContainers: [DocumentContainer] {
-		return accounts.reduce(into: [DocumentContainer]()) { $0.append(contentsOf: $1.documentContainers) }
+		get async {
+			return await accounts.reduce(into: [DocumentContainer]()) { $0.append(contentsOf: $1.documentContainers) }
+		}
 	}
 	
 	var logger = Logger(subsystem: Bundle.main.bundleIdentifier!, category: "VinOutlineKit")
 
-	var accountsDictionary = [Int: Account]()
-
+	// Prevents anyone accessing the accounts before we've initially loaded them
+	var accountsDictionarySemaphore = AsyncSemaphore(value: 1)
+	var _accountsDictionary = [Int: Account]()
+	var accountsDictionary: [Int: Account] {
+		get async {
+			await accountsDictionarySemaphore.wait()
+			defer { accountsDictionarySemaphore.signal() }
+			
+			return _accountsDictionary
+		}
+	}
+	
 	let accountsFolder: URL
 	let localAccountFolder: URL
 	let localAccountFile: URL
@@ -72,9 +101,11 @@ public actor AccountManager {
 	// MARK: API
 	
 	public func startUp(errorHandler: ErrorHandler) async {
+		await accountsDictionarySemaphore.wait()
+
 		// The local account must always exist, even if it's empty.
 		if FileManager.default.fileExists(atPath: localAccountFile.path) {
-			initializeFile(accountType: .local)
+			await initializeFile(accountType: .local)
 		} else {
 			do {
 				try FileManager.default.createDirectory(atPath: localAccountFolder.path, withIntermediateDirectories: true, attributes: nil)
@@ -84,14 +115,16 @@ public actor AccountManager {
 			}
 			
 			let localAccount = Account(accountType: .local)
-			accountsDictionary[AccountType.local.rawValue] = localAccount
-			initializeFile(accountType: .local)
+			_accountsDictionary[AccountType.local.rawValue] = localAccount
+			await initializeFile(accountType: .local)
 		}
 		
 		if FileManager.default.fileExists(atPath: cloudKitAccountFile.path) {
-			initializeFile(accountType: .cloudKit)
-			cloudKitAccount?.initializeCloudKit(firstTime: false, errorHandler: errorHandler)
+			await initializeFile(accountType: .cloudKit)
+			_accountsDictionary[AccountType.cloudKit.rawValue]?.initializeCloudKit(firstTime: false, errorHandler: errorHandler)
 		}
+		
+		accountsDictionarySemaphore.signal()
 		
 		notificationsTask = Task {
 			await withTaskGroup(of: Void.self) { group in
@@ -137,11 +170,12 @@ public actor AccountManager {
 				}
 
 			}
+			
 		}
-
+		
 	}
 	
-	public func createCloudKitAccount(errorHandler: ErrorHandler) {
+	public func createCloudKitAccount(errorHandler: ErrorHandler) async {
 		do {
 			try FileManager.default.createDirectory(atPath: cloudKitAccountFolder.path, withIntermediateDirectories: true, attributes: nil)
 		} catch {
@@ -150,21 +184,21 @@ public actor AccountManager {
 		}
 		
 		let cloudKitAccount = Account(accountType: .cloudKit)
-		accountsDictionary[AccountType.cloudKit.rawValue] = cloudKitAccount
-		initializeFile(accountType: .cloudKit)
+		_accountsDictionary[AccountType.cloudKit.rawValue] = cloudKitAccount
+		await initializeFile(accountType: .cloudKit)
 		
 		activeAccountsDidChange()
 
 		cloudKitAccount.initializeCloudKit(firstTime: true, errorHandler: errorHandler)
 	}
 	
-	public func deleteCloudKitAccount() {
-		guard let cloudKitAccount else { return }
-		
+	public func deleteCloudKitAccount() async {
+		guard let cloudKitAccount = await self.cloudKitAccount else { return }
+
 		// Send out all the document delete events for this account to clean up the search index
 		cloudKitAccount.documents?.forEach { $0.documentDidDelete() }
 		
-		accountsDictionary[AccountType.cloudKit.rawValue] = nil
+		_accountsDictionary[AccountType.cloudKit.rawValue] = nil
 		accountFiles[AccountType.cloudKit.rawValue] = nil
 
 		try? FileManager.default.removeItem(atPath: cloudKitAccountFolder.path)
@@ -174,42 +208,42 @@ public actor AccountManager {
 		cloudKitAccount.cloudKitManager?.accountDidDelete(account: cloudKitAccount)
 	}
 	
-	public func findAccount(accountType: AccountType) -> Account? {
-		return accountsDictionary[accountType.rawValue]
+	public func findAccount(accountType: AccountType) async -> Account? {
+		return await accountsDictionary[accountType.rawValue]
 	}
 
-	public func findAccount(accountID: Int) -> Account? {
-		guard let account = accountsDictionary[accountID] else { return nil }
+	public func findAccount(accountID: Int) async -> Account? {
+		guard let account = await accountsDictionary[accountID] else { return nil }
 		return account.isActive ? account : nil
 	}
 	
-	public func findDocumentContainer(_ entityID: EntityID) -> DocumentContainer? {
+	public func findDocumentContainer(_ entityID: EntityID) async -> DocumentContainer? {
 		switch entityID {
 		case .search(let searchText):
 			return Search(searchText: searchText)
 		case .allDocuments(let accountID), .recentDocuments(let accountID), .tagDocuments(let accountID, _):
-			return findAccount(accountID: accountID)?.findDocumentContainer(entityID)
+			return await findAccount(accountID: accountID)?.findDocumentContainer(entityID)
 		default:
 			return nil
 		}
 	}
 	
-	public func findDocumentContainers(_ entityIDs: [EntityID]) -> [DocumentContainer] {
+	public func findDocumentContainers(_ entityIDs: [EntityID]) async -> [DocumentContainer] {
 		var containers = [DocumentContainer]()
 		for entityID in entityIDs {
-			if let container = findDocumentContainer(entityID) {
+			if let container = await findDocumentContainer(entityID) {
 				containers.append(container)
 			}
 		}
 		return containers
 	}
 	
-	public func findDocument(_ entityID: EntityID) -> Document? {
+	public func findDocument(_ entityID: EntityID) async -> Document? {
 		switch entityID {
 		case .document(let accountID, let documentUUID):
-			return findAccount(accountID: accountID)?.findDocument(documentUUID: documentUUID)
+			return await findAccount(accountID: accountID)?.findDocument(documentUUID: documentUUID)
 		case .row(let accountID, let documentUUID, _):
-			return findAccount(accountID: accountID)?.findDocument(documentUUID: documentUUID)
+			return await findAccount(accountID: accountID)?.findDocument(documentUUID: documentUUID)
 		default:
 			return nil
 		}
@@ -223,21 +257,21 @@ public actor AccountManager {
 		await cloudKitAccount?.cloudKitManager?.sync()
 	}
 	
-	public func resume() {
+	public func resume() async {
 		accountFiles.values.forEach { $0.resume() }
-		activeDocuments.forEach { $0.resume() }
+		await activeDocuments.forEach { $0.resume() }
 		Task {
 			await cloudKitAccount?.cloudKitManager?.resume()
 		}
 	}
 	
-	public func suspend() {
+	public func suspend() async {
 		accountFiles.values.forEach {
 			$0.saveIfNecessary()
 			$0.suspend()
 		}
 
-		activeDocuments.forEach {
+		await activeDocuments.forEach {
 			$0.save()
 			$0.suspend()
 		}
@@ -269,7 +303,7 @@ private extension AccountManager {
 		}
 	}
 	
-	func initializeFile(accountType: AccountType) {
+	func initializeFile(accountType: AccountType) async {
 		let file: URL
 		if accountType == .local {
 			file = localAccountFile
@@ -278,7 +312,7 @@ private extension AccountManager {
 		}
 		
 		let managedFile = AccountFile(fileURL: file, accountType: accountType, accountManager: self)
-		managedFile.load()
+		await managedFile.load()
 		accountFiles[accountType.rawValue] = managedFile
 	}
 

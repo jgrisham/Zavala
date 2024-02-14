@@ -89,9 +89,11 @@ class MacLinkViewController: UIViewController {
 
 	@IBAction func newOutline(_ sender: Any) {
 		guard let outlineTitle = textTextField.text else { return }
-		let outline = delegate?.createOutline(title: outlineTitle)
-		linkTextField.text = outline?.id.url?.absoluteString ?? ""
-		submitAndDismiss()
+		Task {
+			let outline = await delegate?.createOutline(title: outlineTitle)
+			linkTextField.text = outline?.id.url?.absoluteString ?? ""
+			submitAndDismiss()
+		}
 	}
 	
 	@IBAction func cancel(_ sender: Any) {

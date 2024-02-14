@@ -23,7 +23,7 @@ protocol EditorDelegate: AnyObject {
 	var editorViewControllerGoForwardStack: [Pin] { get }
 	func goBackward(_: EditorViewController, to: Int)
 	func goForward(_: EditorViewController, to: Int)
-	func createNewOutline(_ : EditorViewController, title: String) -> Outline?
+	func createNewOutline(_ : EditorViewController, title: String) async -> Outline?
 	func validateToolbar(_ : EditorViewController)
 	func showGetInfo(_: EditorViewController, outline: Outline)
 	func exportPDFDoc(_: EditorViewController, outline: Outline)
@@ -677,22 +677,23 @@ class EditorViewController: UIViewController, DocumentsActivityItemsConfiguratio
 	// MARK: Notifications
 	
 	@objc func outlineFontCacheDidRebuild(_ note: Notification) {
-		collectionView.reloadData()
+		Task { @MainActor in
+			collectionView.reloadData()
+		}
 	}
 	
 	@objc func userDefaultsDidChange() {
-		if rowIndentSize != AppDefaults.shared.rowIndentSize {
-			rowIndentSize = AppDefaults.shared.rowIndentSize
-			collectionView.reloadData()
-		}
+		Task { @MainActor in
+			if rowIndentSize != AppDefaults.shared.rowIndentSize {
+				rowIndentSize = AppDefaults.shared.rowIndentSize
+				collectionView.reloadData()
+			}
 
-		if rowSpacingSize != AppDefaults.shared.rowSpacingSize {
-			rowSpacingSize = AppDefaults.shared.rowSpacingSize
-			collectionView.reloadData()
-		}
+			if rowSpacingSize != AppDefaults.shared.rowSpacingSize {
+				rowSpacingSize = AppDefaults.shared.rowSpacingSize
+				collectionView.reloadData()
+			}
 
-		// We have to get the layout on the main thread.
-		DispatchQueue.main.async {
 			guard let layout = self.collectionView.collectionViewLayout as? EditorCollectionViewCompositionalLayout else { return }
 			if layout.editorMaxWidth != AppDefaults.shared.editorMaxWidth.pixels {
 				layout.editorMaxWidth = AppDefaults.shared.editorMaxWidth.pixels
@@ -702,7 +703,9 @@ class EditorViewController: UIViewController, DocumentsActivityItemsConfiguratio
 	}
 	
 	@objc func outlineTextPreferencesDidChange(_ note: Notification) {
-		collectionView.reloadData()
+		Task { @MainActor in
+			collectionView.reloadData()
+		}
 	}
 	
 	@objc func documentTitleDidChange(_ note: Notification) {
@@ -710,13 +713,18 @@ class EditorViewController: UIViewController, DocumentsActivityItemsConfiguratio
 			  let updatedOutline = document.outline,
 			  updatedOutline == outline,
 			  currentTitle != outline?.title else { return }
-		collectionView.reloadItems(at: [IndexPath(row: 0, section: Outline.Section.title.rawValue)])
+		
+		Task { @MainActor in
+			collectionView.reloadItems(at: [IndexPath(row: 0, section: Outline.Section.title.rawValue)])
+		}
 	}
 	
 	@objc func outlineElementsDidChange(_ note: Notification) {
 		if note.object as? Outline == outline {
 			guard let changes = note.userInfo?[OutlineElementChanges.userInfoKey] as? OutlineElementChanges else { return }
-			applyChangesRestoringState(changes)
+			Task { @MainActor in
+				applyChangesRestoringState(changes)
+			}
 		}
 	}
 	
@@ -724,11 +732,16 @@ class EditorViewController: UIViewController, DocumentsActivityItemsConfiguratio
 		guard note.object as? Outline == outline else { return }
 		
 		isSearching = true
-		collectionView.deleteSections(headerFooterSections)
+		
+		Task { @MainActor in
+			collectionView.deleteSections(headerFooterSections)
+		}
 	}
 	
 	@objc func outlineSearchResultDidChange(_ note: Notification) {
-		scrollSearchResultIntoView()
+		Task { @MainActor in
+			scrollSearchResultIntoView()
+		}
 	}
 	
 	@objc func outlineSearchWillEnd(_ note: Notification) {
@@ -740,29 +753,42 @@ class EditorViewController: UIViewController, DocumentsActivityItemsConfiguratio
 		guard isSearching else { return	}
 		
 		isSearching = false
-		collectionView.insertSections(headerFooterSections)
+		
+		Task { @MainActor in
+			collectionView.insertSections(headerFooterSections)
+		}
 	}
 
 	@objc func outlineSearchDidEnd(_ note: Notification) {
-		if let cursorCoordinates = CursorCoordinates.bestCoordinates {
-			restoreCursorPosition(cursorCoordinates, scroll: true, centered: true)
+		Task { @MainActor in
+			if let cursorCoordinates = CursorCoordinates.bestCoordinates {
+				restoreCursorPosition(cursorCoordinates, scroll: true, centered: true)
+			}
 		}
 	}
 	
 	@objc func outlineDidFocusOut(_ note: Notification) {
-		if let cursorCoordinates = CursorCoordinates.bestCoordinates {
-			restoreCursorPosition(cursorCoordinates, scroll: true, centered: true)
+		Task { @MainActor in
+			if let cursorCoordinates = CursorCoordinates.bestCoordinates {
+				restoreCursorPosition(cursorCoordinates, scroll: true, centered: true)
+			}
 		}
 	}
 	
 	@objc func outlineAddedBacklinks(_ note: Notification) {
 		guard note.object as? Outline == outline else { return }
-		collectionView.insertSections([Outline.Section.backlinks.rawValue])
+		
+		Task { @MainActor in
+			collectionView.insertSections([Outline.Section.backlinks.rawValue])
+		}
 	}
 	
 	@objc func outlineRemovedBacklinks(_ note: Notification) {
 		guard note.object as? Outline == outline else { return }
-		collectionView.deleteSections([Outline.Section.backlinks.rawValue])
+		
+		Task { @MainActor in
+			collectionView.deleteSections([Outline.Section.backlinks.rawValue])
+		}
 	}
 	
 	@objc func didUndoChange(_ note: Notification) {
@@ -883,30 +909,32 @@ class EditorViewController: UIViewController, DocumentsActivityItemsConfiguratio
 			return
 		}
 
-		outline.load()
-		outline.incrementBeingUsedCount()
-		checkForCorruptOutline()
-		outline.prepareForViewing()
+		Task {
+			await outline.load()
+			outline.incrementBeingUsedCount()
+			checkForCorruptOutline()
+			outline.prepareForViewing()
 			
-		guard isViewLoaded else { return }
-
-		updateNavigationMenus()
-		collectionView.reloadData()
-		
-		// If we don't have this delay, when switching between documents in the documents view, while searching,
-		// causes the find interaction to glitch out. This is especially true on macOS. We could have a shorter
-		// duration on iOS, but I don't see the need to complicate the code.
-		if let searchText {
-			DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-				self.showFindInteraction(text: searchText)
+			guard isViewLoaded else { return }
+			
+			updateNavigationMenus()
+			collectionView.reloadData()
+			
+			// If we don't have this delay, when switching between documents in the documents view, while searching,
+			// causes the find interaction to glitch out. This is especially true on macOS. We could have a shorter
+			// duration on iOS, but I don't see the need to complicate the code.
+			if let searchText {
+				DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+					self.showFindInteraction(text: searchText)
+				}
+				return
 			}
-			return
+			
+			updateUI()
+			restoreScrollPosition()
+			restoreOutlineCursorPosition()
+			moveCursorToTitleOnNew()
 		}
-
-		updateUI()
-		restoreScrollPosition()
-		restoreOutlineCursorPosition()
-		moveCursorToTitleOnNew()
 	}
 	
 	func selectAllRows() {
@@ -1158,8 +1186,8 @@ class EditorViewController: UIViewController, DocumentsActivityItemsConfiguratio
 	}
 	
 	@objc func sync() {
-		if AccountManager.shared.isSyncAvailable {
-			Task {
+		Task {
+			if await AccountManager.shared.isSyncAvailable {
 				await AccountManager.shared.sync()
 			}
 		}
@@ -1839,8 +1867,8 @@ extension EditorViewController: PHPickerViewControllerDelegate {
 
 extension EditorViewController: LinkViewControllerDelegate {
 	
-	func createOutline(title: String) -> Outline? {
-		return delegate?.createNewOutline(self, title: title)
+	func createOutline(title: String) async -> Outline? {
+		return await delegate?.createNewOutline(self, title: title)
 	}
 	
 	func updateLink(cursorCoordinates: CursorCoordinates, text: String, link: String?, range: NSRange) {
@@ -2984,41 +3012,41 @@ private extension EditorViewController {
 			
 		} else if let stringProviderIndexes = UIPasteboard.general.itemSet(withPasteboardTypes: [UTType.utf8PlainText.identifier]), !stringProviderIndexes.isEmpty {
 			
-			let group = DispatchGroup()
-			var texts = [String]()
-			
-			for index in stringProviderIndexes {
-				let itemProvider = UIPasteboard.general.itemProviders[index]
-				group.enter()
-				itemProvider.loadDataRepresentation(forTypeIdentifier: UTType.utf8PlainText.identifier) { (data, error) in
-					if let data, let itemText = String(data: data, encoding: .utf8) {
-						texts.append(itemText)
-						group.leave()
-					}
-				}
-			}
-
-			group.notify(queue: DispatchQueue.main) {
-				let text = texts.joined(separator: "\n")
-				guard !text.isEmpty else { return }
-				
-				var rowGroups = [RowGroup]()
-				let textRows = text.split(separator: "\n").map { String($0) }
-				for textRow in textRows {
-					let row = Row(outline: outline, topicMarkdown: textRow.trimmed())
-					row.detectData()
-					rowGroups.append(RowGroup(row))
-				}
-				
-				let command = PasteRowCommand(actionName: .pasteControlLabel,
-											  undoManager: undoManager,
-											  delegate: self,
-											  outline: outline,
-											  rowGroups: rowGroups,
-											  afterRow: afterRows?.last)
-
-				self.runCommand(command)
-			}
+//			let group = DispatchGroup()
+//			var texts = [String]()
+//			
+//			for index in stringProviderIndexes {
+//				let itemProvider = UIPasteboard.general.itemProviders[index]
+//				group.enter()
+//				itemProvider.loadDataRepresentation(forTypeIdentifier: UTType.utf8PlainText.identifier) { (data, error) in
+//					if let data, let itemText = String(data: data, encoding: .utf8) {
+//						texts.append(itemText)
+//						group.leave()
+//					}
+//				}
+//			}
+//
+//			group.notify(queue: DispatchQueue.main) {
+//				let text = texts.joined(separator: "\n")
+//				guard !text.isEmpty else { return }
+//				
+//				var rowGroups = [RowGroup]()
+//				let textRows = text.split(separator: "\n").map { String($0) }
+//				for textRow in textRows {
+//					let row = Row(outline: outline, topicMarkdown: textRow.trimmed())
+//					row.detectData()
+//					rowGroups.append(RowGroup(row))
+//				}
+//				
+//				let command = PasteRowCommand(actionName: .pasteControlLabel,
+//											  undoManager: undoManager,
+//											  delegate: self,
+//											  outline: outline,
+//											  rowGroups: rowGroups,
+//											  afterRow: afterRows?.last)
+//
+//				self.runCommand(command)
+//			}
 
 		}
 	}
@@ -3351,11 +3379,11 @@ private extension EditorViewController {
 	}
 	
 	func generateBacklink(id: EntityID) -> NSAttributedString {
-		if let title = AccountManager.shared.findDocument(id)?.title, !title.isEmpty, let url = id.url {
-			let result = NSMutableAttributedString(string: title)
-			result.addAttribute(.link, value: url, range: NSRange(0..<result.length))
-			return result
-		}
+//		if let title = AccountManager.shared.findDocument(id)?.title, !title.isEmpty, let url = id.url {
+//			let result = NSMutableAttributedString(string: title)
+//			result.addAttribute(.link, value: url, range: NSRange(0..<result.length))
+//			return result
+//		}
 		return NSAttributedString()
 	}
 	

@@ -9,7 +9,7 @@ import UIKit
 import VinOutlineKit
 
 protocol LinkViewControllerDelegate: AnyObject {
-	func createOutline(title: String) -> Outline?
+	func createOutline(title: String) async -> Outline?
 	func updateLink(cursorCoordinates: CursorCoordinates, text: String, link: String?, range: NSRange)
 }
 
@@ -86,9 +86,11 @@ class LinkViewController: UITableViewController {
 
 	@IBAction func addOutline(_ sender: Any) {
 		guard let outlineTitle = textTextField.text else { return }
-		let outline = delegate?.createOutline(title: outlineTitle)
-		linkTextField.text = outline?.id.url?.absoluteString ?? ""
-		submitAndDismiss()
+		Task {
+			let outline = await delegate?.createOutline(title: outlineTitle)
+			linkTextField.text = outline?.id.url?.absoluteString ?? ""
+			submitAndDismiss()
+		}
 	}
 	
 	@IBAction func cancel(_ sender: Any) {

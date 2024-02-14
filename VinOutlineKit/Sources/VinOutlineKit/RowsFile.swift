@@ -18,7 +18,7 @@ final class RowsFile: ManagedResourceFile {
 	init?(outline: Outline) async {
 		self.outline = outline
 
-		guard let account = await outline.account else {
+		guard let account = outline.account else {
 			return nil
 		}
 

@@ -51,7 +51,7 @@ class EditorContainerViewController: UIViewController, MainCoordinator {
 
 	func handle(_ activity: NSUserActivity) async {
 		guard activity.activityType != NSUserActivity.ActivityType.newOutline else {
-			let document = newOutlineDocument()
+			let document = await newOutlineDocument()
 			editorViewController?.edit(document?.outline, isNew: true)
 			if let document {
 				pinWasVisited(Pin(document: document))
@@ -84,11 +84,12 @@ class EditorContainerViewController: UIViewController, MainCoordinator {
 		}
 	}
 
-	func newOutlineDocument(title: String? = nil) -> Document? {
+	func newOutlineDocument(title: String? = nil) async -> Document? {
 		let accountID = AppDefaults.shared.lastSelectedAccountID
 		
-		guard let account = AccountManager.shared.findAccount(accountID: accountID) ?? AccountManager.shared.activeAccounts.first else { return nil }
-		let document = account.createOutline(title: title)
+		let firstActiveAccount = await AccountManager.shared.activeAccounts.first
+		guard let account = await AccountManager.shared.findAccount(accountID: accountID) ?? firstActiveAccount else { return nil }
+		let document = await account.createOutline(title: title)
 		
 		let defaults = AppDefaults.shared
 		document.outline?.update(checkSpellingWhileTyping: defaults.checkSpellingWhileTyping,
@@ -108,8 +109,8 @@ class EditorContainerViewController: UIViewController, MainCoordinator {
 		editorViewController?.share()
 	}
 	
-	func manageSharing() {
-		guard let shareRecord = selectedDocuments.first!.shareRecord, let container = AccountManager.shared.cloudKitAccount?.cloudKitContainer else {
+	func manageSharing() async {
+		guard let shareRecord = selectedDocuments.first!.shareRecord, let container = await AccountManager.shared.cloudKitAccount?.cloudKitContainer else {
 			return
 		}
 		
@@ -137,8 +138,10 @@ class EditorContainerViewController: UIViewController, MainCoordinator {
 		let document = Document.outline(outline)
 		
 		func delete() {
-			document.account?.deleteDocument(document)
-			sceneDelegate?.closeWindow()
+			Task {
+				await document.account?.deleteDocument(document)
+				sceneDelegate?.closeWindow()
+			}
 		}
 
 		guard !document.isEmpty else {
@@ -267,8 +270,8 @@ extension EditorContainerViewController: EditorDelegate {
 	func goBackward(_ : EditorViewController, to: Int) {}
 	func goForward(_ : EditorViewController, to: Int) {}
 
-	func createNewOutline(_: EditorViewController, title: String) -> Outline? {
-		return newOutlineDocument(title: title)?.outline
+	func createNewOutline(_: EditorViewController, title: String) async -> Outline? {
+		return await newOutlineDocument(title: title)?.outline
 	}
 
 	func validateToolbar(_: EditorViewController) {
@@ -383,9 +386,9 @@ extension EditorContainerViewController: NSToolbarDelegate {
 			toolbarItem = item
 		case .sync:
 			let item = ValidatingToolbarItem(itemIdentifier: itemIdentifier)
-			item.checkForUnavailable = { _ in
-				return !AccountManager.shared.isSyncAvailable
-			}
+//			item.checkForUnavailable = { _ in
+//				return !AccountManager.shared.isSyncAvailable
+//			}
 			item.image = .sync.symbolSizedForCatalyst()
 			item.label = .syncControlLabel
 			item.toolTip = .syncControlLabel

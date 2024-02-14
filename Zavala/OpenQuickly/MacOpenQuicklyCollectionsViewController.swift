@@ -33,7 +33,6 @@ class MacOpenQuicklyCollectionsViewController: UICollectionViewController {
 		configureDataSource()
 		
 		Task {
-			await rebuildContainersDictionary()
 			await applySnapshot()
 		}
     }
@@ -109,6 +108,8 @@ private extension MacOpenQuicklyCollectionsViewController {
 	}
 
 	func applySnapshot() async {
+		await rebuildContainersDictionary()
+		
 		if let snapshot = await localAccountSnapshot() {
 			applySnapshot(snapshot, section: .localAccount, animated: true)
 		} else {
@@ -135,7 +136,7 @@ private extension MacOpenQuicklyCollectionsViewController {
 	}
 	
 	func localAccountSnapshot() async -> NSDiffableDataSourceSectionSnapshot<CollectionsItem>? {
-		let localAccount = await AccountManager.shared.localAccount
+		guard let localAccount = await AccountManager.shared.localAccount else { return nil }
 		
 		guard localAccount.isActive else { return nil }
 		

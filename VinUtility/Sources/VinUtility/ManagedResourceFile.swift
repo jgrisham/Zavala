@@ -44,8 +44,8 @@ open class ManagedResourceFile: NSObject, NSFilePresenter {
 	
 	public func presentedItemDidChange() {
 		guard !isDirty else { return }
-		DispatchQueue.main.async {
-			self.load()
+		Task {
+			await load()
 		}
 	}
 	
@@ -74,9 +74,9 @@ open class ManagedResourceFile: NSObject, NSFilePresenter {
 		}
 	}
 	
-	public func load() {
+	public func load() async {
 		isLoading = true
-		loadFile()
+		await loadFile()
 		isLoading = false
 	}
 	
@@ -117,58 +117,56 @@ private extension ManagedResourceFile {
 	func saveToDiskIfNeeded() {
 		if isDirty {
 			isDirty = false
-			saveFile()
+			Task {
+				await saveFile()
+			}
 		}
 	}
 
-	func loadFile() {
-		Task {
-			var fileData: Data? = nil
-			let errorPointer: NSErrorPointer = nil
-			let fileCoordinator = NSFileCoordinator(filePresenter: self)
-			
-			fileCoordinator.coordinate(readingItemAt: fileURL, options: [], error: errorPointer, byAccessor: { readURL in
-				do {
-					let resourceValues = try readURL.resourceValues(forKeys: [.contentModificationDateKey])
-					if lastModificationDate != resourceValues.contentModificationDate {
-						lastModificationDate = resourceValues.contentModificationDate
-						fileData = try Data(contentsOf: readURL)
-					}
-				} catch {
-					logger.error("Account read from disk failed: \(error.localizedDescription, privacy: .public)")
+	func loadFile() async {
+		var fileData: Data? = nil
+		let errorPointer: NSErrorPointer = nil
+		let fileCoordinator = NSFileCoordinator(filePresenter: self)
+		
+		fileCoordinator.coordinate(readingItemAt: fileURL, options: [], error: errorPointer, byAccessor: { readURL in
+			do {
+				let resourceValues = try readURL.resourceValues(forKeys: [.contentModificationDateKey])
+				if lastModificationDate != resourceValues.contentModificationDate {
+					lastModificationDate = resourceValues.contentModificationDate
+					fileData = try Data(contentsOf: readURL)
 				}
-			})
-			
-			if let error = errorPointer?.pointee {
-				logger.error("Account read from disk coordination failed: \(error.localizedDescription, privacy: .public)")
+			} catch {
+				logger.error("Account read from disk failed: \(error.localizedDescription, privacy: .public)")
 			}
-
-			guard let fileData else { return }
-			
-			await fileDidLoad(data: fileData)
+		})
+		
+		if let error = errorPointer?.pointee {
+			logger.error("Account read from disk coordination failed: \(error.localizedDescription, privacy: .public)")
 		}
+		
+		guard let fileData else { return }
+		
+		await fileDidLoad(data: fileData)
 	}
 	
-	func saveFile() {
-		Task {
-			guard let fileData = await fileWillSave() else { return }
-			
-			let errorPointer: NSErrorPointer = nil
-			let fileCoordinator = NSFileCoordinator(filePresenter: self)
-			
-			fileCoordinator.coordinate(writingItemAt: fileURL, options: [], error: errorPointer, byAccessor: { writeURL in
-				do {
-					try fileData.write(to: writeURL)
-					let resourceValues = try writeURL.resourceValues(forKeys: [.contentModificationDateKey])
-					lastModificationDate = resourceValues.contentModificationDate
-				} catch let error as NSError {
-					logger.error("Save to disk failed: \(error.localizedDescription, privacy: .public)")
-				}
-			})
-			
-			if let error = errorPointer?.pointee {
-				logger.error("Save to disk coordination failed: \(error.localizedDescription, privacy: .public)")
+	func saveFile() async {
+		guard let fileData = await fileWillSave() else { return }
+		
+		let errorPointer: NSErrorPointer = nil
+		let fileCoordinator = NSFileCoordinator(filePresenter: self)
+		
+		fileCoordinator.coordinate(writingItemAt: fileURL, options: [], error: errorPointer, byAccessor: { writeURL in
+			do {
+				try fileData.write(to: writeURL)
+				let resourceValues = try writeURL.resourceValues(forKeys: [.contentModificationDateKey])
+				lastModificationDate = resourceValues.contentModificationDate
+			} catch let error as NSError {
+				logger.error("Save to disk failed: \(error.localizedDescription, privacy: .public)")
 			}
+		})
+		
+		if let error = errorPointer?.pointee {
+			logger.error("Save to disk coordination failed: \(error.localizedDescription, privacy: .public)")
 		}
 	}
 	

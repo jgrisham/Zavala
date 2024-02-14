@@ -19,8 +19,8 @@ public extension AccountManager {
 			return
 		}
 		
-		let initialLoad = accountsDictionary[accountType.rawValue] == nil
-		accountsDictionary[accountType.rawValue] = account
+		let initialLoad = _accountsDictionary[accountType.rawValue] == nil
+		_accountsDictionary[accountType.rawValue] = account
 		
 		for document in account.documents ?? [] {
 			var mutableDocument = document
@@ -33,7 +33,7 @@ public extension AccountManager {
 	}
 	
 	func buildAccountFileData(accountType: AccountType) -> Data? {
-		guard let account = accountsDictionary[accountType.rawValue] else { return nil }
+		guard let account = _accountsDictionary[accountType.rawValue] else { return nil }
 		
 		let encoder = PropertyListEncoder()
 		encoder.outputFormat = .binary

@@ -786,15 +786,15 @@ private extension Row {
 		let result = NSMutableAttributedString(attributedString: attrString)
 		
 		// Rather than fix this code to work with Swift 6, it should be removed. We shouldn't be changing the URL. I would prefer that it points back at Zavala.
-		result.enumerateAttribute(.link, in: .init(location: 0, length: result.length), options: []) { (value, range, _) in
-			guard let url = value as? URL,
-				  let entityID = EntityID(url: url),
-				  let document = AccountManager.shared.findDocument(entityID),
-				  let newURL = URL(string: document.filename(representation: representation)) else { return }
-			
-			result.removeAttribute(.link, range: range)
-			result.addAttribute(.link, value: newURL, range: range)
-		}
+//		result.enumerateAttribute(.link, in: .init(location: 0, length: result.length), options: []) { (value, range, _) in
+//			guard let url = value as? URL,
+//				  let entityID = EntityID(url: url),
+//				  let document = AccountManager.shared.findDocument(entityID),
+//				  let newURL = URL(string: document.filename(representation: representation)) else { return }
+//			
+//			result.removeAttribute(.link, range: range)
+//			result.addAttribute(.link, value: newURL, range: range)
+//		}
 
 		if let images = images?.filter({ $0.isInNotes == isInNotes }), !images.isEmpty {
 			let sortedImages = images.sorted(by: { $0.offset ?? 0 > $1.offset ?? 0 })

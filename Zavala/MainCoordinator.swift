@@ -18,7 +18,7 @@ protocol MainCoordinator: UIViewController, DocumentsActivityItemsConfigurationD
 	func goBackwardOne()
 	func goForwardOne()
 	func share()
-	func manageSharing()
+	func manageSharing() async
 }
 
 extension MainCoordinator {

@@ -19,7 +19,7 @@ extension CollectionsViewController: UICollectionViewDropDelegate {
 		guard let destinationIndexPath,
 			  let item = dataSource.itemIdentifier(for: destinationIndexPath),
 			  let entityID = item.entityID,
-			  let container = AccountManager.shared.findDocumentContainer(entityID) else {
+			  let container = documentContainersDictionary[entityID] else {
 			return UICollectionViewDropProposal(operation: .cancel)
 		}
 		
@@ -48,7 +48,7 @@ extension CollectionsViewController: UICollectionViewDropDelegate {
 			  let destinationIndexPath = coordinator.destinationIndexPath,
 			  let item = dataSource.itemIdentifier(for: destinationIndexPath),
 			  let entityID = item.entityID,
-			  let container = AccountManager.shared.findDocumentContainer(entityID) else { return }
+			  let container = documentContainersDictionary[entityID] else { return }
 		
 		// Dragging an OPML file into the Collections View
 		guard let document = dragItem.localObject as? Document else {
@@ -56,12 +56,12 @@ extension CollectionsViewController: UICollectionViewDropDelegate {
 				let provider = dropItem.dragItem.itemProvider
 				provider.loadDataRepresentation(forTypeIdentifier: DataRepresentation.opml.typeIdentifier) { (opmlData, error) in
 					guard let opmlData else { return }
-					DispatchQueue.main.async {
+					Task {
                         var tags: [Tag]? = nil
                         if let tag = (container as? TagDocuments)?.tag {
                             tags = [tag]
                         }
-						if let document = try? container.account?.importOPML(opmlData, tags: tags) {
+						if let document = try? await container.account?.importOPML(opmlData, tags: tags) {
 							DocumentIndexer.updateIndex(forDocument: document)
 						}
 					}
@@ -72,31 +72,33 @@ extension CollectionsViewController: UICollectionViewDropDelegate {
 
 		// Local copy between accounts
 		guard document.account == container.account else {
-			document.load()
-			
-			var tagNames = [String]()
-			for tag in document.tags ?? [Tag]() {
-				document.deleteTag(tag)
-				document.account?.deleteTag(tag)
-				tagNames.append(tag.name)
-			}
-			
-			document.account?.deleteDocument(document)
-			if let containerAccount = container.account {
-				document.reassignAccount(containerAccount.id.accountID)
-				containerAccount.createDocument(document)
-			}
-			
-			for tagName in tagNames {
-				if let tag = container.account?.createTag(name: tagName) {
-					document.createTag(tag)
+			Task {
+				await document.load()
+				
+				var tagNames = [String]()
+				for tag in document.tags ?? [Tag]() {
+					document.deleteTag(tag)
+					document.account?.deleteTag(tag)
+					tagNames.append(tag.name)
 				}
+				
+				await document.account?.deleteDocument(document)
+				if let containerAccount = container.account {
+					document.reassignAccount(containerAccount.id.accountID)
+					containerAccount.createDocument(document)
+				}
+				
+				for tagName in tagNames {
+					if let tag = container.account?.createTag(name: tagName) {
+						document.createTag(tag)
+					}
+				}
+				
+				document.deleteAllBacklinks()
+				
+				document.forceSave()
+				document.unload()
 			}
-			
-			document.deleteAllBacklinks()
-			
-			document.forceSave()
-			document.unload()
 			return
 		}
 		

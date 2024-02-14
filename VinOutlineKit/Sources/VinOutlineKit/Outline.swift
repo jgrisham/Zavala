@@ -2389,16 +2389,13 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	}
 	
 	public func loadRows() async {
-		assert(Thread.isMainThread)
 		guard rowsFile == nil else { return }
 		rowsFile = await RowsFile(outline: self)
-		rowsFile?.load()
+		await rowsFile?.load()
 		prepareRowsForProcessing()
 	}
 	
 	public func unloadRows() {
-		assert(Thread.isMainThread)
-		
 		guard !isBeingUsed else { return }
 
 		rowsFile?.saveIfNecessary()
@@ -2410,15 +2407,12 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	}
 	
 	public func loadImages() async {
-		assert(Thread.isMainThread)
 		guard imagesFile == nil else { return }
 		imagesFile = await ImagesFile(outline: self)
-		imagesFile?.load()
+		await imagesFile?.load()
 	}
 	
 	public func unloadImages() {
-		assert(Thread.isMainThread)
-		
 		guard !isBeingUsed else { return }
 		
 		imagesFile?.saveIfNecessary()

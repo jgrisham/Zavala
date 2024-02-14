@@ -103,8 +103,6 @@ class CollectionsViewController: UICollectionViewController, MainControllerIdent
 	// MARK: API
 	
 	func startUp() async {
-		await rebuildContainersDictionary()
-
 		collectionView.remembersLastFocusedIndexPath = true
 		collectionView.dragDelegate = self
 		collectionView.dropDelegate = self
@@ -380,7 +378,7 @@ extension CollectionsViewController {
 	}
 	
 	private func localAccountSnapshot() async -> NSDiffableDataSourceSectionSnapshot<CollectionsItem>? {
-		let localAccount = await AccountManager.shared.localAccount
+		guard let localAccount = await AccountManager.shared.localAccount else { return nil }
 		
 		guard localAccount.isActive else { return nil }
 		
@@ -417,6 +415,8 @@ extension CollectionsViewController {
 	}
 	
 	private func applyChangeSnapshot() async {
+		await rebuildContainersDictionary()
+		
 		if let snapshot = await localAccountSnapshot() {
 			applySnapshot(snapshot, section: .localAccount, animated: true)
 		} else {
@@ -515,7 +515,6 @@ private extension CollectionsViewController {
 	func debounceApplyChangeSnapshot() {
 		applyChangeDebouncer.debounce { [weak self] in
 			Task {
-				await self?.rebuildContainersDictionary()
 				await self?.applyChangeSnapshot()
 			}
 		}

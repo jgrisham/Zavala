@@ -160,11 +160,23 @@ class MainSplitViewController: UISplitViewController, MainCoordinator {
 		}
 		
 		if let goBackwardStackUserInfos = userInfo[UserInfoKeys.goBackwardStack] as? [Any] {
-			goBackwardStack = goBackwardStackUserInfos.compactMap { Pin(userInfo: $0) }
+			var pins = [Pin]()
+			
+			for goBackwardStackUserInfo in goBackwardStackUserInfos {
+				pins.append(await Pin(userInfo: goBackwardStackUserInfo))
+			}
+			
+			goBackwardStack = pins
 		}
 
 		if let goForwardStackUserInfos = userInfo[UserInfoKeys.goForwardStack] as? [Any] {
-			goForwardStack = goForwardStackUserInfos.compactMap { Pin(userInfo: $0) }
+			var pins = [Pin]()
+			
+			for goForwardStackUserInfo in goForwardStackUserInfos {
+				pins.append(await Pin(userInfo: goForwardStackUserInfo))
+			}
+			
+			goForwardStack = pins
 		}
 
 		await cleanUpNavigationStacks()
@@ -177,17 +189,17 @@ class MainSplitViewController: UISplitViewController, MainCoordinator {
 			preferredSupplementaryColumnWidth = documentsWidth
 		}
 
-		let pin = Pin(userInfo: userInfo[Pin.UserInfoKeys.pin])
+		let pin = await Pin(userInfo: userInfo[Pin.UserInfoKeys.pin])
 		
-		let documentContainers = await pin.containers
-		guard documentContainers.isEmpty else {
+		let documentContainers = pin.containers
+		guard !(documentContainers?.isEmpty ?? true) else {
 			return
 		}
 		
 		await collectionsViewController?.selectDocumentContainers(documentContainers, isNavigationBranch: isNavigationBranch, animated: false)
 		lastMainControllerToAppear = .documents
 
-		guard let document = await pin.document else {
+		guard let document = pin.document else {
 			return
 		}
 		
@@ -210,15 +222,15 @@ class MainSplitViewController: UISplitViewController, MainCoordinator {
 	}
 	
 	func handlePin(_ pin: Pin) async {
-		let documentContainers = await pin.containers
+		let documentContainers = pin.containers
 		await collectionsViewController?.selectDocumentContainers(documentContainers, isNavigationBranch: true, animated: false)
-		await documentsViewController?.selectDocument(pin.document, isNavigationBranch: true, animated: false)
+		documentsViewController?.selectDocument(pin.document, isNavigationBranch: true, animated: false)
 	}
 	
 	func importOPMLs(urls: [URL]) {
 		Task {
 			await selectDefaultDocumentContainerIfNecessary()
-			documentsViewController?.importOPMLs(urls: urls)
+			await documentsViewController?.importOPMLs(urls: urls)
 		}
 	}
 	
@@ -254,8 +266,8 @@ class MainSplitViewController: UISplitViewController, MainCoordinator {
 		documentsViewController?.share()
 	}
 	
-	func manageSharing() {
-		documentsViewController?.manageSharing()
+	func manageSharing() async {
+		await documentsViewController?.manageSharing()
 	}
 	
 	func validateToolbar() {
@@ -303,7 +315,7 @@ class MainSplitViewController: UISplitViewController, MainCoordinator {
 	@objc func createOutline() {
 		Task {
 			await selectDefaultDocumentContainerIfNecessary()
-			documentsViewController?.createOutline(animated: false)
+			await documentsViewController?.createOutline(animated: false)
 		}
 	}
 	
@@ -507,11 +519,11 @@ extension MainSplitViewController: DocumentsDelegate {
 			// This prevents the same document from entering the backward stack more than once in a row.
 			// If the first item on the backward stack equals the new document and there is nothing stored
 			// in the last pin, we know they clicked on a document twice without one between.
-			if let first = goBackwardStack.first, await first.document == document && lastPin == nil{
+			if let first = goBackwardStack.first, first.document == document && lastPin == nil{
 				goBackwardStack.removeFirst()
 			}
 			
-			if isNavigationBranch, let lastPin, await lastPin.document != document {
+			if isNavigationBranch, let lastPin, lastPin.document != document {
 				goBackwardStack.insert(lastPin, at: 0)
 				goBackwardStack = Array(goBackwardStack.prefix(10))
 				self.lastPin = nil
@@ -549,23 +561,33 @@ extension MainSplitViewController: DocumentsDelegate {
 	}
 	
 	func exportPDFDocs(_: DocumentsViewController, outlines: [Outline]) {
-		exportPDFDocsForOutlines(outlines)
+		Task {
+			await exportPDFDocsForOutlines(outlines)
+		}
 	}
 	
 	func exportPDFLists(_: DocumentsViewController, outlines: [Outline]) {
-		exportPDFListsForOutlines(outlines)
+		Task {
+			await exportPDFListsForOutlines(outlines)
+		}
 	}
 	
 	func exportMarkdownDocs(_: DocumentsViewController, outlines: [Outline]) {
-		exportMarkdownDocsForOutlines(outlines)
+		Task {
+			await exportMarkdownDocsForOutlines(outlines)
+		}
 	}
 	
 	func exportMarkdownLists(_: DocumentsViewController, outlines: [Outline]) {
-		exportMarkdownListsForOutlines(outlines)
+		Task {
+			await exportMarkdownListsForOutlines(outlines)
+		}
 	}
 	
 	func exportOPMLs(_: DocumentsViewController, outlines: [Outline]) {
-		exportOPMLsForOutlines(outlines)
+		Task {
+			await exportOPMLsForOutlines(outlines)
+		}
 	}
 	
 	func printDocs(_: DocumentsViewController, outlines: [Outline]) {
@@ -606,8 +628,8 @@ extension MainSplitViewController: EditorDelegate {
 		goForward(to: to)
 	}
 	
-	func createNewOutline(_: EditorViewController, title: String) -> Outline? {
-        return documentsViewController?.createOutlineDocument(title: title)?.outline
+	func createNewOutline(_: EditorViewController, title: String) async -> Outline? {
+		return await documentsViewController?.createOutlineDocument(title: title)?.outline
 	}
 	
 	func validateToolbar(_: EditorViewController) {
@@ -619,23 +641,33 @@ extension MainSplitViewController: EditorDelegate {
 	}
 	
 	func exportPDFDoc(_: EditorViewController, outline: Outline) {
-		exportPDFDocsForOutlines([outline])
+		Task {
+			await exportPDFDocsForOutlines([outline])
+		}
 	}
 	
 	func exportPDFList(_: EditorViewController, outline: Outline) {
-		exportPDFListsForOutlines([outline])
+		Task {
+			await exportPDFListsForOutlines([outline])
+		}
 	}
 	
 	func exportMarkdownDoc(_: EditorViewController, outline: Outline) {
-		exportMarkdownDocsForOutlines([outline])
+		Task {
+			await exportMarkdownDocsForOutlines([outline])
+		}
 	}
 	
 	func exportMarkdownList(_: EditorViewController, outline: Outline) {
-		exportMarkdownListsForOutlines([outline])
+		Task {
+			await exportMarkdownListsForOutlines([outline])
+		}
 	}
 	
 	func exportOPML(_: EditorViewController, outline: Outline) {
-		exportOPMLsForOutlines([outline])
+		Task {
+			await exportOPMLsForOutlines([outline])
+		}
 	}
 
 	func printDoc(_: EditorViewController, outline: Outline) {
@@ -833,7 +865,7 @@ private extension MainSplitViewController {
 		
 		Task {
 			await collectionsViewController?.selectDocumentContainers(pin.containers, isNavigationBranch: false, animated: false)
-			await documentsViewController?.selectDocument(pin.document, isNavigationBranch: false, animated: false)
+			documentsViewController?.selectDocument(pin.document, isNavigationBranch: false, animated: false)
 		}
 	}
 	
@@ -853,7 +885,7 @@ private extension MainSplitViewController {
 		
 		Task {
 			await collectionsViewController?.selectDocumentContainers(pin.containers, isNavigationBranch: false, animated: false)
-			await documentsViewController?.selectDocument(pin.document, isNavigationBranch: false, animated: false)
+			documentsViewController?.selectDocument(pin.document, isNavigationBranch: false, animated: false)
 		}
 	}
 	
@@ -923,9 +955,9 @@ extension MainSplitViewController: NSToolbarDelegate {
 		switch itemIdentifier {
 		case .sync:
 			let item = ValidatingToolbarItem(itemIdentifier: itemIdentifier)
-			item.checkForUnavailable = { _ in
-				return !AccountManager.shared.isSyncAvailable
-			}
+//			item.checkForUnavailable = { _ in
+//				return !AccountManager.shared.isSyncAvailable
+//			}
 			item.image = .sync.symbolSizedForCatalyst()
 			item.label = .syncControlLabel
 			item.toolTip = .syncControlLabel

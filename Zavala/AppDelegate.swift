@@ -691,7 +691,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 	}
 
 	@objc func manageSharingCommand(_ sender: Any?) {
-		mainCoordinator?.manageSharing()
+		Task {
+			await mainCoordinator?.manageSharing()
+		}
 	}
 
 	@objc func beginDocumentSearchCommand(_ sender: Any?) {
@@ -716,10 +718,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 			if !(mainCoordinator is MainSplitViewController) {
 				command.attributes = .disabled
 			}
-		case #selector(syncCommand(_:)):
-			if !AccountManager.shared.isSyncAvailable {
-				command.attributes = .disabled
-			}
+//		case #selector(syncCommand(_:)):
+//			if !AccountManager.shared.isSyncAvailable {
+//				command.attributes = .disabled
+//			}
 		case #selector(outlineGetInfoCommand(_:)):
 			if mainCoordinator?.isOutlineFunctionsUnavailable ?? true {
 				command.attributes = .disabled
@@ -1044,8 +1046,15 @@ private extension AppDelegate {
 			await AccountManager.shared.resume()
 			
 			if let userInfos = AppDefaults.shared.documentHistory {
-				history = userInfos.compactMap { Pin(userInfo: $0) }
+				var pins = [Pin]()
+				
+				for userInfo in userInfos {
+					pins.append(await Pin(userInfo: userInfo))
+				}
+			
+				history = pins
 			}
+			
 			cleanUpHistory()
 			
 			UIMenuSystem.main.setNeedsRebuild()
@@ -1061,7 +1070,7 @@ private extension AppDelegate {
 	
 	@objc private func checkForUserDefaultsChanges() {
 		Task {
-			let localAccount = await AccountManager.shared.localAccount
+			guard let localAccount = await AccountManager.shared.localAccount else { return }
 			
 			if AppDefaults.shared.enableLocalAccount != localAccount.isActive {
 				if AppDefaults.shared.enableLocalAccount {
