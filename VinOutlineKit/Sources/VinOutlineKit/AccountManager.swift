@@ -176,6 +176,9 @@ public actor AccountManager {
 	}
 	
 	public func createCloudKitAccount(errorHandler: ErrorHandler) async {
+		await accountsDictionarySemaphore.wait()
+		defer { accountsDictionarySemaphore.signal() }
+
 		do {
 			try FileManager.default.createDirectory(atPath: cloudKitAccountFolder.path, withIntermediateDirectories: true, attributes: nil)
 		} catch {
@@ -194,6 +197,9 @@ public actor AccountManager {
 	
 	public func deleteCloudKitAccount() async {
 		guard let cloudKitAccount = await self.cloudKitAccount else { return }
+
+		await accountsDictionarySemaphore.wait()
+		defer { accountsDictionarySemaphore.signal() }
 
 		// Send out all the document delete events for this account to clean up the search index
 		cloudKitAccount.documents?.forEach { $0.documentDidDelete() }
