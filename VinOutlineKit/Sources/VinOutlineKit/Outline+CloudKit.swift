@@ -65,7 +65,7 @@ extension Outline: VCKModel {
 	
 	func requestCloudKitUpdate(for entityID: EntityID) {
 		Task {
-			guard let cloudKitManager = await account?.cloudKitManager else { return }
+			guard let cloudKitManager = account?.cloudKitManager else { return }
 			if batchCloudKitRequests > 0 {
 				cloudKitRequestsIDs.insert(entityID)
 			} else {
@@ -84,7 +84,7 @@ extension Outline: VCKModel {
 	func endCloudKitBatchRequest() {
 		Task {
 			batchCloudKitRequests = batchCloudKitRequests - 1
-			guard batchCloudKitRequests == 0, let cloudKitManager = await account?.cloudKitManager, let zoneID else { return }
+			guard batchCloudKitRequests == 0, let cloudKitManager = account?.cloudKitManager, let zoneID else { return }
 
 			let requests = cloudKitRequestsIDs.map { CloudKitActionRequest(zoneID: zoneID, id: $0) }
 			cloudKitManager.addRequests(Set(requests))
@@ -97,7 +97,7 @@ extension Outline: VCKModel {
 		var updatedRowIDs = Set<String>()
 		
 		if let record = update.saveOutlineRecord {
-			let outlineUpdatedRows = await apply(record)
+			let outlineUpdatedRows = apply(record)
 			updatedRowIDs.formUnion(outlineUpdatedRows)
 		}
 		
@@ -327,7 +327,7 @@ extension Outline: VCKModel {
         if let recordTagIDs = merge(client: tagIDs, ancestor: ancestorTagIDs, server: serverTagIDs) {
             var recordTags = [Tag]()
 			for recordTagID in recordTagIDs {
-				if let tag = await account!.findTag(tagID: recordTagID) {
+				if let tag = account!.findTag(tagID: recordTagID) {
 					recordTags.append(tag)
 				}
 			}
