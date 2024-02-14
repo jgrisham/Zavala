@@ -273,20 +273,24 @@ class DocumentsViewController: UICollectionViewController, MainControllerIdentif
 	
 	@objc func documentTitleDidChange(_ note: Notification) {
 		guard let document = note.object as? Document else { return }
-		reload(document: document)
-		Task {
+		Task { @MainActor in
+			reload(document: document)
 			await loadDocuments(animated: true)
 		}
 	}
 	
 	@objc func documentUpdatedDidChange(_ note: Notification) {
 		guard let document = note.object as? Document else { return }
-		reload(document: document)
+		Task { @MainActor in
+			reload(document: document)
+		}
 	}
 	
 	@objc func documentSharingDidChange(_ note: Notification) {
 		guard let document = note.object as? Document else { return }
-		reload(document: document)
+		Task { @MainActor in
+			reload(document: document)
+		}
 	}
 	
 	// MARK: Actions
@@ -584,7 +588,7 @@ private extension DocumentsViewController {
 	
 	func debounceLoadDocuments() {
 		loadDocumentsDebouncer.debounce { [weak self] in
-			Task {
+			Task { @MainActor in
 				await self?.loadDocuments(animated: true)
 			}
 		}
