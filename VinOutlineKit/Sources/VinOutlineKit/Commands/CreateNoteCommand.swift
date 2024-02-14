@@ -26,22 +26,14 @@ public final class CreateNoteCommand: OutlineCommand {
 		super.init(actionName: actionName, undoManager: undoManager, delegate: delegate, outline: outline)
 	}
 	
-	public override func perform() {
-		Task {
-			saveCursorCoordinates()
-			let (impacted, newCursorIndex) = await outline.createNotes(rows: rows, rowStrings: newRowStrings)
-			noteCreatedRows = impacted
-			self.newCursorIndex = newCursorIndex
-			registerUndo()
-		}
+	public override func perform() async {
+		let (impacted, newCursorIndex) = await outline.createNotes(rows: rows, rowStrings: newRowStrings)
+		noteCreatedRows = impacted
+		self.newCursorIndex = newCursorIndex
 	}
 	
-	public override func undo() {
-		Task {
-			await outline.deleteNotes(rows: noteCreatedRows ?? [Row](), rowStrings: oldRowStrings)
-			registerRedo()
-			restoreCursorPosition()
-		}
+	public override func undo() async {
+		await outline.deleteNotes(rows: noteCreatedRows ?? [Row](), rowStrings: oldRowStrings)
 	}
 	
 }

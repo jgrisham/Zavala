@@ -17,17 +17,13 @@ public final class CollapseCommand: OutlineCommand {
 		super.init(actionName: actionName, undoManager: undoManager, delegate: delegate, outline: outline)
 	}
 	
-	override public func perform() {
-		saveCursorCoordinates()
+	override public func perform() async {
 		collapsedRows = outline.collapse(rows: rows)
-		registerUndo()
 	}
 	
-	override public func undo() {
+	override public func undo() async {
 		guard let expandedRows = collapsedRows else { return }
 		outline.expand(rows: expandedRows)
-		registerRedo()
-		restoreCursorPosition()
 	}
 	
 }

@@ -21,24 +21,16 @@ public final class CreateRowOutsideCommand: OutlineCommand {
 		super.init(actionName: actionName, undoManager: undoManager, delegate: delegate, outline: outline)
 	}
 	
-	public override func perform() {
-		Task {
-			saveCursorCoordinates()
-			if row == nil {
-				row = Row(outline: outline)
-			}
-			newCursorIndex = await outline.createRowsOutside([row!], afterRow: afterRow, rowStrings: rowStrings)
-			registerUndo()
+	public override func perform() async {
+		if row == nil {
+			row = Row(outline: outline)
 		}
+		newCursorIndex = await outline.createRowsOutside([row!], afterRow: afterRow, rowStrings: rowStrings)
 	}
 	
-	public override func undo() {
-		Task {
-			guard let row else { return }
-			await outline.deleteRows([row])
-			registerRedo()
-			restoreCursorPosition()
-		}
+	public override func undo() async {
+		guard let row else { return }
+		await outline.deleteRows([row])
 	}
 	
 }

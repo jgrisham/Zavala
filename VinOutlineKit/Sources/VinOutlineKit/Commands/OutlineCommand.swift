@@ -12,15 +12,9 @@ public protocol OutlineCommandDelegate: AnyObject {
 	func restoreCursorPosition(_: CursorCoordinates)
 }
 
-public class OutlineCommand: UndoableCommand {
+public class OutlineCommand {
 	
 	var actionName: String
-	public var undoActionName: String {
-		return actionName
-	}
-	public var redoActionName: String {
-		return actionName
-	}
 	
 	public var undoManager: UndoManager
 	weak public var delegate: OutlineCommandDelegate?
@@ -39,23 +33,52 @@ public class OutlineCommand: UndoableCommand {
 		self.cursorCoordinates = cursorCoordinates
 	}
 	
-	public func perform() {
+	public func execute() {
+		registerUndo()
+		Task {
+			await saveCursorCoordinates()
+			await perform()
+		}
+	}
+	
+	func unexecute() {
+		registerRedo()
+		Task {
+			await undo()
+			await restoreCursorPosition()
+		}
+	}
+	
+	func perform() async {
+		fatalError("Perform function not implemented.")
+	}
+	
+	func undo() async {
 		fatalError("Undo function not implemented.")
 	}
 	
-	public func undo() {
-		fatalError("Undo function not implemented.")
+	func registerUndo() {
+		undoManager.setActionName(actionName)
+		undoManager.registerUndo(withTarget: self) { _ in
+			self.unexecute()
+		}
 	}
-}
 
-extension OutlineCommand {
+	func registerRedo() {
+		undoManager.setActionName(actionName)
+		undoManager.registerUndo(withTarget: self) { _ in
+			self.execute()
+		}
+	}
 	
+	@MainActor
 	func saveCursorCoordinates() {
 		let coordinates = delegate?.currentCoordinates
 		cursorCoordinates = coordinates
 		outline.cursorCoordinates = coordinates
 	}
 	
+	@MainActor
 	func restoreCursorPosition() {
 		if let cursorCoordinates {
 			delegate?.restoreCursorPosition(cursorCoordinates)

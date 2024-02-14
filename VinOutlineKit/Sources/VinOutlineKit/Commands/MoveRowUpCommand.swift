@@ -24,20 +24,13 @@ public final class MoveRowUpCommand: OutlineCommand {
 		super.init(actionName: actionName, undoManager: undoManager, delegate: delegate, outline: outline)
 	}
 	
-	public override func perform() {
-		Task {
-			saveCursorCoordinates()
-			await outline.moveRowsUp(rows, rowStrings: newRowStrings)
-			registerUndo()
-		}
+	public override func perform() async {
+		await outline.moveRowsUp(rows, rowStrings: newRowStrings)
+		registerUndo()
 	}
 	
-	public override func undo() {
-		Task {
-			await outline.moveRowsDown(rows, rowStrings: oldRowStrings)
-			registerRedo()
-			restoreCursorPosition()
-		}
+	public override func undo() async {
+		await outline.moveRowsDown(rows, rowStrings: oldRowStrings)
 	}
 	
 }

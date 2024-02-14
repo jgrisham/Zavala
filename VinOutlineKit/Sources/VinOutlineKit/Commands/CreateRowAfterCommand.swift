@@ -7,6 +7,7 @@
 import Foundation
 
 public final class CreateRowAfterCommand: OutlineCommand {
+	
 	public var newCursorIndex: Int?
 
 	var row: Row?
@@ -20,24 +21,16 @@ public final class CreateRowAfterCommand: OutlineCommand {
 		super.init(actionName: actionName, undoManager: undoManager, delegate: delegate, outline: outline)
 	}
 	
-	override public func perform() {
-		Task {
-			saveCursorCoordinates()
-			if row == nil {
-				row = Row(outline: outline)
-			}
-			newCursorIndex = await outline.createRow(row!, afterRow: afterRow, rowStrings: rowStrings)
-			registerUndo()
+	override public func perform() async {
+		if row == nil {
+			row = Row(outline: outline)
 		}
+		newCursorIndex = await outline.createRow(row!, afterRow: afterRow, rowStrings: rowStrings)
 	}
 	
-	override public func undo() {
-		Task {
-			guard let row else { return }
-			await outline.deleteRows([row])
-			registerRedo()
-			restoreCursorPosition()
-		}
+	override public func undo() async {
+		guard let row else { return }
+		await outline.deleteRows([row])
 	}
 	
 }

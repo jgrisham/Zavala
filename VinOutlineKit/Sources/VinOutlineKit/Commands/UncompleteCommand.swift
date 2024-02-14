@@ -25,21 +25,13 @@ var rows: [Row]
 		super.init(actionName: actionName, undoManager: undoManager, delegate: delegate, outline: outline)
 	}
 	
-	public override func perform() {
-		Task {
-			saveCursorCoordinates()
-			completedRows = await outline.uncomplete(rows: rows, rowStrings: newRowStrings)
-			registerUndo()
-		}
+	public override func perform() async {
+		completedRows = await outline.uncomplete(rows: rows, rowStrings: newRowStrings)
 	}
 	
-	public override func undo() {
-		Task {
-			guard let completedRows else { return }
-			await outline.complete(rows: completedRows, rowStrings: oldRowStrings)
-			registerRedo()
-			restoreCursorPosition()
-		}
+	public override func undo() async {
+		guard let completedRows else { return }
+		await outline.complete(rows: completedRows, rowStrings: oldRowStrings)
 	}
 	
 }

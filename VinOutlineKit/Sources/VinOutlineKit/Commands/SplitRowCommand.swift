@@ -28,24 +28,16 @@ public final class SplitRowCommand: OutlineCommand {
 		super.init(actionName: actionName, undoManager: undoManager, delegate: delegate, outline: outline)
 	}
 	
-	public override func perform() {
-		Task {
-			saveCursorCoordinates()
-			if newRow == nil {
-				newRow = Row(outline: outline)
-			}
-			newCursorIndex = await outline.splitRow(newRow: newRow!, row: row, topic: topic, cursorPosition: cursorPosition)
-			registerUndo()
+	public override func perform() async {
+		if newRow == nil {
+			newRow = Row(outline: outline)
 		}
+		newCursorIndex = await outline.splitRow(newRow: newRow!, row: row, topic: topic, cursorPosition: cursorPosition)
 	}
 	
-	public override func undo() {
-		Task {
-			guard let newHeadline = newRow else { return }
-			await outline.joinRows(topRow: row, bottomRow: newHeadline)
-			registerRedo()
-			restoreCursorPosition()
-		}
+	public override func undo() async {
+		guard let newHeadline = newRow else { return }
+		await outline.joinRows(topRow: row, bottomRow: newHeadline)
 	}
 	
 }

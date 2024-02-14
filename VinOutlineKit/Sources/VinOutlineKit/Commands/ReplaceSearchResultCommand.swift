@@ -33,24 +33,17 @@ public final class ReplaceSearchResultCommand: OutlineCommand {
 
 	}
 	
-	public override func perform() {
-		saveCursorCoordinates()
+	public override func perform() async {
 		outline.replaceSearchResults(coordinates, with: replacementText)
-		registerUndo()
 	}
 	
-	public override func undo() {
-		Task {
-			for coordinate in coordinates {
-				coordinate.range.length = oldRangeLength ?? 0
-			}
+	public override func undo() async {
+		for coordinate in coordinates {
+			coordinate.range.length = oldRangeLength ?? 0
+		}
 			
-			for (row, rowStrings) in oldRowStrings {
-				await outline.updateRow(row, rowStrings: rowStrings, applyChanges: true)
-			}
-			
-			registerRedo()
-			restoreCursorPosition()
+		for (row, rowStrings) in oldRowStrings {
+			await outline.updateRow(row, rowStrings: rowStrings, applyChanges: true)
 		}
 	}
 	

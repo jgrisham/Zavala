@@ -17,22 +17,16 @@ public final class CreateTagCommand: OutlineCommand {
 		super.init(actionName: actionName, undoManager: undoManager, delegate: delegate, outline: outline)
 	}
 	
-	public override func perform() {
-		Task {
-			guard let tag = await outline.account?.createTag(name: tagName) else { return }
-			self.tag = tag
-			outline.createTag(tag)
-			registerUndo()
-		}
+	public override func perform() async {
+		guard let tag = await outline.account?.createTag(name: tagName) else { return }
+		self.tag = tag
+		outline.createTag(tag)
 	}
 	
-	public override func undo() {
-		Task {
-			guard let tag else { return }
-			outline.deleteTag(tag)
-			await outline.account?.deleteTag(tag)
-			registerRedo()
-		}
+	public override func undo() async {
+		guard let tag else { return }
+		outline.deleteTag(tag)
+		await outline.account?.deleteTag(tag)
 	}
 	
 }

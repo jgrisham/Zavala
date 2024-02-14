@@ -19,20 +19,12 @@ public final class CreateRowBeforeCommand: OutlineCommand {
 		super.init(actionName: actionName, undoManager: undoManager, delegate: delegate, outline: outline)
 	}
 	
-	public override func perform() {
-		Task {
-			saveCursorCoordinates()
-			newCursorIndex = await outline.createRow(row, beforeRow: beforeRow)
-			registerUndo()
-		}
+	public override func perform() async {
+		newCursorIndex = await outline.createRow(row, beforeRow: beforeRow)
 	}
 	
-	public override func undo() {
-		Task {
-			await outline.deleteRows([row])
-			registerRedo()
-			restoreCursorPosition()
-		}
+	public override func undo() async {
+		await outline.deleteRows([row])
 	}
 	
 }

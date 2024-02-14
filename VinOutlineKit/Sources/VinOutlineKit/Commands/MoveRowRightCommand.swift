@@ -24,21 +24,14 @@ public final class MoveRowRightCommand: OutlineCommand {
 		super.init(actionName: actionName, undoManager: undoManager, delegate: delegate, outline: outline)
 	}
 	
-	public override func perform() {
-		Task {
-			saveCursorCoordinates()
-			moveRightRows = await outline.moveRowsRight(rows, rowStrings: newRowStrings)
-			registerUndo()
-		}
+	public override func perform() async {
+		moveRightRows = await outline.moveRowsRight(rows, rowStrings: newRowStrings)
+		registerUndo()
 	}
 	
-	public override func undo() {
-		Task {
-			guard let moveRightRows else { return }
-			await outline.moveRowsLeft(moveRightRows, rowStrings: oldRowStrings)
-			registerRedo()
-			restoreCursorPosition()
-		}
+	public override func undo() async {
+		guard let moveRightRows else { return }
+		await outline.moveRowsLeft(moveRightRows, rowStrings: oldRowStrings)
 	}
 	
 }

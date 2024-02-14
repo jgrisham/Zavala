@@ -25,22 +25,14 @@ public final class DeleteNoteCommand: OutlineCommand {
 		super.init(actionName: actionName, undoManager: undoManager, delegate: delegate, outline: outline)
 	}
 	
-	public override func perform() {
-		Task {
-			saveCursorCoordinates()
-			let (impacted, newCursorIndex) = await outline.deleteNotes(rows: rows, rowStrings: newRowStrings)
-			deletedRowNotes = impacted
-			self.newCursorIndex = newCursorIndex
-			registerUndo()
-		}
+	public override func perform() async {
+		let (impacted, newCursorIndex) = await outline.deleteNotes(rows: rows, rowStrings: newRowStrings)
+		deletedRowNotes = impacted
+		self.newCursorIndex = newCursorIndex
 	}
 	
-	public override func undo() {
-		Task {
-			outline.restoreNotes(deletedRowNotes ?? [Row: NSAttributedString]())
-			registerRedo()
-			restoreCursorPosition()
-		}
+	public override func undo() async {
+		outline.restoreNotes(deletedRowNotes ?? [Row: NSAttributedString]())
 	}
 	
 }

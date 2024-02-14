@@ -31,23 +31,15 @@ public final class MoveRowLeftCommand: OutlineCommand {
 		super.init(actionName: actionName, undoManager: undoManager, delegate: delegate, outline: outline)
 	}
 	
-	public override func perform() {
-		Task {
-			saveCursorCoordinates()
-			moveLeftRows = await outline.moveRowsLeft(rows, rowStrings: newRowStrings)
-			registerUndo()
-		}
+	public override func perform() async {
+		moveLeftRows = await outline.moveRowsLeft(rows, rowStrings: newRowStrings)
 	}
 	
-	public override func undo() {
-		Task {
-			guard let moveLeftRows else { return }
-			let movedLeft = Set(moveLeftRows)
-			let moveLeftRestore = restoreMoves.filter { movedLeft.contains($0.row) }
-			await outline.moveRows(moveLeftRestore, rowStrings: oldRowStrings)
-			registerRedo()
-			restoreCursorPosition()
-		}
+	public override func undo() async {
+		guard let moveLeftRows else { return }
+		let movedLeft = Set(moveLeftRows)
+		let moveLeftRestore = restoreMoves.filter { movedLeft.contains($0.row) }
+		await outline.moveRows(moveLeftRestore, rowStrings: oldRowStrings)
 	}
 	
 }

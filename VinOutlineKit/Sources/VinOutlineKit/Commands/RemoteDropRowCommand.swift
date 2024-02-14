@@ -28,36 +28,27 @@ public final class RemoteDropRowCommand: OutlineCommand {
 		super.init(actionName: actionName, undoManager: undoManager, delegate: delegate, outline: outline)
 	}
 	
-	public override func perform() {
-		Task {
-			saveCursorCoordinates()
-			
-			var newRows = [Row]()
-			for rowGroup in rowGroups {
-				let newRow = rowGroup.attach(to: outline)
-				newRows.append(newRow)
-			}
-			rows = newRows
-			
-			await outline.createRows(rows, afterRow: afterRow, prefersEnd: prefersEnd)
-			registerUndo()
+	public override func perform() async {
+		var newRows = [Row]()
+		for rowGroup in rowGroups {
+			let newRow = rowGroup.attach(to: outline)
+			newRows.append(newRow)
 		}
+		rows = newRows
+			
+		await outline.createRows(rows, afterRow: afterRow, prefersEnd: prefersEnd)
 	}
 	
-	public override func undo() {
-		Task {
-			var allRows = [Row]()
+	public override func undo() async {
+		var allRows = [Row]()
 			
-			func deleteVisitor(_ visited: Row) {
-				allRows.append(visited)
-				visited.rows.forEach { $0.visit(visitor: deleteVisitor) }
-			}
-			rows.forEach { $0.visit(visitor: deleteVisitor(_:)) }
-			
-			await outline.deleteRows(allRows)
-			registerRedo()
-			restoreCursorPosition()
+		func deleteVisitor(_ visited: Row) {
+			allRows.append(visited)
+			visited.rows.forEach { $0.visit(visitor: deleteVisitor) }
 		}
+		rows.forEach { $0.visit(visitor: deleteVisitor(_:)) }
+			
+		await outline.deleteRows(allRows)
 	}
 	
 }

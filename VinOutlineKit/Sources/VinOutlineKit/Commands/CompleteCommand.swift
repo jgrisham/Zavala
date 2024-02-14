@@ -27,23 +27,15 @@ public final class CompleteCommand: OutlineCommand {
 		super.init(actionName: actionName, undoManager: undoManager, delegate: delegate, outline: outline)
 	}
 	
-	override public func perform() {
-		Task {
-			saveCursorCoordinates()
-			let (impacted, newCursorIndex) = await outline.complete(rows: rows, rowStrings: newRowStrings)
-			completedRows = impacted
-			self.newCursorIndex = newCursorIndex
-			registerUndo()
-		}
+	override public func perform() async {
+		let (impacted, newCursorIndex) = await outline.complete(rows: rows, rowStrings: newRowStrings)
+		completedRows = impacted
+		self.newCursorIndex = newCursorIndex
 	}
 	
-	override public func undo() {
-		Task {
-			guard let completedRows else { return }
-			await outline.uncomplete(rows: completedRows, rowStrings: oldRowStrings)
-			registerRedo()
-			restoreCursorPosition()
-		}
+	override public func undo() async {
+		guard let completedRows else { return }
+		await outline.uncomplete(rows: completedRows, rowStrings: oldRowStrings)
 	}
 	
 }

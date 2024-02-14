@@ -33,21 +33,13 @@ public final class CutRowCommand: OutlineCommand {
 		super.init(actionName: actionName, undoManager: undoManager, delegate: delegate, outline: outline)
 	}
 	
-	public override func perform() {
-		Task {
-			saveCursorCoordinates()
-			await outline.deleteRows(rows)
-			registerUndo()
-		}
+	public override func perform() async {
+		await outline.deleteRows(rows)
 	}
 	
-	public override func undo() {
-		Task {
-			for row in rows.sortedByDisplayOrder() {
-				await outline.createRows([row], afterRow: afterRows[row])
-			}
-			registerRedo()
-			restoreCursorPosition()
+	public override func undo() async {
+		for row in rows.sortedByDisplayOrder() {
+			await outline.createRows([row], afterRow: afterRows[row])
 		}
 	}
 	

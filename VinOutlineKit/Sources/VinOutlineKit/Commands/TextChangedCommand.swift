@@ -30,20 +30,13 @@ public final class TextChangedCommand: OutlineCommand {
 		cursorCoordinates = CursorCoordinates(row: row, isInNotes: isInNotes, selection: selection)
 	}
 	
-	public override func perform() {
-		Task {
-			await outline.updateRow(row, rowStrings: newRowStrings, applyChanges: applyChanges)
-			applyChanges = true
-			registerUndo()
-		}
+	public override func perform() async {
+		await outline.updateRow(row, rowStrings: newRowStrings, applyChanges: applyChanges)
+		applyChanges = true
 	}
 	
-	public override func undo() {
-		Task {
-			await outline.updateRow(row, rowStrings: oldRowStrings, applyChanges: applyChanges)
-			registerRedo()
-			restoreCursorPosition()
-		}
+	public override func undo() async {
+		await outline.updateRow(row, rowStrings: oldRowStrings, applyChanges: applyChanges)
 	}
 	
 }
