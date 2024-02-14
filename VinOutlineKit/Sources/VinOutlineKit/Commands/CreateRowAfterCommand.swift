@@ -8,8 +8,6 @@ import Foundation
 
 public final class CreateRowAfterCommand: OutlineCommand {
 	
-	public var newCursorIndex: Int?
-
 	var row: Row?
 	var afterRow: Row?
 	var rowStrings: RowStrings?
@@ -25,7 +23,7 @@ public final class CreateRowAfterCommand: OutlineCommand {
 		if row == nil {
 			row = Row(outline: outline)
 		}
-		newCursorIndex = await outline.createRow(row!, afterRow: afterRow, rowStrings: rowStrings)
+		await outline.createRow(row!, afterRow: afterRow, rowStrings: rowStrings)
 	}
 	
 	override public func undo() async {

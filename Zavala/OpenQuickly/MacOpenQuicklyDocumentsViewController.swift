@@ -87,7 +87,7 @@ class MacOpenQuicklyDocumentsViewController: UICollectionViewController {
 	
 	private func configureDataSource() {
 		let rowRegistration = UICollectionView.CellRegistration<ConsistentCollectionViewListCell, DocumentsItem> { [weak self] (cell, indexPath, item) in
-			guard let self, let documentContainers, let document = documentsDictionary[item.id] else { return }
+			guard let self, let document = documentsDictionary[item.id] else { return }
 			
 			var contentConfiguration = UIListContentConfiguration.subtitleCell()
 			cell.insetBackground = true

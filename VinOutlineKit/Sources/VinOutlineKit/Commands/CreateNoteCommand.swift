@@ -7,7 +7,6 @@
 import Foundation
 
 public final class CreateNoteCommand: OutlineCommand {
-	public var newCursorIndex: Int?
 
 	var rows: [Row]
 	var oldRowStrings: RowStrings?
@@ -27,9 +26,7 @@ public final class CreateNoteCommand: OutlineCommand {
 	}
 	
 	public override func perform() async {
-		let (impacted, newCursorIndex) = await outline.createNotes(rows: rows, rowStrings: newRowStrings)
-		noteCreatedRows = impacted
-		self.newCursorIndex = newCursorIndex
+		noteCreatedRows = await outline.createNotes(rows: rows, rowStrings: newRowStrings)
 	}
 	
 	public override func undo() async {

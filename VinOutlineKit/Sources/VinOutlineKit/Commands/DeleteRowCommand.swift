@@ -7,7 +7,6 @@
 import Foundation
 
 public final class DeleteRowCommand: OutlineCommand {
-	public var newCursorIndex: Int?
 
 	var rows: [Row]
 	var rowStrings: RowStrings?
@@ -38,7 +37,7 @@ public final class DeleteRowCommand: OutlineCommand {
 	}
 	
 	public override func perform() async {
-		newCursorIndex = await outline.deleteRows(rows, rowStrings: rowStrings)
+		await outline.deleteRows(rows, rowStrings: rowStrings)
 	}
 	
 	public override func undo() async {

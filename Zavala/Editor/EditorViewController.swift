@@ -2246,7 +2246,7 @@ private extension EditorViewController {
 				   let currentRowIndex = topic.row?.shadowTableIndex,
 				   currentRowIndex > 0,
 				   let cell = collectionView.cellForItem(at: IndexPath(row: currentRowIndex - 1, section: adjustedRowsSection)) as? EditorRowViewCell {
-					cell.moveToEnd()
+					cell.moveToTopicEnd()
 				} else {
 					super.pressesBegan(presses, with: event)
 				}
@@ -2255,7 +2255,7 @@ private extension EditorViewController {
 				   let currentRowIndex = topic.row?.shadowTableIndex,
 				   currentRowIndex + 1 < outline?.shadowTable?.count ?? 0,
 				   let cell = collectionView.cellForItem(at: IndexPath(row: currentRowIndex + 1, section: adjustedRowsSection)) as? EditorRowViewCell {
-					cell.moveToStart()
+					cell.moveToTopicStart()
 				} else {
 					super.pressesBegan(presses, with: event)
 				}
@@ -2286,11 +2286,11 @@ private extension EditorViewController {
 				if let first = collectionView.indexPathsForSelectedItems?.sorted().first {
 					if first.row > 0 {
 						if let cell = collectionView.cellForItem(at: IndexPath(row: first.row - 1, section: first.section)) as? EditorRowViewCell {
-							cell.moveToEnd()
+							cell.moveToTopicEnd()
 						}
 					} else {
 						if let cell = collectionView.cellForItem(at: first) as? EditorRowViewCell {
-							cell.moveToStart()
+							cell.moveToTopicStart()
 						}
 					}
 				}
@@ -2298,24 +2298,24 @@ private extension EditorViewController {
 				if let last = collectionView.indexPathsForSelectedItems?.sorted().last {
 					if last.row + 1 < outline?.shadowTable?.count ?? 0 {
 						if let cell = collectionView.cellForItem(at: IndexPath(row: last.row + 1, section: last.section)) as? EditorRowViewCell {
-							cell.moveToEnd()
+							cell.moveToTopicEnd()
 						}
 					} else {
 						if let cell = collectionView.cellForItem(at: last) as? EditorRowViewCell {
-							cell.moveToEnd()
+							cell.moveToTopicEnd()
 						}
 					}
 				}
 			case .keyboardLeftArrow:
 				if let first = collectionView.indexPathsForSelectedItems?.sorted().first {
 					if let cell = collectionView.cellForItem(at: first) as? EditorRowViewCell {
-						cell.moveToStart()
+						cell.moveToTopicStart()
 					}
 				}
 			case .keyboardRightArrow:
 				if let last = collectionView.indexPathsForSelectedItems?.sorted().last {
 					if let cell = collectionView.cellForItem(at: last) as? EditorRowViewCell {
-						cell.moveToEnd()
+						cell.moveToTopicEnd()
 					}
 				}
 			default:
@@ -2406,6 +2406,15 @@ private extension EditorViewController {
 	func applyChangesRestoringState(_ changes: OutlineElementChanges) {
 		let selectedIndexPaths = collectionView.indexPathsForSelectedItems
 		
+		// Moving the cursor before the changes can prevent the keyboard bouncing on iOS
+		if changes.cursorMoveIsBeforeChanges, let newCursorIndex = changes.newCursorIndex {
+			if newCursorIndex == -1 {
+				moveCursorToTagInput()
+			} else {
+				moveCursorToRow(index: newCursorIndex, toNote: changes.cursorMoveIsToNote)
+			}
+		}
+		
 		applyChanges(changes)
 
 		if changes.isOnlyReloads, let indexPaths = selectedIndexPaths {
@@ -2413,7 +2422,16 @@ private extension EditorViewController {
 				collectionView.selectItem(at: indexPath, animated: false, scrollPosition: [])
 			}
 		}
-		
+
+		// Usually we need to move the cursor after the change because we are moving to a newly created element
+		if !changes.cursorMoveIsBeforeChanges, let newCursorIndex = changes.newCursorIndex {
+			if newCursorIndex == -1 {
+				moveCursorToTagInput()
+			} else {
+				moveCursorToRow(index: newCursorIndex, toNote: changes.cursorMoveIsToNote)
+			}
+		}
+
 		updateUI()
 	}
 
@@ -2507,7 +2525,7 @@ private extension EditorViewController {
 	func moveCursorToFirstRow() {
 		if outline?.shadowTable?.count ?? 0 > 0 {
 			if let rowCell = collectionView.cellForItem(at: IndexPath(row: 0, section: adjustedRowsSection)) as? EditorRowViewCell {
-				rowCell.moveToEnd()
+				rowCell.moveToTopicEnd()
 			}
 		}
 	}
@@ -2691,16 +2709,24 @@ private extension EditorViewController {
 		moveCursorToRow(index: shadowTableIndex)
 	}
 	
-	func moveCursorToRow(index: Int) {
+	func moveCursorToRow(index: Int, toNote: Bool = false) {
 		let newCursorIndexPath = IndexPath(row: index, section: adjustedRowsSection)
 		
 		if let rowCell = collectionView.cellForItem(at: newCursorIndexPath) as? EditorRowViewCell {
-			rowCell.moveToEnd()
+			if toNote {
+				rowCell.moveToNoteEnd()
+			} else {
+				rowCell.moveToTopicEnd()
+			}
 			makeCursorVisibleIfNecessary(animated: false)
 		} else {
 			DispatchQueue.main.async {
 				if let rowCell = self.collectionView.cellForItem(at: newCursorIndexPath) as? EditorRowViewCell {
-					rowCell.moveToEnd()
+					if toNote {
+						rowCell.moveToNoteEnd()
+					} else {
+						rowCell.moveToTopicEnd()
+					}
 					self.makeCursorVisibleIfNecessary(animated: false)
 				}
 			}
@@ -2764,7 +2790,7 @@ private extension EditorViewController {
 		guard shadowTableIndex < (shadowTable.count - 1) else {
 			let indexPath = IndexPath(row: shadowTableIndex, section: adjustedRowsSection)
 			if let rowCell = self.collectionView.cellForItem(at: indexPath) as? EditorRowViewCell {
-				rowCell.moveToEnd()
+				rowCell.moveToTopicEnd()
 			}
 			return
 		}
@@ -2879,7 +2905,7 @@ private extension EditorViewController {
 			for row in rows {
 				if cursorRow.isDecendent(row), let newCursorIndex = row.shadowTableIndex {
 					if let rowCell = collectionView.cellForItem(at: IndexPath(row: newCursorIndex, section: adjustedRowsSection)) as? EditorRowViewCell {
-						rowCell.moveToEnd()
+						rowCell.moveToTopicEnd()
 					}
 				}
 			}
@@ -3060,14 +3086,6 @@ private extension EditorViewController {
 									   rowStrings: rowStrings)
 
 		command.execute()
-		
-		if let newCursorIndex = command.newCursorIndex {
-			if newCursorIndex == -1 {
-				moveCursorToTagInput()
-			} else {
-				moveCursorToRow(index: newCursorIndex)
-			}
-		}
 	}
 	
 	func createRow(beforeRows: [Row]) {
@@ -3080,10 +3098,6 @@ private extension EditorViewController {
 											 beforeRow: beforeRow)
 		
 		command.execute()
-		
-		if let newCursorIndex = command.newCursorIndex {
-			moveCursorToRow(index: newCursorIndex)
-		}
 	}
 	
 	func createRow(afterRows: [Row]?, rowStrings: RowStrings? = nil) {
@@ -3101,10 +3115,6 @@ private extension EditorViewController {
 											rowStrings: rowStrings)
 		
 		command.execute()
-		
-		if let newCursorIndex = command.newCursorIndex {
-			moveCursorToRow(index: newCursorIndex)
-		}
 	}
 	
 	func createRowInside(afterRows: [Row]?, rowStrings: RowStrings? = nil) {
@@ -3122,10 +3132,6 @@ private extension EditorViewController {
 											 rowStrings: rowStrings)
 		
 		command.execute()
-		
-		if let newCursorIndex = command.newCursorIndex {
-			moveCursorToRow(index: newCursorIndex)
-		}
 	}
 	
 	func createRowOutside(afterRows: [Row]?, rowStrings: RowStrings? = nil) {
@@ -3143,10 +3149,6 @@ private extension EditorViewController {
 											  rowStrings: rowStrings)
 		
 		command.execute()
-		
-		if let newCursorIndex = command.newCursorIndex {
-			moveCursorToRow(index: newCursorIndex)
-		}
 	}
 	
 	func duplicateRows(_ rows: [Row]) {
@@ -3228,12 +3230,6 @@ private extension EditorViewController {
 												  
 		
 		command.execute()
-		
-		if let newCursorIndex = command.newCursorIndex {
-			if let rowCell = collectionView.cellForItem(at: IndexPath(row: newCursorIndex, section: adjustedRowsSection)) as? EditorRowViewCell {
-				rowCell.moveToStart()
-			}
-		}
 	}
 
 	func completeRows(_ rows: [Row], rowStrings: RowStrings? = nil) {
@@ -3254,7 +3250,7 @@ private extension EditorViewController {
 		
 		if let newCursorIndex = command.newCursorIndex {
 			if let rowCell = collectionView.cellForItem(at: IndexPath(row: newCursorIndex, section: adjustedRowsSection)) as? EditorRowViewCell {
-				rowCell.moveToEnd()
+				rowCell.moveToTopicEnd()
 			}
 		}
 	}
@@ -3283,17 +3279,6 @@ private extension EditorViewController {
 										rowStrings: rowStrings)
 		
 		command.execute()
-		
-		if let newCursorIndex = command.newCursorIndex ?? rows.first?.shadowTableIndex {
-			if let rowCell = collectionView.cellForItem(at: IndexPath(row: newCursorIndex, section: adjustedRowsSection)) as? EditorRowViewCell {
-				// This fixes the problem of not moving to the note on iOS when adding a note
-				DispatchQueue.main.async {
-					rowCell.moveToNote()
-				}
-			}
-		}
-
-		makeCursorVisibleIfNecessary(animated: false)
 	}
 
 	func deleteRowNotes(_ rows: [Row], rowStrings: RowStrings? = nil) {
@@ -3313,12 +3298,6 @@ private extension EditorViewController {
 										rowStrings: rowStrings)
 		
 		command.execute()
-
-		if let newCursorIndex = command.newCursorIndex {
-			if let rowCell = collectionView.cellForItem(at: IndexPath(row: newCursorIndex, section: adjustedRowsSection)) as? EditorRowViewCell {
-				rowCell.moveToEnd()
-			}
-		}
 	}
 
 	func makeCursorVisibleIfNecessary(animated: Bool = true) {

@@ -7,7 +7,6 @@
 import Foundation
 
 public final class CreateRowBeforeCommand: OutlineCommand {
-	public var newCursorIndex: Int?
 
 	var row: Row
 	var beforeRow: Row
@@ -20,7 +19,7 @@ public final class CreateRowBeforeCommand: OutlineCommand {
 	}
 	
 	public override func perform() async {
-		newCursorIndex = await outline.createRow(row, beforeRow: beforeRow)
+		await outline.createRow(row, beforeRow: beforeRow)
 	}
 	
 	public override func undo() async {

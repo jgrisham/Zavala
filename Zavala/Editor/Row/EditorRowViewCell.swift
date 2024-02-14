@@ -136,7 +136,7 @@ class EditorRowViewCell: UICollectionViewListCell {
 		}
 	}
 	
-	func moveToStart() {
+	func moveToTopicStart() {
 		guard let textView = (contentView as? EditorRowContentView)?.topicTextView else { return }
 		let startPosition = textView.beginningOfDocument
 		// If you don't set the cursor location this way, sometimes if just doesn't appear.  Weird, I know.
@@ -145,14 +145,14 @@ class EditorRowViewCell: UICollectionViewListCell {
 		textView.becomeFirstResponder()
 	}
 	
-	func moveToEnd() {
+	func moveToTopicEnd() {
 		guard let textView = (contentView as? EditorRowContentView)?.topicTextView else { return }
 		let endPosition = textView.endOfDocument
 		textView.selectedTextRange = textView.textRange(from: endPosition, to: endPosition)
 		textView.becomeFirstResponder()
 	}
 	
-	func moveToNote() {
+	func moveToNoteEnd() {
 		guard let textView = (contentView as? EditorRowContentView)?.noteTextView else { return }
 		let endPosition = textView.endOfDocument
 		textView.selectedTextRange = textView.textRange(from: endPosition, to: endPosition)
