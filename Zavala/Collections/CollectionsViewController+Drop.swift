@@ -96,8 +96,8 @@ extension CollectionsViewController: UICollectionViewDropDelegate {
 				
 				document.deleteAllBacklinks()
 				
-				document.forceSave()
-				document.unload()
+				await document.forceSave()
+				await document.unload()
 			}
 			return
 		}

@@ -266,24 +266,24 @@ public enum Document: Equatable, Hashable, Codable {
 		}
 	}
 
-	public func unload() {
+	public func unload() async {
 		switch self {
 		case .outline(let outline):
-			outline.unload()
+			await outline.unload()
 		}
 	}
 
-	public func save() {
+	public func save() async {
 		switch self {
 		case .outline(let outline):
-			outline.save()
+			await outline.save()
 		}
 	}
 
-	public func forceSave() {
+	public func forceSave() async {
 		switch self {
 		case .outline(let outline):
-			outline.forceSave()
+			await outline.forceSave()
 		}
 	}
 

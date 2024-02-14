@@ -271,8 +271,8 @@ public final class Account: Identifiable, Equatable, Codable {
 		await outline.updateAllLinkRelationships()
 		await fixAltLinks(excluding: outline)
 		
-		outline.forceSave()
-		outline.unloadRows()
+		await outline.forceSave()
+		await outline.unloadRows()
 
 		return document
 	}
@@ -320,8 +320,8 @@ public final class Account: Identifiable, Equatable, Codable {
 			let outline = document.outline!
 			await outline.load()
 			await outline.apply(update)
-			outline.forceSave()
-			outline.unload()
+			await outline.forceSave()
+			await outline.unload()
 		} else {
 			guard update.saveOutlineRecord != nil else {
 				return
@@ -330,8 +330,8 @@ public final class Account: Identifiable, Equatable, Codable {
 			outline.zoneID = update.zoneID
 
 			await outline.apply(update)
-			outline.forceSave()
-			outline.unload()
+			await outline.forceSave()
+			await outline.unload()
 			
 			if documents == nil {
 				documents = [Document]()

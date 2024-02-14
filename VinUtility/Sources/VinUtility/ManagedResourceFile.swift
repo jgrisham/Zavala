@@ -50,8 +50,10 @@ open class ManagedResourceFile: NSObject, NSFilePresenter {
 	}
 	
 	public func savePresentedItemChanges(completionHandler: @escaping (Error?) -> Void) {
-		saveIfNecessary()
-		completionHandler(nil)
+		Task {
+			await saveIfNecessary()
+			completionHandler(nil)
+		}
 	}
 	
 	public func relinquishPresentedItem(toReader reader: @escaping ((() -> Void)?) -> Void) {
@@ -80,8 +82,9 @@ open class ManagedResourceFile: NSObject, NSFilePresenter {
 		isLoading = false
 	}
 	
-	public func saveIfNecessary() {
-		saveDebouncer.executeNow()
+	public func saveIfNecessary() async {
+		saveDebouncer.cancel()
+		await saveToDiskIfNeeded()
 	}
 
 	public func delete() {
@@ -110,16 +113,17 @@ private extension ManagedResourceFile {
 	
 	func debounceSaveToDiskIfNeeded() {
 		saveDebouncer.debounce { [weak self] in
-			self?.saveToDiskIfNeeded()
+			guard let self else { return }
+			Task {
+				await self.saveToDiskIfNeeded()
+			}
 		}
 	}
 
-	func saveToDiskIfNeeded() {
+	func saveToDiskIfNeeded() async {
 		if isDirty {
 			isDirty = false
-			Task {
-				await saveFile()
-			}
+			await saveFile()
 		}
 	}
 

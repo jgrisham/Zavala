@@ -896,20 +896,20 @@ class EditorViewController: UIViewController, DocumentsActivityItemsConfiguratio
 		isSearching = false // Necessary to prevent crashing while switching outlines during a find session
 		findInteraction.dismissFindNavigator()
 		
-		outline?.unload()
-		undoManager?.removeAllActions()
-	
-		// Assign the new Outline and load it
-		outline = newOutline
-		
-		// Don't continue if we are just clearing out the editor
-		guard let outline else {
-			updateUI()
-			collectionView.reloadData()
-			return
-		}
-
 		Task {
+			await outline?.unload()
+			undoManager?.removeAllActions()
+		
+			// Assign the new Outline and load it
+			outline = newOutline
+			
+			// Don't continue if we are just clearing out the editor
+			guard let outline else {
+				updateUI()
+				collectionView.reloadData()
+				return
+			}
+
 			await outline.load()
 			outline.incrementBeingUsedCount()
 			checkForCorruptOutline()

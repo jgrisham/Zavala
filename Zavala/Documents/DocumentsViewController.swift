@@ -682,9 +682,9 @@ private extension DocumentsViewController {
 					await document.load()
 					let newDocument = await document.duplicate()
 					document.account?.createDocument(newDocument)
-					newDocument.forceSave()
-					newDocument.unload()
-					document.unload()
+					await newDocument.forceSave()
+					await newDocument.unload()
+					await document.unload()
 				}
             }
 		}

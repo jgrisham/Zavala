@@ -262,7 +262,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 			rows.forEach { $0.visit(visitor: wordCountVisitor.visitor)	}
 			
 			decrementBeingUsedCount()
-			unloadRows()
+			await unloadRows()
 			
 			return wordCountVisitor.count
 		}
@@ -914,7 +914,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		}
 		print.append(visitor.print)
 
-		unload()
+		await unload()
 		return print
 	}
 	
@@ -930,7 +930,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 			print.append(visitor.print)
 		}
 
-		unload()
+		await unload()
 		return print
 	}
 	
@@ -945,7 +945,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 			textContent.append("\n")
 		}
 		
-		unloadRows()
+		await unloadRows()
 		return textContent
 	}
 	
@@ -959,7 +959,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		}
 		md.append(visitor.markdown)
 
-		unload()
+		await unload()
 		return md
 	}
 	
@@ -974,7 +974,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 			md.append("\n")
 		}
 		
-		unload()
+		await unload()
 		return md
 	}
 	
@@ -1041,7 +1041,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		opml.append("</body>\n")
 		opml.append("</opml>\n")
 
-		unload()
+		await unload()
 		return opml
 	}
 	
@@ -2385,9 +2385,9 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		await loadImages()
 	}
 	
-	public func unload() {
-		unloadRows()
-		unloadImages()
+	public func unload() async {
+		await unloadRows()
+		await unloadImages()
 	}
 	
 	public func loadRows() async {
@@ -2397,10 +2397,10 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		prepareRowsForProcessing()
 	}
 	
-	public func unloadRows() {
+	public func unloadRows() async {
 		guard !isBeingUsed else { return }
 
-		rowsFile?.saveIfNecessary()
+		await rowsFile?.saveIfNecessary()
 		rowsFile?.suspend()
 		rowsFile = nil
 		shadowTable = nil
@@ -2414,10 +2414,10 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		await imagesFile?.load()
 	}
 	
-	public func unloadImages() {
+	public func unloadImages() async {
 		guard !isBeingUsed else { return }
 		
-		imagesFile?.saveIfNecessary()
+		await imagesFile?.saveIfNecessary()
 		imagesFile?.suspend()
 		imagesFile = nil
 		images = nil
@@ -2433,17 +2433,17 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		imagesFile?.resume()
 	}
 	
-	public func save() {
-		rowsFile?.saveIfNecessary()
-		imagesFile?.saveIfNecessary()
+	public func save() async {
+		await rowsFile?.saveIfNecessary()
+		await imagesFile?.saveIfNecessary()
 	}
 	
-	public func forceSave() {
+	public func forceSave() async {
 		rowsFile?.markAsDirty()
-		rowsFile?.saveIfNecessary()
+		await rowsFile?.saveIfNecessary()
 		
 		imagesFile?.markAsDirty()
-		imagesFile?.saveIfNecessary()
+		await imagesFile?.saveIfNecessary()
 	}
 	
 	public func delete() async {
@@ -2629,7 +2629,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 			endCloudKitBatchRequest()
 		}
 		
-		unloadRows()
+		await unloadRows()
 		
 	}
 	
@@ -3255,57 +3255,58 @@ private extension Outline {
 		}
 	}
 	
+	#warning("Uncomment this code and fix it.")
 	func replaceLinkTitleIfPossible(row: Row, newText: NSAttributedString?, isInNotes: Bool) {
-		guard autoLinkingEnabled ?? false, let newText else { return }
-		
-		incrementBeingUsedCount()
-		
-		var pageTitles = [URL: String]()
-		let group = DispatchGroup()
-		
-		newText.enumerateAttribute(.link, in: NSRange(location: 0, length: newText.length)) { (value, range, match) in
-			guard let url = value as? URL else { return }
-			
-			group.enter()
-			WebPageTitle.find(forURL: url) { pageTitle in
-				pageTitles[url] = pageTitle
-				group.leave()
-			}
-		}
-		
-		group.notify(queue: .main) { [weak self ] in
-			guard let self else { return }
-			
-			let mutableText = NSMutableAttributedString(attributedString: newText)
-			
-			mutableText.enumerateAttribute(.link, in: NSRange(location: 0, length: mutableText.length)) { (value, range, match) in
-				guard let url = value as? URL,
-					  let pageTitle = pageTitles[url],
-					  mutableText.attributedSubstring(from: range).string == url.absoluteString else {
-					return
-				}
-				
-				mutableText.removeAttribute(.link, range: range)
-				mutableText.replaceCharacters(in: range, with: pageTitle)
-				mutableText.addAttribute(.link, value: url, range: NSRange(location: range.location, length: pageTitle.count))
-			}
-			
-			guard let row = self.findRow(id: row.id) else { return }
-			
-			if !isInNotes {
-				row.topic = mutableText
-			} else {
-				row.note = mutableText
-			}
-
-			self.decrementBeingUsedCount()
-			self.unload()
-
-			if let shadowTableIndex = row.shadowTableIndex {
-				self.outlineElementsDidChange(OutlineElementChanges(section: self.adjustedRowsSection, reloads: Set([shadowTableIndex])))
-			}
-
-		}
+//		guard autoLinkingEnabled ?? false, let newText else { return }
+//		
+//		incrementBeingUsedCount()
+//		
+//		var pageTitles = [URL: String]()
+//		let group = DispatchGroup()
+//		
+//		newText.enumerateAttribute(.link, in: NSRange(location: 0, length: newText.length)) { (value, range, match) in
+//			guard let url = value as? URL else { return }
+//			
+//			group.enter()
+//			WebPageTitle.find(forURL: url) { pageTitle in
+//				pageTitles[url] = pageTitle
+//				group.leave()
+//			}
+//		}
+//		
+//		group.notify(queue: .main) { [weak self ] in
+//			guard let self else { return }
+//			
+//			let mutableText = NSMutableAttributedString(attributedString: newText)
+//			
+//			mutableText.enumerateAttribute(.link, in: NSRange(location: 0, length: mutableText.length)) { (value, range, match) in
+//				guard let url = value as? URL,
+//					  let pageTitle = pageTitles[url],
+//					  mutableText.attributedSubstring(from: range).string == url.absoluteString else {
+//					return
+//				}
+//				
+//				mutableText.removeAttribute(.link, range: range)
+//				mutableText.replaceCharacters(in: range, with: pageTitle)
+//				mutableText.addAttribute(.link, value: url, range: NSRange(location: range.location, length: pageTitle.count))
+//			}
+//			
+//			guard let row = self.findRow(id: row.id) else { return }
+//			
+//			if !isInNotes {
+//				row.topic = mutableText
+//			} else {
+//				row.note = mutableText
+//			}
+//
+//			self.decrementBeingUsedCount()
+//			self.unload()
+//
+//			if let shadowTableIndex = row.shadowTableIndex {
+//				self.outlineElementsDidChange(OutlineElementChanges(section: self.adjustedRowsSection, reloads: Set([shadowTableIndex])))
+//			}
+//
+//		}
 		
 	}
 

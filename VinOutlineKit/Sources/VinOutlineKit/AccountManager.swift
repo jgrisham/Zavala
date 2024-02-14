@@ -272,19 +272,17 @@ public actor AccountManager {
 	}
 	
 	public func suspend() async {
-		accountFiles.values.forEach {
-			$0.saveIfNecessary()
-			$0.suspend()
+		for accountFile in accountFiles.values {
+			await accountFile.saveIfNecessary()
+			accountFile.suspend()
 		}
 
-		await activeDocuments.forEach {
-			$0.save()
-			$0.suspend()
+		for document in await activeDocuments {
+			await document.save()
+			document.suspend()
 		}
 
-		Task {
-			await cloudKitAccount?.cloudKitManager?.suspend()
-		}
+		await cloudKitAccount?.cloudKitManager?.suspend()
 	}
 	
 }

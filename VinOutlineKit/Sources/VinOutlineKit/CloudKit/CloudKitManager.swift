@@ -371,7 +371,9 @@ private extension CloudKitManager {
 			return leftOverRequests
 		}
 		
-		loadedDocuments.forEach { $0.unload() }
+		for loadedDocument in loadedDocuments {
+			await loadedDocument.unload()
+		}
 			
 		self.logger.info("Saving \(leftOverRequests.count) requests.")
 		CloudKitActionRequest.save(requests: leftOverRequests)
