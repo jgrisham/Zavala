@@ -39,9 +39,9 @@ public enum AccountError: LocalizedError {
 	}
 }
 
-public final class Account: Identifiable, Equatable, Codable {
+public actor Account: Identifiable, Equatable, Codable {
 
-	public var id: EntityID {
+	nonisolated public var id: EntityID {
 		return EntityID.account(type.rawValue)
 	}
 	
@@ -49,7 +49,7 @@ public final class Account: Identifiable, Equatable, Codable {
 		return type.name
 	}
 	
-	public var type: AccountType
+	public let type: AccountType
 	public var isActive: Bool
 	
 	public private(set) var tags: [Tag]?
