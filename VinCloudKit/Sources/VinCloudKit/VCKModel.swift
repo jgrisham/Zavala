@@ -41,7 +41,7 @@ public protocol VCKModel {
 	var cloudKitMetaData: Data? { get set }
 	var isCloudKitMerging: Bool { get set }
 	
-	func apply(_ error: CKError)
+	func apply(_ error: CKError) async
 	func buildRecord() async -> CKRecord
 	func clearSyncData()
 	

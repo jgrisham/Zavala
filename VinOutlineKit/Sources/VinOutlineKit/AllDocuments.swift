@@ -12,11 +12,6 @@ import Foundation
 #endif
 public final class AllDocuments: Identifiable, DocumentContainer {
 
-	public var documents: [Document] {
-		return account?.documents ?? []
-	}
-	
-
 	public var id: EntityID
 	public var name: String? = VinOutlineKitStringAssets.all
 	#if canImport(UIKit)
@@ -24,9 +19,16 @@ public final class AllDocuments: Identifiable, DocumentContainer {
 	#endif
 
 	public var itemCount: Int? {
-		return account?.documents?.count
+		return 0
+//		return account?.documents?.count
 	}
-	
+
+	public var documents: [Document] {
+		get async {
+			return await account?.documents ?? []
+		}
+	}
+
 	public weak var account: Account?
 	
 	public init(account: Account) {

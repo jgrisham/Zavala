@@ -9,7 +9,7 @@ import Foundation
 
 public extension AccountManager {
 	
-	func loadAccountFileData(_ data: Data, accountType: AccountType) {
+	func loadAccountFileData(_ data: Data, accountType: AccountType) async {
 		let decoder = PropertyListDecoder()
 		let account: Account
 		do {
@@ -22,17 +22,17 @@ public extension AccountManager {
 		let initialLoad = _accountsDictionary[accountType.rawValue] == nil
 		_accountsDictionary[accountType.rawValue] = account
 		
-		for document in account.documents ?? [] {
+		for document in await account.documents ?? [] {
 			var mutableDocument = document
 			mutableDocument.account = account
 		}
 		
 		if !initialLoad {
-			account.accountDidReload()
+			await account.accountDidReload()
 		}
 	}
 	
-	func buildAccountFileData(accountType: AccountType) -> Data? {
+	func buildAccountFileData(accountType: AccountType) async -> Data? {
 		guard let account = _accountsDictionary[accountType.rawValue] else { return nil }
 		
 		let encoder = PropertyListEncoder()

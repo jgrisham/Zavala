@@ -15,11 +15,11 @@ final class ImagesFile: ManagedResourceFile {
 	init?(outline: Outline) async {
 		self.outline = outline
 
-		guard let account = await outline.account else {
+		guard let account = outline.account else {
 			return nil
 		}
 
-		let fileURL = account.folder.appendingPathComponent("\(outline.id.documentUUID)_images.plist")
+		let fileURL = await account.folder.appendingPathComponent("\(outline.id.documentUUID)_images.plist")
 		super.init(fileURL: fileURL)
 	}
 	

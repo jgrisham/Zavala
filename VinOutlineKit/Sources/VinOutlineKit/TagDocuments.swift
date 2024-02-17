@@ -26,15 +26,18 @@ public final class TagDocuments: Identifiable, DocumentContainer {
 
 	public var itemCount: Int? {
 		guard let tag else { return nil }
-		return account?.documents?.filter({ $0.hasTag(tag) }).count
+//		return account?.documents?.filter({ $0.hasTag(tag) }).count
+		return 0
 	}
 	
 	public weak var account: Account?
 	public weak var tag: Tag?
 	
 	public var documents: [Document] {
-		guard let tag, let documents = account?.documents else { return [] }
-		return documents.filter { $0.hasTag(tag) }
+		get async {
+			guard let tag, let documents = await account?.documents else { return [] }
+			return documents.filter { $0.hasTag(tag) }
+		}
 	}
 
 	public init(account: Account, tag: Tag) {

@@ -65,7 +65,7 @@ extension Outline: VCKModel {
 	
 	func requestCloudKitUpdate(for entityID: EntityID) {
 		Task {
-			guard let cloudKitManager = account?.cloudKitManager else { return }
+			guard let cloudKitManager = await account?.cloudKitManager else { return }
 			if batchCloudKitRequests > 0 {
 				cloudKitRequestsIDs.insert(entityID)
 			} else {
@@ -84,7 +84,7 @@ extension Outline: VCKModel {
 	func endCloudKitBatchRequest() {
 		Task {
 			batchCloudKitRequests = batchCloudKitRequests - 1
-			guard batchCloudKitRequests == 0, let cloudKitManager = account?.cloudKitManager, let zoneID else { return }
+			guard batchCloudKitRequests == 0, let cloudKitManager = await account?.cloudKitManager, let zoneID else { return }
 
 			let requests = cloudKitRequestsIDs.map { CloudKitActionRequest(zoneID: zoneID, id: $0) }
 			cloudKitManager.addRequests(Set(requests))
@@ -97,7 +97,7 @@ extension Outline: VCKModel {
 		var updatedRowIDs = Set<String>()
 		
 		if let record = update.saveOutlineRecord {
-			let outlineUpdatedRows = apply(record)
+			let outlineUpdatedRows = await apply(record)
 			updatedRowIDs.formUnion(outlineUpdatedRows)
 		}
 		
@@ -182,7 +182,7 @@ extension Outline: VCKModel {
 		}
 	}
 	
-	public func apply(_ record: CKRecord) -> [String] {
+	public func apply(_ record: CKRecord) async -> [String] {
 		guard let account else { return [] }
 		
 		if let metaData = cloudKitMetaData,
@@ -237,7 +237,7 @@ extension Outline: VCKModel {
         ownerURL = merge(client: ownerURL, ancestor: ancestorOwnerURL, server: serverOwnerURL)
 
 		let updatedRowIDs = applyRowOrder(record)
-		applyTags(record, account)
+		await applyTags(record, account)
 		applyDocumentLinks(record)
 		applyDocumentBacklinks(record)
         
@@ -249,7 +249,7 @@ extension Outline: VCKModel {
 		return updatedRowIDs
 	}
 	
-    public func apply(_ error: CKError) {
+    public func apply(_ error: CKError) async {
         guard let record = error.serverRecord, let account else { return }
 		cloudKitMetaData = record.metadata
 		
@@ -269,7 +269,11 @@ extension Outline: VCKModel {
         }
 
         let errorTagNames = record[Outline.CloudKitRecord.Fields.tagNames] as? [String] ?? [String]()
-        serverTagIDs = errorTagNames.map({ account.createTag(name: $0) }).map({ $0.id })
+		var errorTags = [Tag]()
+		for errorTagName in errorTagNames {
+			errorTags.append(await account.createTag(name: errorTagName))
+		}
+        serverTagIDs = errorTags.map({ $0.id })
         
         let errorDocumentLinks = record[Outline.CloudKitRecord.Fields.documentLinks] as? [String] ?? [String]()
         serverDocumentLinks = errorDocumentLinks.compactMap { EntityID(description: $0) }
@@ -327,7 +331,7 @@ extension Outline: VCKModel {
         if let recordTagIDs = merge(client: tagIDs, ancestor: ancestorTagIDs, server: serverTagIDs) {
             var recordTags = [Tag]()
 			for recordTagID in recordTagIDs {
-				if let tag = account!.findTag(tagID: recordTagID) {
+				if let tag = await account!.findTag(tagID: recordTagID) {
 					recordTags.append(tag)
 				}
 			}
@@ -428,13 +432,17 @@ private extension Outline {
 		return updatedRowIDs
 	}
 	
-	func applyTags(_ record: CKRecord, _ account: Account) {
+	func applyTags(_ record: CKRecord, _ account: Account) async {
 		let tagNames = tags.map { $0.name }
 		let ancestorTagNames = tags.map { $0.name }
 		let serverTagNames = record[Outline.CloudKitRecord.Fields.tagNames] as? [String] ?? [String]()
 		
 		if let mergedTagNames = merge(client: tagNames, ancestor: ancestorTagNames, server: serverTagNames) {
-			let mergedTagIDs = mergedTagNames.map({ account.createTag(name: $0) }).map({ $0.id })
+			var mergeTags = [Tag]()
+			for mergedTagName in mergedTagNames {
+				mergeTags.append(await account.createTag(name: mergedTagName))
+			}
+			let mergedTagIDs = mergeTags.map({ $0.id })
 			
 			if isBeingUsed && isSearching == .notSearching {
 				updateTagUI(mergedTagIDs, tagIDs ?? [])
@@ -444,7 +452,7 @@ private extension Outline {
 			
 			let tagNamesToDelete = Set(tagNames).subtracting(mergedTagNames)
 			for tagNameToDelete in tagNamesToDelete {
-				account.deleteTag(name: tagNameToDelete)
+				await account.deleteTag(name: tagNameToDelete)
 			}
 		} else {
 			tagIDs = nil

@@ -29,8 +29,8 @@ public enum VCKModifyStrategy {
 }
 
 public protocol VCKZoneDelegate: AnyObject {
-	func store(changeToken: Data?, key: VCKChangeTokenKey)
-	func findChangeToken(key: VCKChangeTokenKey) -> Data?
+	func store(changeToken: Data?, key: VCKChangeTokenKey) async
+	func findChangeToken(key: VCKChangeTokenKey) async -> Data?
 	func cloudKitDidModify(changed: [CKRecord], deleted: [CloudKitRecordKey]) async throws;
 }
 
@@ -77,22 +77,26 @@ public extension VCKZone {
 	}
 	
 	private var changeToken: CKServerChangeToken? {
-		get {
-			guard let tokenData = delegate!.findChangeToken(key: changeTokenKey) else { return nil }
+		get async {
+			guard let tokenData = await delegate!.findChangeToken(key: changeTokenKey) else { return nil }
 			return try? NSKeyedUnarchiver.unarchivedObject(ofClass: CKServerChangeToken.self, from: tokenData)
 		}
-		set {
-			guard let token = newValue, let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: false) else {
-				return
-			}
-			delegate!.store(changeToken: tokenData, key: changeTokenKey)
+	}
+	
+	private func storeChangeToken(_ token: CKServerChangeToken?) async {
+		var tokenData: Data? = nil
+		
+		if let token, let data = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: false) {
+			tokenData = data
 		}
+		
+		await delegate!.store(changeToken: tokenData, key: changeTokenKey)
 	}
 
 	/// Moves the change token to the new key name.  This can eventually be removed.
-	func migrateChangeToken() {
+	func migrateChangeToken() async {
 		if let tokenData = UserDefaults.standard.object(forKey: oldChangeTokenKey) as? Data {
-			delegate!.store(changeToken: tokenData, key: changeTokenKey)
+			await delegate!.store(changeToken: tokenData, key: changeTokenKey)
 			UserDefaults.standard.removeObject(forKey: oldChangeTokenKey)
 		}
 	}
@@ -234,7 +238,7 @@ public extension VCKZone {
 			var savedRecords = [CKRecord]()
 			var deletedRecordIDs = [CKRecord.ID]()
 			
-			var modelsToRetry = [VCKModel]()
+			var modelsToRetry = [(VCKModel, CKError?)]()
 			var deletesToRetry = [CKRecord.ID]()
 			
 			let op = CKModifyRecordsOperation(recordsToSave: recordsToSave, recordIDsToDelete: recordIDsToDelete)
@@ -256,7 +260,7 @@ public extension VCKZone {
 					case .batchRequestFailed:
 						// Nothing wrong with this record, it was just part of the batch that failed.
 						if let model = modelsToSave.first(where: { $0.cloudKitRecordID == recordID }) {
-							modelsToRetry.append(model)
+							modelsToRetry.append((model, nil))
 						}
 					case .unknownItem:
 						// The record was deleted by another device or user, so don't try to update it.
@@ -264,8 +268,7 @@ public extension VCKZone {
 					case .serverRecordChanged:
 						// Merge the model and try to save it again
 						if let model = modelsToSave.first(where: { $0.cloudKitRecordID == recordID }) {
-							model.apply(ckError)
-							modelsToRetry.append(model)
+							modelsToRetry.append((model, ckError))
 						}
 					default:
 						// Won't sync and I don't know why
@@ -352,21 +355,7 @@ public extension VCKZone {
 							} catch {
 								continuation.resume(throwing: error)
 							}
-						}
-
-					case .serverRecordChanged(let ckError):
-						self.logger.info("Modify failed: \(ckError.localizedDescription, privacy: .public). Attempting to recover...")
-						modelsToSave[0].apply(ckError)
-						self.logger.info("\(modelsToSave.count, privacy: .public) records resolved. Attempting Modify again...")
-						Task {
-							do {
-								let result = try await self.modify(modelsToSave: modelsToSave, recordIDsToDelete: recordIDsToDelete, strategy: strategy)
-								continuation.resume(returning: result)
-							} catch {
-								continuation.resume(throwing: error)
-							}
-						}
-						
+						}						
 					default:
 						continuation.resume(throwing: error)
 					}
@@ -383,7 +372,16 @@ public extension VCKZone {
 						let deletesToSend = deletesToRetry
 						Task {
 							do {
-								let result = try await self.modify(modelsToSave: modelsToSend, recordIDsToDelete: deletesToSend, strategy: strategy)
+								var updatedModelsToSend = [VCKModel]()
+								
+								for (modelToSend, ckError) in modelsToSend {
+									if let ckError {
+										await modelToSend.apply(ckError)
+									}
+									updatedModelsToSend.append(modelToSend)
+								}
+								
+								let result = try await self.modify(modelsToSave: updatedModelsToSend, recordIDsToDelete: deletesToSend, strategy: strategy)
 								continuation.resume(returning: result)
 							} catch {
 								continuation.resume(throwing: error)
@@ -412,15 +410,17 @@ public extension VCKZone {
 		@Sendable func wasChanged(updated: [CKRecord], deleted: [CloudKitRecordKey], token: CKServerChangeToken?) async throws {
 			logger.debug("Received \(updated.count, privacy: .public) updated records and \(deleted.count, privacy: .public) delete requests.")
 			try await delegate?.cloudKitDidModify(changed: updated, deleted: deleted)
-			self.changeToken = token
+			await self.storeChangeToken(token)
 		}
+		
+		let token = await changeToken
 		
 		return try await withCheckedThrowingContinuation { continuation in
 			
 			var perRecordError: Error?
 			
 			let zoneConfig = CKFetchRecordZoneChangesOperation.ZoneConfiguration()
-			zoneConfig.previousServerChangeToken = changeToken
+			zoneConfig.previousServerChangeToken = token
 			let op = CKFetchRecordZoneChangesOperation(recordZoneIDs: [zoneID], configurationsByRecordZoneID: [zoneID: zoneConfig])
 			op.fetchAllChanges = true
 			op.qualityOfService = Self.qualityOfService
@@ -512,7 +512,7 @@ public extension VCKZone {
 						}
 					case .changeTokenExpired:
 						Task {
-							self.changeToken = nil
+							await self.storeChangeToken(nil)
 							try await self.fetchChangesInZone(incremental: incremental)
 							continuation.resume()
 						}

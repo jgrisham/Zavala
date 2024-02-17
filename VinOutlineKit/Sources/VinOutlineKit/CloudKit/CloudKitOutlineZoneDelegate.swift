@@ -19,12 +19,12 @@ class CloudKitOutlineZoneDelegate: VCKZoneDelegate {
 		self.zoneID = zoneID
 	}
 	
-	func store(changeToken: Data?, key: VCKChangeTokenKey) {
-		account!.store(changeToken: changeToken, key: key)
+	func store(changeToken: Data?, key: VCKChangeTokenKey) async {
+		await account!.store(changeToken: changeToken, key: key)
 	}
 	
-	func findChangeToken(key: VCKChangeTokenKey) -> Data? {
-		return account!.zoneChangeTokens?[key]
+	func findChangeToken(key: VCKChangeTokenKey) async -> Data? {
+		return await account!.zoneChangeTokens?[key]
 	}
 	
 	func cloudKitDidModify(changed: [CKRecord], deleted: [CloudKitRecordKey]) async throws {

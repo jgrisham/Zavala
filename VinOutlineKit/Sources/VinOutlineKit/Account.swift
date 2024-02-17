@@ -39,7 +39,7 @@ public enum AccountError: LocalizedError {
 	}
 }
 
-public actor Account: Identifiable, Equatable, Codable {
+public actor Account: Identifiable, Equatable {
 
 	nonisolated public var id: EntityID {
 		return EntityID.account(type.rawValue)
@@ -55,12 +55,7 @@ public actor Account: Identifiable, Equatable, Codable {
 	public private(set) var tags: [Tag]?
 	public private(set) var documents: [Document]?
 
-	public var sharedDatabaseChangeToken: Data? {
-		didSet {
-			accountMetadataDidChange()
-		}
-	}
-
+	public private(set) var sharedDatabaseChangeToken: Data?
 	public private(set) var zoneChangeTokens: [VCKChangeTokenKey: Data]?
 
 	enum CodingKeys: String, CodingKey {
@@ -125,8 +120,8 @@ public actor Account: Identifiable, Equatable, Codable {
 		self.documents = [Document]()
 	}
 	
-	func initializeCloudKit(firstTime: Bool, errorHandler: ErrorHandler) {
-		cloudKitManager = CloudKitManager(account: self, errorHandler: errorHandler)
+	func initializeCloudKit(firstTime: Bool, errorHandler: ErrorHandler) async {
+		cloudKitManager = await CloudKitManager(account: self, errorHandler: errorHandler)
 		
 		for document in documents ?? [] {
 			cloudKitManager?.addSyncRecordIfNeeded(document: document)
@@ -163,6 +158,11 @@ public actor Account: Identifiable, Equatable, Codable {
 		activeAccountsDidChange()
 	}
 	
+	public func storeSharedDatabase(changeToken: Data?) {
+		sharedDatabaseChangeToken = changeToken
+		accountMetadataDidChange()
+	}
+
 	func store(changeToken: Data?, key: VCKChangeTokenKey) {
 		if zoneChangeTokens == nil {
 			zoneChangeTokens = [VCKChangeTokenKey: Data]()

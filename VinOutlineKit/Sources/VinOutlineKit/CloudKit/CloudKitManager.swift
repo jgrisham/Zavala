@@ -79,14 +79,14 @@ public class CloudKitManager {
 		 return (isReachable && !needsConnection)
 	}
 		
-	init(account: Account, errorHandler: ErrorHandler) {
+	init(account: Account, errorHandler: ErrorHandler) async {
 		self.account = account
 		self.outlineZone = CloudKitOutlineZone(container: container)
 		outlineZone.delegate = CloudKitOutlineZoneDelegate(account: account, zoneID: self.outlineZone.zoneID)
 		self.zones[outlineZone.zoneID] = outlineZone
 		self.errorHandler = errorHandler
-		migrateSharedDatabaseChangeToken()
-		outlineZone.migrateChangeToken()
+		await migrateSharedDatabaseChangeToken()
+		await outlineZone.migrateChangeToken()
 	}
 	
 	func firstTimeSetup() async {
@@ -236,20 +236,20 @@ public class CloudKitManager {
 		debouncer.executeNow()
 	}
 	
-	func accountDidDelete(account: Account) {
+	func accountDidDelete(account: Account) async {
 		var zoneIDs = Set<CKRecordZone.ID>()
 
 		// If the user deletes all the documents prior to deleting the account, we
 		// won't reset the default zone unless we add it manually.
 		zoneIDs.insert(outlineZone.zoneID)
 		
-		for doc in account.documents ?? [Document]() {
+		for doc in await account.documents ?? [Document]() {
 			if let zoneID = doc.zoneID {
 				zoneIDs.insert(zoneID)
 			}
 		}
 		
-		sharedDatabaseChangeToken = nil
+		await storeSharedDatabaseChangeToken(token: nil)
 	}
 	
 	// We need this function because at one time we didn't store the CKShare records locally. We
@@ -284,11 +284,11 @@ private extension CloudKitManager {
 	func cloudKitSyncWillBegin() {
 		NotificationCenter.default.post(name: .CloudKitSyncWillBegin, object: self, userInfo: nil)
 	}
-
+	
 	func cloudKitSyncDidComplete() {
 		NotificationCenter.default.post(name: .CloudKitSyncDidComplete, object: self, userInfo: nil)
 	}
-
+	
 	func findZone(zoneID: CKRecordZone.ID) -> CloudKitOutlineZone {
 		if let zone = zones[zoneID] {
 			return zone
@@ -303,13 +303,13 @@ private extension CloudKitManager {
 	@MainActor
 	func sendChanges(userInitiated: Bool) async throws {
 		isSyncing = true
-
+		
 		guard let requests = CloudKitActionRequest.loadRequests(), !requests.isEmpty else {
 			logger.info("No pending requests to send.")
 			return
 		}
 		
-		#if canImport(UIKit)
+#if canImport(UIKit)
 		let completeProcessing = { [weak self] in
 			guard let self else {
 				return
@@ -326,12 +326,12 @@ private extension CloudKitManager {
 		self.sendChangesBackgroundTaskID = UIApplication.shared.beginBackgroundTask { [weak self] in
 			self?.logger.info("CloudKit sync processing terminated for running too long.")
 		}
-		#endif
+#endif
 		
 		logger.info("Sending \(requests.count) requests.")
 		
 		let (loadedDocuments, modifications) = await loadDocumentsAndStageModifications(requests: requests)
-
+		
 		// Send the grouped changes
 		
 		let leftOverRequests = try await withThrowingTaskGroup(of: ([EntityID], [EntityID]).self, returning: Set<CloudKitActionRequest>.self) { taskGroup in
@@ -345,14 +345,14 @@ private extension CloudKitManager {
 				
 				taskGroup.addTask {
 					let (completedSaves, completedDeletes) = try await cloudKitZone.modify(modelsToSave: modelsToSave, recordIDsToDelete: recordIDsToDelete, strategy: strategy)
-					self.updateSyncMetaData(savedRecords: completedSaves)
-
+					await self.updateSyncMetaData(savedRecords: completedSaves)
+					
 					let savedEntityIDs = completedSaves.compactMap { EntityID(description: $0.recordID.recordName) }
 					let deletedEntityIDs = completedDeletes.compactMap { EntityID(description: $0.recordName) }
 					
 					return (savedEntityIDs, deletedEntityIDs)
 				}
-								
+				
 				do {
 					for try await (savedEntityIDs, deletedEntityIDs) in taskGroup {
 						leftOverRequests.subtract(savedEntityIDs.map { CloudKitActionRequest(zoneID: zoneID, id: $0) })
@@ -374,16 +374,16 @@ private extension CloudKitManager {
 		for loadedDocument in loadedDocuments {
 			await loadedDocument.unload()
 		}
-			
+		
 		self.logger.info("Saving \(leftOverRequests.count) requests.")
 		CloudKitActionRequest.save(requests: leftOverRequests)
-				
+		
 		for mods in modifications.values {
 			for save in mods.0 {
 				save.clearSyncData()
 			}
 		}
-
+		
 		completeProcessing()
 	}
 	
@@ -392,8 +392,10 @@ private extension CloudKitManager {
 		var zoneIDs = Set<CKRecordZone.ID>()
 		zoneIDs.insert(outlineZone.zoneID)
 		
+		let changeToken = await sharedDatabaseChangeToken
+		
 		return try await withCheckedThrowingContinuation { continuation in
-			let op = CKFetchDatabaseChangesOperation(previousServerChangeToken: sharedDatabaseChangeToken)
+			let op = CKFetchDatabaseChangesOperation(previousServerChangeToken: changeToken)
 			op.qualityOfService = CloudKitOutlineZone.qualityOfService
 			
 			op.recordZoneWithIDWasDeletedBlock = { zoneID in
@@ -425,8 +427,8 @@ private extension CloudKitManager {
 								}
 							}
 						}
-
-						self.sharedDatabaseChangeToken = token
+						
+						await self.storeSharedDatabaseChangeToken(token: token)
 						self.isSyncing = false
 						continuation.resume()
 					}
@@ -459,7 +461,7 @@ private extension CloudKitManager {
 	func loadDocumentsAndStageModifications(requests: Set<CloudKitActionRequest>) async -> ([Document], [CKRecordZone.ID: ([VCKModel], [CKRecord.ID])]) {
 		var loadedDocuments = [Document]()
 		var modifications = [CKRecordZone.ID: ([VCKModel], [CKRecord.ID])]()
-
+		
 		func addSave(_ zoneID: CKRecordZone.ID, _ model: VCKModel) {
 			if let (saves, deletes) = modifications[zoneID] {
 				var mutableSaves = saves
@@ -491,15 +493,15 @@ private extension CloudKitManager {
 				modifications[zoneID] = (saves, deletes)
 			}
 		}
-
+		
 		let combinedRequests = combine(requests: requests)
-
+		
 		for documentUUID in combinedRequests.keys {
 			guard let combinedRequest = combinedRequests[documentUUID] else { continue }
 			
 			// If we don't have a document, we probably have a delete request to send.
 			// We don't have to continue processing since we cascade delete our rows.
-			guard let document = account?.findDocument(documentUUID: documentUUID) else {
+			guard let document = await account?.findDocument(documentUUID: documentUUID) else {
 				if let docRequest = combinedRequest.documentRequest {
 					addDelete(docRequest)
 				}
@@ -508,14 +510,14 @@ private extension CloudKitManager {
 			
 			await document.load()
 			loadedDocuments.append(document)
-
+			
 			guard let outline = document.outline, let zoneID = outline.zoneID else { continue }
-
+			
 			// This has to be a save for the document
 			if combinedRequest.documentRequest != nil {
 				addSave(zoneID, outline)
 			}
-
+			
 			// Now process all the rows
 			for rowRequest in combinedRequest.rowRequests {
 				if let row = outline.findRow(id: rowRequest.id.rowUUID) {
@@ -543,7 +545,7 @@ private extension CloudKitManager {
 	
 	func combine(requests: Set<CloudKitActionRequest>) -> [String: CombinedRequest] {
 		var combinedRequests = [String: CombinedRequest]()
-
+		
 		for request in requests {
 			switch request.id {
 			case .document(_, let documentUUID):
@@ -585,10 +587,10 @@ private extension CloudKitManager {
 	// is out of sync with what we currently have a record of. We will immediately do a sync after this,
 	// where we will get a batch of data to sync. If we store the metadata of any merged records, we won't
 	// try to apply the received record changes in the various mode apply() methods.
-	func updateSyncMetaData(savedRecords: [CKRecord]) {
+	func updateSyncMetaData(savedRecords: [CKRecord]) async {
 		for savedRecord in savedRecords {
 			guard let entityID = EntityID(description: savedRecord.recordID.recordName),
-					let outline = account?.findDocument(entityID)?.outline else { continue }
+				  let outline = await account?.findDocument(entityID)?.outline else { continue }
 			
 			switch savedRecord.recordType {
 			case "Outline":
@@ -613,7 +615,7 @@ private extension CloudKitManager {
 		let outlineSubscription = sharedDatabaseSubscription(recordType: Outline.CloudKitRecord.recordType)
 		let rowSubscription = sharedDatabaseSubscription(recordType: Row.CloudKitRecord.recordType)
 		let imageSubscription = sharedDatabaseSubscription(recordType: Image.CloudKitRecord.recordType)
-
+		
 		return try await withCheckedThrowingContinuation { continuation in
 			let op = CKModifySubscriptionsOperation(subscriptionsToSave: [outlineSubscription, rowSubscription, imageSubscription], subscriptionIDsToDelete: nil)
 			op.qualityOfService = CloudKitOutlineZone.qualityOfService
@@ -634,7 +636,7 @@ private extension CloudKitManager {
 	func sharedDatabaseSubscription(recordType: String) -> CKDatabaseSubscription {
 		let subscription = CKDatabaseSubscription(subscriptionID: "\(recordType)-changes")
 		subscription.recordType = recordType
-
+		
 		let notificationInfo = CKSubscription.NotificationInfo()
 		notificationInfo.shouldSendContentAvailable = true
 		subscription.notificationInfo = notificationInfo
@@ -642,9 +644,9 @@ private extension CloudKitManager {
 		return subscription
 	}
 	
-	func migrateSharedDatabaseChangeToken() {
+	func migrateSharedDatabaseChangeToken() async {
 		if let tokenData = UserDefaults.standard.object(forKey: oldSharedDatabaseChangeTokenKey) as? Data {
-			account?.sharedDatabaseChangeToken = tokenData
+			await account?.storeSharedDatabase(changeToken: tokenData)
 			UserDefaults.standard.removeObject(forKey: oldSharedDatabaseChangeTokenKey)
 		}
 	}
@@ -652,17 +654,19 @@ private extension CloudKitManager {
 	var oldSharedDatabaseChangeTokenKey: String {
 		return "cloudkit.server.token.sharedDatabase"
 	}
-
+	
 	var sharedDatabaseChangeToken: CKServerChangeToken? {
-		get {
-			guard let tokenData = account?.sharedDatabaseChangeToken else { return nil }
+		get async {
+			guard let tokenData = await account?.sharedDatabaseChangeToken else { return nil }
 			return try? NSKeyedUnarchiver.unarchivedObject(ofClass: CKServerChangeToken.self, from: tokenData)
 		}
-		set {
-			guard let token = newValue, let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: false) else {
-				return
-			}
-			account?.sharedDatabaseChangeToken = tokenData
+	}
+	
+	func storeSharedDatabaseChangeToken(token: CKServerChangeToken?) async {
+		if let token, let tokenData = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: false) {
+			await account?.storeSharedDatabase(changeToken: tokenData)
+		} else {
+			await account?.storeSharedDatabase(changeToken: nil)
 		}
 	}
 	

@@ -90,7 +90,7 @@ extension Row: VCKModel {
 		return updated
 	}
 	
-	public func apply(_ error: CKError) {
+	public func apply(_ error: CKError) async {
 		guard let record = error.serverRecord else { return }
 		cloudKitMetaData = record.metadata
 

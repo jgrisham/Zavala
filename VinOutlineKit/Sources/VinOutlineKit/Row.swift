@@ -869,7 +869,7 @@ private extension Row {
 				guard let url = value as? URL, url.scheme == nil, let outline = self?.outline else { return }
 				
 				taskGroup.addTask {
-					if let documentURL = outline.account?.findDocument(filename: url.path)?.id.url {
+					if let documentURL = await outline.account?.findDocument(filename: url.path)?.id.url {
 						return (documentURL, range)
 					} else {
 						return nil

@@ -39,7 +39,13 @@ public actor AccountManager {
 	
 	public var activeAccounts: [Account] {
 		get async {
-			return await Array(accountsDictionary.values.filter { $0.isActive })
+			var result = [Account]()
+			for account in await accounts {
+				if await account.isActive {
+					result.append(account)
+				}
+			}
+			return result
 		}
 	}
 	
@@ -51,19 +57,31 @@ public actor AccountManager {
 	
 	public var documents: [Document] {
 		get async {
-			return await accounts.reduce(into: [Document]()) { $0.append(contentsOf: $1.documents ?? [Document]() ) }
+			var result = [Document]()
+			for account in await accounts {
+				result.append(contentsOf: await account.documents ?? [])
+			}
+			return result
 		}
 	}
 	
 	public var activeDocuments: [Document] {
 		get async {
-			return await activeAccounts.reduce(into: [Document]()) { $0.append(contentsOf: $1.documents ?? [Document]() ) }
+			var result = [Document]()
+			for account in await activeAccounts {
+				result.append(contentsOf: await account.documents ?? [])
+			}
+			return result
 		}
 	}
 	
 	public var documentContainers: [DocumentContainer] {
 		get async {
-			return await accounts.reduce(into: [DocumentContainer]()) { $0.append(contentsOf: $1.documentContainers) }
+			var result = [DocumentContainer]()
+			for account in await accounts {
+				result.append(contentsOf: await account.documentContainers)
+			}
+			return result
 		}
 	}
 	
@@ -121,7 +139,7 @@ public actor AccountManager {
 		
 		if FileManager.default.fileExists(atPath: cloudKitAccountFile.path) {
 			await initializeFile(accountType: .cloudKit)
-			_accountsDictionary[AccountType.cloudKit.rawValue]?.initializeCloudKit(firstTime: false, errorHandler: errorHandler)
+			await _accountsDictionary[AccountType.cloudKit.rawValue]?.initializeCloudKit(firstTime: false, errorHandler: errorHandler)
 		}
 		
 		accountsDictionarySemaphore.signal()
@@ -159,7 +177,7 @@ public actor AccountManager {
 							await account.fixAltLinks(excluding: outline)
 						}
 
-						account.disambiguate(document: document)					}
+						await account.disambiguate(document: document)					}
 				}
 
 				group.addTask { [weak self] in
@@ -192,7 +210,7 @@ public actor AccountManager {
 		
 		activeAccountsDidChange()
 
-		cloudKitAccount.initializeCloudKit(firstTime: true, errorHandler: errorHandler)
+		await cloudKitAccount.initializeCloudKit(firstTime: true, errorHandler: errorHandler)
 	}
 	
 	public func deleteCloudKitAccount() async {
@@ -202,7 +220,7 @@ public actor AccountManager {
 		defer { accountsDictionarySemaphore.signal() }
 
 		// Send out all the document delete events for this account to clean up the search index
-		cloudKitAccount.documents?.forEach { $0.documentDidDelete() }
+		await cloudKitAccount.documents?.forEach { $0.documentDidDelete() }
 		
 		accountFiles[AccountType.cloudKit.rawValue]?.suspend()
 		
@@ -213,7 +231,7 @@ public actor AccountManager {
 
 		activeAccountsDidChange()
 
-		cloudKitAccount.cloudKitManager?.accountDidDelete(account: cloudKitAccount)
+		await cloudKitAccount.cloudKitManager?.accountDidDelete(account: cloudKitAccount)
 	}
 	
 	public func findAccount(accountType: AccountType) async -> Account? {
@@ -222,7 +240,7 @@ public actor AccountManager {
 
 	public func findAccount(accountID: Int) async -> Account? {
 		guard let account = await accountsDictionary[accountID] else { return nil }
-		return account.isActive ? account : nil
+		return await account.isActive ? account : nil
 	}
 	
 	public func findDocumentContainer(_ entityID: EntityID) async -> DocumentContainer? {
@@ -302,10 +320,7 @@ private extension AccountManager {
 			if account1.type == .local {
 				return true
 			}
-			if account2.type == .local {
-				return false
-			}
-			return (account1.name as NSString).localizedStandardCompare(account2.name) == .orderedAscending
+			return false
 		}
 	}
 	
