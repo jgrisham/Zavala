@@ -342,12 +342,12 @@ public actor Account: Identifiable, Equatable {
 		}
 	}
 	
-	public func createDocument(_ document: Document) {
+	public func createDocument(_ document: Document) async {
 		if documents == nil {
 			documents = [Document]()
 		}
 		
-		for tag in document.tags ?? [Tag]() {
+		for tag in await document.tags ?? [Tag]() {
 			createTag(tag)
 		}
 		
@@ -494,6 +494,16 @@ public actor Account: Identifiable, Equatable {
 		return idToTagsDictionary[tagID]
 	}
 
+	func findTags(tagIDs: [String]) -> [Tag] {
+		var tags = [Tag]()
+		for tagID in tagIDs {
+			if let tag = findTag(tagID: tagID) {
+				tags.append(tag)
+			}
+		}
+		return tags
+	}
+	
 	func fixAltLinks(excluding: Outline) async {
 		for outline in documents?.compactMap({ $0.outline }) ?? [Outline]() {
 			if outline != excluding {
@@ -564,7 +574,7 @@ private extension Account {
 			deleteFromCloudKit(document)
 		}
 
-		for tag in document.tags ?? [Tag]() {
+		for tag in await document.tags ?? [Tag]() {
 			deleteTag(tag)
 		}
 

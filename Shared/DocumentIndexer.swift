@@ -38,7 +38,7 @@ private extension DocumentIndexer {
 	static func makeSearchableItemAttributes(forDocument document: Document) async -> CSSearchableItemAttributeSet {
 		let attributeSet = CSSearchableItemAttributeSet(contentType: UTType.text)
 		attributeSet.title = document.title ?? ""
-		if let keywords = document.tags?.map({ $0.name }) {
+		if let keywords = await document.tags?.map({ $0.name }) {
 			attributeSet.keywords = keywords
 		}
 		attributeSet.relatedUniqueIdentifier = document.id.description

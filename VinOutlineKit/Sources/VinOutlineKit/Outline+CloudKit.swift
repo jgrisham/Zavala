@@ -433,8 +433,8 @@ private extension Outline {
 	}
 	
 	func applyTags(_ record: CKRecord, _ account: Account) async {
-		let tagNames = tags.map { $0.name }
-		let ancestorTagNames = tags.map { $0.name }
+		let tagNames = await tags.map { $0.name }
+		let ancestorTagNames = await tags.map { $0.name }
 		let serverTagNames = record[Outline.CloudKitRecord.Fields.tagNames] as? [String] ?? [String]()
 		
 		if let mergedTagNames = merge(client: tagNames, ancestor: ancestorTagNames, server: serverTagNames) {

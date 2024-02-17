@@ -404,8 +404,10 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	public weak var account: Account?
 	
 	public var tags: [Tag] {
-		guard let account else { return [Tag]() }
-		return tagIDs?.compactMap { account.findTag(tagID: $0) } ?? [Tag]()
+		get async {
+			guard let account, let tagIDs else { return [Tag]() }
+			return await account.findTags(tagIDs: tagIDs)
+		}
 	}
 	
 	public var tagCount: Int {
@@ -1025,7 +1027,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 
 		if !(tagIDs?.isEmpty ?? true) {
 			opml.append("  <tags>\n")
-			for tag in tags {
+			for tag in await tags {
 				opml.append("    <tag>\(tag.name.escapingXMLCharacters)</tag>\n")
 			}
 			opml.append("  </tags>\n")

@@ -94,9 +94,11 @@ public enum Document: Equatable, Hashable, Codable {
 	}
 	
 	public var tags: [Tag]? {
-		switch self {
-		case .outline(let outline):
-			return outline.tags
+		get async {
+			switch self {
+			case .outline(let outline):
+				return await outline.tags
+			}
 		}
 	}
 	
