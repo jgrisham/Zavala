@@ -120,6 +120,23 @@ public actor Account: Identifiable, Equatable {
 		self.documents = [Document]()
 	}
 	
+	init(accountCodable: AccountCodable) {
+		self.type = accountCodable.type
+		self.isActive = accountCodable.isActive
+		self.tags = accountCodable.tags
+		
+		var documents = [Document]()
+		for documentCodable in accountCodable.documents ?? [] {
+			if let outline = documentCodable.outline {
+				documents.append(.outline(outline))
+			}
+		}
+		self.documents = documents
+		
+		self.sharedDatabaseChangeToken = accountCodable.sharedDatabaseChangeToken
+		self.zoneChangeTokens = accountCodable.zoneChangeTokens
+	}
+	
 	func initializeCloudKit(firstTime: Bool, errorHandler: ErrorHandler) async {
 		cloudKitManager = await CloudKitManager(account: self, errorHandler: errorHandler)
 		

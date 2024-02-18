@@ -20,7 +20,7 @@ public extension AccountManager {
 			return
 		}
 		
-		let account = accountCodable.toAccount()
+		let account = Account(accountCodable: accountCodable)
 		
 		let initialLoad = _accountsDictionary[accountType.rawValue] == nil
 		_accountsDictionary[accountType.rawValue] = account
@@ -92,10 +92,6 @@ struct AccountCodable: Codable {
 		self.zoneChangeTokens = await account.zoneChangeTokens
 	}
 	
-	func toAccount() -> Account {
-		return Account(accountType: type)
-	}
-	
 }
 
 public enum DocumentCodable: Equatable, Hashable, Codable {
@@ -106,6 +102,13 @@ public enum DocumentCodable: Equatable, Hashable, Codable {
 		case outline
 	}
 
+	public var outline: Outline? {
+		switch self {
+		case .outline(let outline):
+			return outline
+		}
+	}
+	
 	public init(from decoder: Decoder) throws {
 		let container = try decoder.container(keyedBy: CodingKeys.self)
 		let type = try container.decode(String.self, forKey: .type)
