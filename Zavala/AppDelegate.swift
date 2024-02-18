@@ -1072,11 +1072,11 @@ private extension AppDelegate {
 		Task {
 			guard let localAccount = await AccountManager.shared.localAccount else { return }
 			
-			if AppDefaults.shared.enableLocalAccount != localAccount.isActive {
+			if await AppDefaults.shared.enableLocalAccount != localAccount.isActive {
 				if AppDefaults.shared.enableLocalAccount {
-					localAccount.activate()
+					await localAccount.activate()
 				} else {
-					localAccount.deactivate()
+					await localAccount.deactivate()
 				}
 			}
 			

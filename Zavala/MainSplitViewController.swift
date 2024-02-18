@@ -208,11 +208,11 @@ class MainSplitViewController: UISplitViewController, MainCoordinator {
 	
 	func handleDocument(_ documentID: EntityID, isNavigationBranch: Bool) async {
 		guard let account = await AccountManager.shared.findAccount(accountID: documentID.accountID),
-			  let document = account.findDocument(documentID) else { return }
+			  let document = await account.findDocument(documentID) else { return }
 		
 		if let collectionsTags = selectedTags, document.hasAnyTag(collectionsTags) {
 			self.handleSelectDocument(document, isNavigationBranch: isNavigationBranch)
-		} else if document.tagCount == 1, let tag = document.tags?.first {
+		} else if document.tagCount == 1, let tag = await document.tags?.first {
 			await collectionsViewController?.selectDocumentContainers([TagDocuments(account: account, tag: tag)], isNavigationBranch: true, animated: false)
 			handleSelectDocument(document, isNavigationBranch: isNavigationBranch)
 		} else {
@@ -530,7 +530,7 @@ extension MainSplitViewController: DocumentsDelegate {
 				goForwardStack.removeAll()
 			}
 			
-			activityManager.selectingDocument(documentContainers, document)
+			await activityManager.selectingDocument(documentContainers, document)
 			
 			if animated {
 				show(.secondary)
@@ -811,7 +811,7 @@ private extension MainSplitViewController {
 			return
 		}
 		
-		let documentContainer = account.documentContainers[0]
+		let documentContainer = await account.documentContainers[0]
 		
 		await collectionsViewController?.selectDocumentContainers([documentContainer], isNavigationBranch: true, animated: true)
 	}

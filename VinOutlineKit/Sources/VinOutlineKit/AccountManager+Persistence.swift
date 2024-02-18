@@ -79,7 +79,15 @@ struct AccountCodable: Codable {
 		self.type = account.type
 		self.isActive = await account.isActive
 		self.tags = await account.tags
-		self.documents = await account.documents
+		
+		var documentCodables = [DocumentCodable]()
+		for document in await account.documents ?? [] {
+			if let outline = document.outline {
+				documentCodables.append(.outline(outline))
+			}
+		}
+		
+		self.documents = documentCodables
 		self.sharedDatabaseChangeToken = await account.sharedDatabaseChangeToken
 		self.zoneChangeTokens = await account.zoneChangeTokens
 	}

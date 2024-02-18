@@ -78,7 +78,7 @@ class EditorContainerViewController: UIViewController, MainCoordinator {
 	func openDocument(_ documentID: EntityID) async {
 		if let document = await AccountManager.shared.findDocument(documentID), let outline = document.outline {
 			sceneDelegate?.window?.windowScene?.title = outline.title
-			activityManager.selectingDocument(nil, document)
+			await activityManager.selectingDocument(nil, document)
 			editorViewController?.edit(outline, isNew: false)
 			pinWasVisited(Pin(document: document))
 		}

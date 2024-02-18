@@ -380,12 +380,12 @@ extension CollectionsViewController {
 	private func localAccountSnapshot() async -> NSDiffableDataSourceSectionSnapshot<CollectionsItem>? {
 		guard let localAccount = await AccountManager.shared.localAccount else { return nil }
 		
-		guard localAccount.isActive else { return nil }
+		guard await localAccount.isActive else { return nil }
 		
 		var snapshot = NSDiffableDataSourceSectionSnapshot<CollectionsItem>()
 		let header = CollectionsItem.item(id: .header(.localAccount))
 		
-		let items = localAccount.documentContainers.map { CollectionsItem.item($0) }
+		let items = await localAccount.documentContainers.map { CollectionsItem.item($0) }
 		
 		snapshot.append([header])
 		snapshot.expand([header])
@@ -399,7 +399,7 @@ extension CollectionsViewController {
 		var snapshot = NSDiffableDataSourceSectionSnapshot<CollectionsItem>()
 		let header = CollectionsItem.item(id: .header(.cloudKitAccount))
 		
-		let items = cloudKitAccount.documentContainers.map { CollectionsItem.item($0) }
+		let items = await cloudKitAccount.documentContainers.map { CollectionsItem.item($0) }
 		
 		snapshot.append([header])
 		snapshot.expand([header])

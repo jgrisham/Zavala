@@ -49,9 +49,9 @@ class ActivityManager {
         selectDocumentContainerActivity = nil
     }
 
-	func selectingDocument(_ documentContainers: [DocumentContainer]?, _ document: Document) {
+	func selectingDocument(_ documentContainers: [DocumentContainer]?, _ document: Document) async {
 		self.invalidateSelectDocument()
-		self.selectDocumentActivity = self.makeSelectDocumentActivity(documentContainers, document)
+		self.selectDocumentActivity = await self.makeSelectDocumentActivity(documentContainers, document)
 		self.selectDocumentActivity!.becomeCurrent()
         self.selectDocumentContainers = documentContainers
         self.selectDocument = document
@@ -87,12 +87,12 @@ private extension ActivityManager {
 		return activity
 	}
 	
-    @objc func documentTitleDidChange(_ note: Notification) {
+    @objc func documentTitleDidChange(_ note: Notification) async {
         guard let document = note.object as? Document, document == selectDocument else { return }
-        selectingDocument(selectDocumentContainers, document)
+        await selectingDocument(selectDocumentContainers, document)
     }
     
-	func makeSelectDocumentActivity(_ documentContainers: [DocumentContainer]?, _ document: Document) -> NSUserActivity {
+	func makeSelectDocumentActivity(_ documentContainers: [DocumentContainer]?, _ document: Document) async -> NSUserActivity {
 		let activity = NSUserActivity(activityType: NSUserActivity.ActivityType.selectingDocument)
 
 		let title = String.editDocumentPrompt(documentTitle: document.title ?? "")
@@ -101,13 +101,13 @@ private extension ActivityManager {
 		activity.userInfo = [Pin.UserInfoKeys.pin: Pin(containers: documentContainers, document: document).userInfo]
 		activity.requiredUserInfoKeys = Set(activity.userInfo!.keys.map { $0 as! String })
 		
-		if let keywords = document.tags?.map({ $0.name }) {
+		if let keywords = await document.tags?.map({ $0.name }) {
 			activity.keywords = Set(keywords)
 		}
 		activity.isEligibleForSearch = true
 		activity.isEligibleForPrediction = true
 		
-		if document.account?.type == .cloudKit {
+		if await document.account?.type == .cloudKit {
 			activity.isEligibleForHandoff = true
 		}
 

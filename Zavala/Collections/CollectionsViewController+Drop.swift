@@ -76,20 +76,20 @@ extension CollectionsViewController: UICollectionViewDropDelegate {
 				await document.load()
 				
 				var tagNames = [String]()
-				for tag in document.tags ?? [Tag]() {
+				for tag in await document.tags ?? [Tag]() {
 					document.deleteTag(tag)
-					document.account?.deleteTag(tag)
+					await document.account?.deleteTag(tag)
 					tagNames.append(tag.name)
 				}
 				
 				await document.account?.deleteDocument(document)
 				if let containerAccount = container.account {
 					document.reassignAccount(containerAccount.id.accountID)
-					containerAccount.createDocument(document)
+					await containerAccount.createDocument(document)
 				}
 				
 				for tagName in tagNames {
-					if let tag = container.account?.createTag(name: tagName) {
+					if let tag = await container.account?.createTag(name: tagName) {
 						document.createTag(tag)
 					}
 				}
