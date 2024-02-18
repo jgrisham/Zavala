@@ -785,6 +785,7 @@ private extension Row {
 
 		let result = NSMutableAttributedString(attributedString: attrString)
 		
+		#warning("Do what you got to do here.")
 		// Rather than fix this code to work with Swift 6, it should be removed. We shouldn't be changing the URL. I would prefer that it points back at Zavala.
 //		result.enumerateAttribute(.link, in: .init(location: 0, length: result.length), options: []) { (value, range, _) in
 //			guard let url = value as? URL,
