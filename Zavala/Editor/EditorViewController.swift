@@ -337,6 +337,8 @@ class EditorViewController: UIViewController, DocumentsActivityItemsConfiguratio
 	private var messageLabel: UILabel?
 	
 	private(set) var outline: Outline?
+	private(set) var outlineTags: [Tag]?
+	private(set) var otherUnusedTags: [Tag]?
 	
 	private var currentTitle: String? {
 		guard let titleCell = collectionView.cellForItem(at: IndexPath(row: 0, section: Outline.Section.title.rawValue)) as? EditorTitleViewCell else {
@@ -718,9 +720,10 @@ class EditorViewController: UIViewController, DocumentsActivityItemsConfiguratio
 	}
 	
 	@objc func outlineElementsDidChange(_ note: Notification) {
-		if note.object as? Outline == outline {
+		if let outline = note.object as? Outline, outline == self.outline {
 			guard let changes = note.userInfo?[OutlineElementChanges.userInfoKey] as? OutlineElementChanges else { return }
 			Task { @MainActor in
+				await apply(outline)
 				applyChangesRestoringState(changes)
 			}
 		}
@@ -898,20 +901,23 @@ class EditorViewController: UIViewController, DocumentsActivityItemsConfiguratio
 			await outline?.unload()
 			undoManager?.removeAllActions()
 		
-			// Assign the new Outline and load it
-			outline = newOutline
-			
-			// Don't continue if we are just clearing out the editor
-			guard let outline else {
+			// Assign the new Outline or clear the editor
+			if let newOutline {
+				await apply(newOutline)
+			} else {
+				self.outline = nil
+				self.outlineTags = nil
+				self.otherUnusedTags = nil
 				updateUI()
 				collectionView.reloadData()
 				return
 			}
 
-			await outline.load()
-			outline.incrementBeingUsedCount()
+			// Outline was assigned above in apply, so start force unwrapping
+			await outline!.load()
+			outline!.incrementBeingUsedCount()
 			checkForCorruptOutline()
-			outline.prepareForViewing()
+			outline!.prepareForViewing()
 			
 			guard isViewLoaded else { return }
 			
@@ -1531,8 +1537,8 @@ extension EditorViewController: UICollectionViewDelegate, UICollectionViewDataSo
 		case Outline.Section.title.rawValue:
 			return outline == nil ? 0 : 1
 		case Outline.Section.tags.rawValue:
-			if let outline {
-				return outline.tags.count + 1
+			if let outlineTags {
+				return outlineTags.count + 1
 			} else {
 				return 0
 			}
@@ -1551,7 +1557,7 @@ extension EditorViewController: UICollectionViewDelegate, UICollectionViewDataSo
 			return collectionView.dequeueConfiguredReusableCell(using: titleRegistration!, for: indexPath, item: outline)
 		case Outline.Section.tags.rawValue:
 			if let outline, indexPath.row < outline.tagCount {
-				let tag = outline.tags[indexPath.row]
+				let tag = outlineTags![indexPath.row]
 				return collectionView.dequeueConfiguredReusableCell(using: tagRegistration!, for: indexPath, item: tag.name)
 			} else {
 				return collectionView.dequeueConfiguredReusableCell(using: tagInputRegistration!, for: indexPath, item: outline!.id)
@@ -1675,8 +1681,7 @@ extension EditorViewController: EditorTagInputViewCellDelegate {
 	}
 	
 	var editorTagInputTags: [Tag]? {
-		guard let outlineTags = outline?.tags else { return nil }
-		return outline?.account?.tags?.filter({ !outlineTags.contains($0) })
+		otherUnusedTags
 	}
 	
 	func editorTagInputLayoutEditor() {
@@ -2499,8 +2504,8 @@ private extension EditorViewController {
 	}
 	
 	func moveCursorToTagInput() {
-		if let outline {
-			let indexPath = IndexPath(row: outline.tags.count, section: Outline.Section.tags.rawValue)
+		if let outlineTags {
+			let indexPath = IndexPath(row: outlineTags.count, section: Outline.Section.tags.rawValue)
 			if let tagInputCell = collectionView.cellForItem(at: indexPath) as? EditorTagInputViewCell {
 				tagInputCell.takeCursor()
 			}
@@ -3365,5 +3370,11 @@ private extension EditorViewController {
 			collectionView.scrollRectToVisibleBypass(cellFrame, animated: true)
 		}
 	}
-
+	
+	func apply(_ outline: Outline) async {
+		self.outline = outline
+		self.outlineTags = await outline.tags
+		self.otherUnusedTags = await outline.account?.tags?.filter({ !outlineTags!.contains($0) })
+	}
+	
 }
