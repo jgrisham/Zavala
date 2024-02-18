@@ -157,7 +157,9 @@ extension MainCoordinator {
 	}
 	
 	func duplicateRows() {
-		editorViewController?.duplicateCurrentRows()
+		Task {
+			await editorViewController?.duplicateCurrentRows()
+		}
 	}
 	
 	func focusIn() {
@@ -185,19 +187,27 @@ extension MainCoordinator {
 	}
 	
 	func insertRow() {
-		editorViewController?.insertRow()
+		Task {
+			await editorViewController?.insertRow()
+		}
 	}
 	
 	func createRow() {
-		editorViewController?.createRow()
+		Task {
+			await editorViewController?.createRow()
+		}
 	}
 	
 	func createRowInside() {
-		editorViewController?.createRowInside()
+		Task {
+			await editorViewController?.createRowInside()
+		}
 	}
 	
 	func createRowOutside() {
-		editorViewController?.createRowOutside()
+		Task {
+			await editorViewController?.createRowOutside()
+		}
 	}
 	
 	func moveRowsUp() {
@@ -209,11 +219,15 @@ extension MainCoordinator {
 	}
 	
 	func moveRowsLeft() {
-		editorViewController?.moveRowsLeft()
+		Task {
+			await editorViewController?.moveRowsLeft()
+		}
 	}
 	
 	func moveRowsRight() {
-		editorViewController?.moveRowsRight()
+		Task {
+			await editorViewController?.moveRowsRight()
+		}
 	}
 	
 	func toggleCompleteRows() {
@@ -221,11 +235,15 @@ extension MainCoordinator {
 	}
 	
 	func createRowNotes() {
-		editorViewController?.createRowNotes()
+		Task {
+			await editorViewController?.createRowNotes()
+		}
 	}
 	
 	func deleteRowNotes() {
-		editorViewController?.deleteRowNotes()
+		Task {
+			await editorViewController?.deleteRowNotes()
+		}
 	}
 	
 	func splitRow() {
@@ -258,35 +276,51 @@ extension MainCoordinator {
 	}
 	
 	func expandAllInOutline() {
-		editorViewController?.expandAllInOutline()
+		Task {
+			await editorViewController?.expandAllInOutline()
+		}
 	}
 	
 	func collapseAllInOutline() {
-		editorViewController?.collapseAllInOutline()
+		Task {
+			await editorViewController?.collapseAllInOutline()
+		}
 	}
 	
 	func expandAll() {
-		editorViewController?.expandAll()
+		Task {
+			await editorViewController?.expandAll()
+		}
 	}
 	
 	func collapseAll() {
-		editorViewController?.collapseAll()
+		Task {
+			await editorViewController?.collapseAll()
+		}
 	}
 	
 	func expand() {
-		editorViewController?.expand()
+		Task {
+			await editorViewController?.expand()
+		}
 	}
 	
 	func collapse() {
-		editorViewController?.collapse()
+		Task {
+			await editorViewController?.collapse()
+		}
 	}
 	
 	func collapseParentRow() {
-		editorViewController?.collapseParentRow()
+		Task {
+			await editorViewController?.collapseParentRow()
+		}
 	}
 	
 	func deleteCompletedRows() {
-		editorViewController?.deleteCompletedRows()
+		Task {
+			editorViewController?.deleteCompletedRows()
+		}
 	}
 	
 	func showSettings() {

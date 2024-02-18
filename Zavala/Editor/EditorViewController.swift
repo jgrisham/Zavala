@@ -576,7 +576,9 @@ class EditorViewController: UIViewController, DocumentsActivityItemsConfiguratio
 		if let currentTextView {
 			currentTextView.cut(sender)
 		} else if let currentRows {
-			cutRows(currentRows)
+			Task {
+				await cutRows(currentRows)
+			}
 		}
 	}
 	
@@ -809,7 +811,9 @@ class EditorViewController: UIViewController, DocumentsActivityItemsConfiguratio
 	}
 	
 	@objc func sceneWillDeactivate(_ note: Notification) {
-		saveCurrentText()
+		Task {
+			await currentTextView?.saveText()
+		}
 		
 		// If we don't update the last know coordinates, then when the container
 		// tries to save and update the outine we might not have the ability to tell
@@ -818,7 +822,9 @@ class EditorViewController: UIViewController, DocumentsActivityItemsConfiguratio
 	}
 	
 	@objc func didEnterBackground(_ note: Notification) {
-		saveCurrentText()
+		Task {
+			await currentTextView?.saveText()
+		}
 	}
 	
 	@objc func adjustForKeyboard(_ note: Notification) {
@@ -890,10 +896,9 @@ class EditorViewController: UIViewController, DocumentsActivityItemsConfiguratio
 		// Get ready for the new outline, buy saving the current one
 		outline?.cursorCoordinates = CursorCoordinates.bestCoordinates
 		
-		if let textField = UIResponder.currentFirstResponder as? EditorRowTextView {
-			textField.endEditing(true)
-		}
-		
+		// We might have some text that needs to be saved before we switch outlines in the editor
+		await saveCurrentText()
+
 		updateSpotlightIndex()
 		
 		// After this point as long as we don't have this Outline open in other
@@ -1057,98 +1062,100 @@ class EditorViewController: UIViewController, DocumentsActivityItemsConfiguratio
 		
 	}
 	
-	func deleteCurrentRows() {
+	func deleteCurrentRows() async {
 		guard let rows = currentRows else { return }
-		deleteRows(rows)
+		await deleteRows(rows)
 	}
 	
-	func insertRow() {
+	func insertRow() async {
 		guard let rows = currentRows else { return }
-		createRow(beforeRows: rows)
+		await createRow(beforeRows: rows)
 	}
 	
-	func createRow() {
+	func createRow() async {
 		guard let rows = currentRows else { return }
-		createRow(afterRows: rows)
+		await createRow(afterRows: rows)
 	}
 	
-	func duplicateCurrentRows() {
+	func duplicateCurrentRows() async {
 		guard let rows = currentRows else { return }
-		duplicateRows(rows)
+		await duplicateRows(rows)
 	}
 	
-	func createRowInside() {
+	func createRowInside() async {
 		guard let rows = currentRows else { return }
-		createRowInside(afterRows: rows)
+		await createRowInside(afterRows: rows)
 	}
 	
-	func createRowOutside() {
+	func createRowOutside() async {
 		guard let rows = currentRows else { return }
-		createRowOutside(afterRows: rows)
+		await createRowOutside(afterRows: rows)
 	}
 	
-	func moveRowsLeft() {
+	func moveRowsLeft() async {
 		guard let rows = currentRows else { return }
-		moveRowsLeft(rows)
+		await moveRowsLeft(rows)
 	}
 	
-	func moveRowsRight() {
+	func moveRowsRight() async {
 		guard let rows = currentRows else { return }
-		moveRowsRight(rows)
+		await moveRowsRight(rows)
 	}
 	
-	func createRowNotes() {
+	func createRowNotes() async {
 		guard let rows = currentRows else { return }
-		createRowNotes(rows)
+		await createRowNotes(rows)
 	}
 	
-	func deleteRowNotes() {
+	func deleteRowNotes() async {
 		guard let rows = currentRows else { return }
-		deleteRowNotes(rows)
+		await deleteRowNotes(rows)
 	}
 	
-	func expandAllInOutline() {
+	func expandAllInOutline() async {
 		guard let outline else { return }
-		expandAll(containers: [outline])
+		await expandAll(containers: [outline])
 	}
 	
-	func collapseAllInOutline() {
+	func collapseAllInOutline() async {
 		guard let outline else { return }
-		collapseAll(containers: [outline])
+		await collapseAll(containers: [outline])
 	}
 	
-	func expandAll() {
+	func expandAll() async {
 		guard let rows = currentRows else { return }
-		expandAll(containers: rows)
+		await expandAll(containers: rows)
 	}
 	
-	func collapseAll() {
+	func collapseAll() async {
 		guard let rows = currentRows else { return }
-		collapseAll(containers: rows)
+		await collapseAll(containers: rows)
 	}
 	
-	func expand() {
+	func expand() async {
 		guard let rows = currentRows else { return }
-		expand(rows: rows)
+		await expand(rows: rows)
 	}
 	
-	func collapse() {
+	func collapse() async {
 		guard let rows = currentRows else { return }
-		collapse(rows: rows)
+		await collapse(rows: rows)
 	}
 	
-	func collapseParentRow() {
+	func collapseParentRow() async {
 		guard let rows = currentRows else { return }
 		let parentRows = rows.compactMap { $0.parent as? Row }
 		guard !parentRows.isEmpty else { return }
-		collapse(rows: parentRows)
+		await collapse(rows: parentRows)
 	}
 	
 	func deleteCompletedRows() {
 		guard let completedRows = outline?.allCompletedRows else { return }
 
 		guard AppDefaults.shared.confirmDeleteCompletedRows else {
-			deleteRows(completedRows)
+			Task {
+				await deleteRows(completedRows)
+			}
 			return
 		}
 		
@@ -1158,12 +1165,16 @@ class EditorViewController: UIViewController, DocumentsActivityItemsConfiguratio
 		
 		let alwaysDeleteCompletedAction = UIAlertAction(title: .deleteAlwaysControlLabel, style: .destructive) { [weak self] action in
 			AppDefaults.shared.confirmDeleteCompletedRows = false
-			self?.deleteRows(completedRows)
+			Task {
+				await self?.deleteRows(completedRows)
+			}
 		}
 		alertController.addAction(alwaysDeleteCompletedAction)
 
 		let deleteCompletedAction = UIAlertAction(title: .deleteOnceControlLabel, style: .destructive) { [weak self] action in
-			self?.deleteRows(completedRows)
+			Task {
+				await self?.deleteRows(completedRows)
+			}
 		}
 		
 		alertController.addAction(deleteCompletedAction)
@@ -1175,15 +1186,15 @@ class EditorViewController: UIViewController, DocumentsActivityItemsConfiguratio
 		present(alertController, animated: true)
 	}
 	
-	func printDoc() {
+	func printDoc() async {
 		guard let outline else { return }
-		currentTextView?.saveText()
+		await currentTextView?.saveText()
 		delegate?.printDoc(self, outline: outline)
 	}
 	
-	func printList() {
+	func printList() async {
 		guard let outline else { return }
-		currentTextView?.saveText()
+		await currentTextView?.saveText()
 		delegate?.printList(self, outline: outline)
 	}
 	
@@ -1191,7 +1202,9 @@ class EditorViewController: UIViewController, DocumentsActivityItemsConfiguratio
 	
 	@objc func createInitialRowIfNecessary() {
 		guard let outline, outline.rowCount == 0 else { return }
-		createRow(afterRows: nil)
+		Task {
+			await createRow(afterRows: nil)
+		}
 	}
 	
 	@objc func sync() {
@@ -1312,7 +1325,9 @@ class EditorViewController: UIViewController, DocumentsActivityItemsConfiguratio
 		guard let row = currentRows?.last,
 			  let topic = (currentTextView as? EditorRowTopicTextView)?.attributedText,
 			  let cursorPosition = currentCursorPosition else { return }
-		splitRow(row, topic: topic, cursorPosition: cursorPosition)
+		Task {
+			await splitRow(row, topic: topic, cursorPosition: cursorPosition)
+		}
 	}
 	
 	@objc func outlineToggleBoldface(_ sender: Any? = nil) {
@@ -1371,40 +1386,53 @@ class EditorViewController: UIViewController, DocumentsActivityItemsConfiguratio
 
 	@objc func moveCurrentRowsLeft() {
 		guard let rows = currentRows else { return }
-		moveRowsLeft(rows)
+		Task {
+			await moveRowsLeft(rows)
+		}
 	}
 	
 	@objc func moveCurrentRowsRight() {
 		guard let rows = currentRows else { return }
-		moveRowsRight(rows)
+		Task {
+			await moveRowsRight(rows)
+		}
 	}
 	
 	@objc func moveCurrentRowsUp() {
 		guard let rows = currentRows else { return }
-		moveRowsUp(rows)
+		Task {
+			await moveRowsUp(rows)
+		}
 	}
 	
 	@objc func moveCurrentRowsDown() {
 		guard let rows = currentRows else { return }
-		moveRowsDown(rows)
+		Task {
+			await moveRowsDown(rows)
+		}
 	}
 	
 	@objc func createOrDeleteNotes() {
 		guard let rows = currentRows else { return }
 
-		if !isCreateRowNotesUnavailable {
-			createRowNotes(rows)
-		} else {
-			deleteRowNotes(rows)
+		Task {
+			if !isCreateRowNotesUnavailable {
+				await createRowNotes(rows)
+			} else {
+				await deleteRowNotes(rows)
+			}
 		}
 	}
 
 	@objc func toggleCompleteRows() {
 		guard let outline, let rows = currentRows else { return }
-		if !outline.isCompleteUnavailable(rows: rows) {
-			completeRows(rows)
-		} else if !outline.isUncompleteUnavailable(rows: rows) {
-			uncompleteRows(rows)
+
+		Task {
+			if !outline.isCompleteUnavailable(rows: rows) {
+				await completeRows(rows)
+			} else if !outline.isUncompleteUnavailable(rows: rows) {
+				await uncompleteRows(rows)
+			}
 		}
 	}
 	
@@ -1435,8 +1463,10 @@ extension EditorViewController: UICollectionViewDelegate, UICollectionViewDataSo
 						
 						if row.isComplete ?? false {
 							let actionHandler: UIContextualAction.Handler = { action, view, completion in
-								self.uncompleteRows([row])
-								completion(true)
+								Task {
+									await self.uncompleteRows([row])
+									completion(true)
+								}
 							}
 							
 							let action = UIContextualAction(style: .normal, title: .uncompleteControlLabel, handler: actionHandler)
@@ -1450,8 +1480,10 @@ extension EditorViewController: UICollectionViewDelegate, UICollectionViewDataSo
 							return UISwipeActionsConfiguration(actions: [action])
 						} else {
 							let actionHandler: UIContextualAction.Handler = { action, view, completion in
-								self.completeRows([row])
-								completion(true)
+								Task {
+									await self.completeRows([row])
+									completion(true)
+								}
 							}
 							
 							let action = UIContextualAction(style: .normal, title: .completeControlLabel, handler: actionHandler)
@@ -1470,8 +1502,10 @@ extension EditorViewController: UICollectionViewDelegate, UICollectionViewDataSo
 						guard let self, let row = self.outline?.shadowTable?[indexPath.row] else { return nil }
 
 						let actionHandler: UIContextualAction.Handler = { action, view, completion in
-							self.deleteRows([row])
-							completion(true)
+							Task {
+								await self.deleteRows([row])
+								completion(true)
+							}
 						}
 						
 						let action = UIContextualAction(style: .destructive, title: .deleteControlLabel, handler: actionHandler)
@@ -1581,7 +1615,10 @@ extension EditorViewController: UICollectionViewDelegate, UICollectionViewDataSo
 		
 		// Force save the text if the context menu has been requested so that we don't lose our
 		// text changes when the cell configuration gets applied
-		saveCurrentText()
+		#warning("Test removing this code to see if it makes a difference. It shouldn't be needed since the apply configuation saves the current text automatically.")
+		Task {
+			await currentTextView?.saveText()
+		}
 		
 		if let responder = UIResponder.currentFirstResponder, responder is UISearchTextField {
 			responder.resignFirstResponder()
@@ -1702,12 +1739,16 @@ extension EditorViewController: EditorTagInputViewCellDelegate {
 		if isFocusing {
 			moveCursorToFirstRow()
 		} else {
-			createRow(afterRows: nil)
+			Task {
+				await createRow(afterRows: nil)
+			}
 		}
 	}
 	
 	func editorTagInputTextFieldCreateTag(name: String) {
-		createTag(name: name)
+		Task {
+			await createTag(name: name)
+		}
 	}
 	
 }
@@ -1717,7 +1758,9 @@ extension EditorViewController: EditorTagInputViewCellDelegate {
 extension EditorViewController: EditorTagViewCellDelegate {
 	
 	func editorTagDeleteTag(name: String) {
-		deleteTag(name: name)
+		Task {
+			await deleteTag(name: name)
+		}
 	}
 	
 }
@@ -1749,40 +1792,58 @@ extension EditorViewController: EditorRowViewCellDelegate {
 	}
 
 	func editorRowToggleDisclosure(row: Row, applyToAll: Bool) {
-		toggleDisclosure(row: row, applyToAll: applyToAll)
+		Task {
+			await toggleDisclosure(row: row, applyToAll: applyToAll)
+		}
 	}
 	
 	func editorRowTextChanged(row: Row, rowStrings: RowStrings, isInNotes: Bool, selection: NSRange) {
-		textChanged(row: row, rowStrings: rowStrings, isInNotes: isInNotes, selection: selection)
+		Task {
+			await textChanged(row: row, rowStrings: rowStrings, isInNotes: isInNotes, selection: selection)
+		}
 	}
 	
 	func editorRowDeleteRow(_ row: Row, rowStrings: RowStrings) {
-		deleteRows([row], rowStrings: rowStrings)
+		Task {
+			await deleteRows([row], rowStrings: rowStrings)
+		}
 	}
 	
 	func editorRowCreateRow(beforeRow: Row) {
-		createRow(beforeRows: [beforeRow])
+		Task {
+			await createRow(beforeRows: [beforeRow])
+		}
 	}
 	
 	func editorRowCreateRow(afterRow: Row?, rowStrings: RowStrings?) {
-		let afterRows = afterRow == nil ? nil : [afterRow!]
-		createRow(afterRows: afterRows, rowStrings: rowStrings)
+		Task {
+			let afterRows = afterRow == nil ? nil : [afterRow!]
+			await createRow(afterRows: afterRows, rowStrings: rowStrings)
+		}
 	}
 	
 	func editorRowMoveRowLeft(_ row: Row, rowStrings: RowStrings) {
-		moveRowsLeft([row], rowStrings: rowStrings)
+		Task {
+			await moveRowsLeft([row], rowStrings: rowStrings)
+		}
 	}
 	
 	func editorRowMoveRowRight(_ row: Row, rowStrings: RowStrings) {
-		moveRowsRight([row], rowStrings: rowStrings)
+		Task {
+			await moveRowsRight([row], rowStrings: rowStrings)
+		}
 	}
 	
 	func editorRowSplitRow(_ row: Row, topic: NSAttributedString, cursorPosition: Int) {
-		splitRow(row, topic: topic, cursorPosition: cursorPosition)
+		Task {
+			await splitRow(row, topic: topic, cursorPosition: cursorPosition)
+		}
 	}
 	
 	func editorRowDeleteRowNote(_ row: Row, rowStrings: RowStrings) {
-		deleteRowNotes([row], rowStrings: rowStrings)
+		Task {
+			await deleteRowNotes([row], rowStrings: rowStrings)
+		}
 	}
 	
 	func editorRowMoveCursorTo(row: Row) {
@@ -1932,7 +1993,9 @@ extension EditorViewController: EditorFindSessionDelegate {
 												 coordinates: [coordinate],
 												 replacementText: replacementText)
 		
-		command.execute()
+		Task {
+			await command.execute()
+		}
 
 	}
 	
@@ -1945,8 +2008,10 @@ extension EditorViewController: EditorFindSessionDelegate {
 												 outline: outline,
 												 coordinates: outline.searchResultCoordinates,
 												 replacementText: replacementText)
-		
-		command.execute()
+	
+		Task {
+			await command.execute()
+		}
 	}
 	
 }
@@ -2093,12 +2158,16 @@ private extension EditorViewController {
 		outlineActions.append(findAction)
 
 		let expandAllInOutlineAction = UIAction(title: .expandAllInOutlineControlLabel, image: .expandAll) { [weak self] _ in
-			self?.expandAllInOutline()
+			Task {
+				await self?.expandAllInOutline()
+			}
 		}
 		outlineActions.append(expandAllInOutlineAction)
 		
 		let collapseAllInOutlineAction = UIAction(title: .collapseAllInOutlineControlLabel, image: .collapseAll) { [weak self] _ in
-			self?.collapseAllInOutline()
+			Task {
+				await self?.collapseAllInOutline()
+			}
 		}
 		outlineActions.append(collapseAllInOutlineAction)
 		
@@ -2110,10 +2179,14 @@ private extension EditorViewController {
 		shareActions.append(shareAction)
 
 		let printDocAction = UIAction(title: .printDocEllipsisControlLabel) { [weak self] _ in
-			self?.printDoc()
+			Task {
+				await self?.printDoc()
+			}
 		}
 		let printListAction = UIAction(title: .printListControlEllipsisLabel) { [weak self] _ in
-			self?.printList()
+			Task {
+				await self?.printList()
+			}
 		}
 		shareActions.append(UIMenu(title: .printControlLabel, image: .printDoc, children: [printDocAction, printListAction]))
 
@@ -2610,8 +2683,10 @@ private extension EditorViewController {
 	func cutAction(rows: [Row]) -> UIAction {
 		return UIAction(title: .cutControlLabel, image: .cut) { [weak self] action in
 			guard let self else { return }
-			self.cutRows(rows)
-			self.delegate?.validateToolbar(self)
+			Task {
+				await self.cutRows(rows)
+				self.delegate?.validateToolbar(self)
+			}
 		}
 	}
 
@@ -2633,27 +2708,34 @@ private extension EditorViewController {
 		return UIAction(title: .addRowControlLabel, image: .add) { [weak self] action in
 			// Have to let the text field get the first responder by getting it away from this
 			// action which appears to be holding on to it.
-			DispatchQueue.main.async {
-				self?.createRow(afterRows: rows)
+			// This may need to have a slight sleep added to it since changing it from dispatching to the main queue
+			Task {
+				await self?.createRow(afterRows: rows)
 			}
 		}
 	}
 
 	func duplicateAction(rows: [Row]) -> UIAction {
 		return UIAction(title: .duplicateControlLabel, image: .duplicate) { [weak self] action in
-			self?.duplicateRows(rows)
+			Task {
+				await self?.duplicateRows(rows)
+			}
 		}
 	}
 
 	func expandAllAction(rows: [Row]) -> UIAction {
 		return UIAction(title: .expandAllControlLabel, image: .expandAll) { [weak self] action in
-			self?.expandAll(containers: rows)
+			Task {
+				await self?.expandAll(containers: rows)
+			}
 		}
 	}
 
 	func collapseAllAction(rows: [Row]) -> UIAction {
 		return UIAction(title: .collapseAllControlLabel, image: .collapseAll) { [weak self] action in
-			self?.collapseAll(containers: rows)
+			Task {
+				await self?.collapseAll(containers: rows)
+			}
 		}
 	}
 
@@ -2667,25 +2749,33 @@ private extension EditorViewController {
 	
 	func completeAction(rows: [Row]) -> UIAction {
 		return UIAction(title: .completeControlLabel, image: .completeRow) { [weak self] action in
-			self?.completeRows(rows)
+			Task {
+				await self?.completeRows(rows)
+			}
 		}
 	}
 	
 	func uncompleteAction(rows: [Row]) -> UIAction {
 		return UIAction(title: .uncompleteControlLabel, image: .uncompleteRow) { [weak self] action in
-			self?.uncompleteRows(rows)
+			Task {
+				await self?.uncompleteRows(rows)
+			}
 		}
 	}
 	
 	func createNoteAction(rows: [Row]) -> UIAction {
 		return UIAction(title: .addNoteControlLabel, image: .noteAdd) { [weak self] action in
-			self?.createRowNotes(rows)
+			Task {
+				await self?.createRowNotes(rows)
+			}
 		}
 	}
 
 	func deleteNoteAction(rows: [Row]) -> UIAction {
 		return UIAction(title: .deleteNoteControlLabel, image: .delete, attributes: .destructive) { [weak self] action in
-			self?.deleteRowNotes(rows)
+			Task {
+				await self?.deleteRowNotes(rows)
+			}
 		}
 	}
 
@@ -2693,8 +2783,10 @@ private extension EditorViewController {
 		let title = rows.count == 1 ? String.deleteRowControlLabel : String.deleteRowsControlLabel
 		return UIAction(title: title, image: .delete, attributes: .destructive) { [weak self] action in
 			guard let self else { return }
-			self.deleteRows(rows)
-			self.delegate?.validateToolbar(self)
+			Task {
+				await self.deleteRows(rows)
+				self.delegate?.validateToolbar(self)
+			}
 		}
 	}
 
@@ -2834,20 +2926,20 @@ private extension EditorViewController {
 		}
 	}
 	
-	func toggleDisclosure(row: Row, applyToAll: Bool) {
+	func toggleDisclosure(row: Row, applyToAll: Bool) async {
 		switch (row.isExpandable, applyToAll) {
 		case (true, false):
-			expand(rows: [row])
+			await expand(rows: [row])
 		case (true, true):
-			expandAll(containers: [row])
+			await expandAll(containers: [row])
 		case (false, false):
-			collapse(rows: [row])
+			await collapse(rows: [row])
 		case (false, true):
-			collapseAll(containers: [row])
+			await collapseAll(containers: [row])
 		}
 	}
 
-	func createTag(name: String) {
+	func createTag(name: String) async {
 		guard let undoManager, let outline else { return }
 		
 		let command = CreateTagCommand(actionName: .addTagControlLabel,
@@ -2856,11 +2948,11 @@ private extension EditorViewController {
 									   outline: outline,
 									   tagName: name)
 		
-		command.execute()
+		await command.execute()
 		moveCursorToTagInput()
 	}
 
-	func deleteTag(name: String) {
+	func deleteTag(name: String) async {
 		guard let undoManager, let outline else { return }
 
 		let command = DeleteTagCommand(actionName: .removeTagControlLabel,
@@ -2869,10 +2961,10 @@ private extension EditorViewController {
 									   outline: outline,
 									   tagName: name)
 		
-		command.execute()
+		await command.execute()
 	}
 	
-	func expand(rows: [Row]) {
+	func expand(rows: [Row]) async {
 		guard let undoManager, let outline else { return }
 		
 		let command = ExpandCommand(actionName: .expandControlLabel,
@@ -2881,10 +2973,10 @@ private extension EditorViewController {
 									outline: outline,
 									rows: rows)
 		
-		command.execute()
+		await command.execute()
 	}
 
-	func collapse(rows: [Row]) {
+	func collapse(rows: [Row]) async {
 		guard let undoManager, let outline else { return }
 
 		let currentRow = currentTextView?.row
@@ -2895,7 +2987,7 @@ private extension EditorViewController {
 									  outline: outline,
 									  rows: rows)
 		
-		command.execute()
+		await command.execute()
 		
 		if let cursorRow = currentRow {
 			for row in rows {
@@ -2908,7 +3000,7 @@ private extension EditorViewController {
 		}
 	}
 
-	func expandAll(containers: [RowContainer]) {
+	func expandAll(containers: [RowContainer]) async {
 		guard let undoManager, let outline else { return }
 		
 		let command = ExpandAllCommand(actionName: .expandAllControlLabel,
@@ -2917,10 +3009,10 @@ private extension EditorViewController {
 									   outline: outline,
 									   containers: containers)
 		
-		command.execute()
+		await command.execute()
 	}
 
-	func collapseAll(containers: [RowContainer]) {
+	func collapseAll(containers: [RowContainer]) async {
 		guard let undoManager, let outline else { return }
 		
 		let command = CollapseAllCommand(actionName: .collapseAllControlLabel,
@@ -2929,10 +3021,10 @@ private extension EditorViewController {
 										 outline: outline,
 										 containers: containers)
 
-		command.execute()
+		await command.execute()
 	}
 
-	func textChanged(row: Row, rowStrings: RowStrings, isInNotes: Bool, selection: NSRange) {
+	func textChanged(row: Row, rowStrings: RowStrings, isInNotes: Bool, selection: NSRange) async {
 		guard let undoManager, let outline else { return }
 		
 		let command = TextChangedCommand(actionName: .typingControlLabel,
@@ -2943,10 +3035,10 @@ private extension EditorViewController {
 										 rowStrings: rowStrings,
 										 isInNotes: isInNotes,
 										 selection: selection)
-		command.execute()
+		await command.execute()
 	}
 
-	func cutRows(_ rows: [Row]) {
+	func cutRows(_ rows: [Row]) async {
 		guard let undoManager, let outline else { return }
 		copyRows(rows)
 
@@ -2956,7 +3048,7 @@ private extension EditorViewController {
 									outline: outline,
 									rows: rows)
 
-		command.execute()
+		await command.execute()
 	}
 
 	func copyRows(_ rows: [Row]) {
@@ -3027,11 +3119,13 @@ private extension EditorViewController {
 											  rowGroups: rowGroups,
 											  afterRow: afterRows?.last)
 
-				command.execute()
+				Task {
+					await command.execute()
+				}
 			}
 			
 		} else if let stringProviderIndexes = UIPasteboard.general.itemSet(withPasteboardTypes: [UTType.utf8PlainText.identifier]), !stringProviderIndexes.isEmpty {
-			
+			#warning("Uncomment and fix this shit.")
 //			let group = DispatchGroup()
 //			var texts = [String]()
 //			
@@ -3071,7 +3165,7 @@ private extension EditorViewController {
 		}
 	}
 
-	func deleteRows(_ rows: [Row], rowStrings: RowStrings? = nil) {
+	func deleteRows(_ rows: [Row], rowStrings: RowStrings? = nil) async {
 		guard let undoManager, let outline else { return }
 
 		let command = DeleteRowCommand(actionName: .deleteRowsControlLabel,
@@ -3081,10 +3175,10 @@ private extension EditorViewController {
 									   rows: rows,
 									   rowStrings: rowStrings)
 
-		command.execute()
+		await command.execute()
 	}
 	
-	func createRow(beforeRows: [Row]) {
+	func createRow(beforeRows: [Row]) async {
 		guard let undoManager, let outline, let beforeRow = beforeRows.sortedByDisplayOrder().first else { return }
 
 		let command = CreateRowBeforeCommand(actionName: .addRowControlLabel,
@@ -3093,10 +3187,10 @@ private extension EditorViewController {
 											 outline: outline,
 											 beforeRow: beforeRow)
 		
-		command.execute()
+		await command.execute()
 	}
 	
-	func createRow(afterRows: [Row]?, rowStrings: RowStrings? = nil) {
+	func createRow(afterRows: [Row]?, rowStrings: RowStrings? = nil) async {
 		guard let undoManager, let outline else { return }
 
 		scrollRowToShowBottom()
@@ -3110,10 +3204,10 @@ private extension EditorViewController {
 											afterRow: afterRow,
 											rowStrings: rowStrings)
 		
-		command.execute()
+		await command.execute()
 	}
 	
-	func createRowInside(afterRows: [Row]?, rowStrings: RowStrings? = nil) {
+	func createRowInside(afterRows: [Row]?, rowStrings: RowStrings? = nil) async {
 		guard let undoManager, let outline else { return }
 
 		scrollRowToShowBottom()
@@ -3127,10 +3221,10 @@ private extension EditorViewController {
 											 afterRow: afterRow,
 											 rowStrings: rowStrings)
 		
-		command.execute()
+		await command.execute()
 	}
 	
-	func createRowOutside(afterRows: [Row]?, rowStrings: RowStrings? = nil) {
+	func createRowOutside(afterRows: [Row]?, rowStrings: RowStrings? = nil) async {
 		guard let undoManager, let outline else { return }
 
 		scrollRowToShowBottom()
@@ -3144,10 +3238,10 @@ private extension EditorViewController {
 											  afterRow: afterRow,
 											  rowStrings: rowStrings)
 		
-		command.execute()
+		await command.execute()
 	}
 	
-	func duplicateRows(_ rows: [Row]) {
+	func duplicateRows(_ rows: [Row]) async {
 		guard let undoManager, let outline else { return }
 
 		let command = DuplicateRowCommand(actionName: .duplicateControlLabel,
@@ -3156,10 +3250,10 @@ private extension EditorViewController {
 										  outline: outline,
 										  rows: rows)
 		
-		command.execute()
+		await command.execute()
 	}
 	
-	func moveRowsLeft(_ rows: [Row], rowStrings: RowStrings? = nil) {
+	func moveRowsLeft(_ rows: [Row], rowStrings: RowStrings? = nil) async {
 		guard let undoManager, let outline else { return }
 		
 		let command = MoveRowLeftCommand(actionName: .moveLeftControlLabel,
@@ -3169,10 +3263,10 @@ private extension EditorViewController {
 										 rows: rows,
 										 rowStrings: rowStrings)
 		
-		command.execute()
+		await command.execute()
 	}
 
-	func moveRowsRight(_ rows: [Row], rowStrings: RowStrings? = nil) {
+	func moveRowsRight(_ rows: [Row], rowStrings: RowStrings? = nil) async {
 		guard let undoManager, let outline else { return }
 		
 		let command = MoveRowRightCommand(actionName: .moveRightControlLabel,
@@ -3182,10 +3276,10 @@ private extension EditorViewController {
 										  rows: rows,
 										  rowStrings: rowStrings)
 		
-		command.execute()
+		await command.execute()
 	}
 
-	func moveRowsUp(_ rows: [Row], rowStrings: RowStrings? = nil) {
+	func moveRowsUp(_ rows: [Row], rowStrings: RowStrings? = nil) async {
 		guard let undoManager, let outline else { return }
 		
 		let command = MoveRowUpCommand(actionName: .moveUpControlLabel,
@@ -3195,11 +3289,11 @@ private extension EditorViewController {
 									   rows: rows,
 									   rowStrings: rowStrings)
 		
-		command.execute()
+		await command.execute()
 		makeCursorVisibleIfNecessary()
 	}
 
-	func moveRowsDown(_ rows: [Row], rowStrings: RowStrings? = nil) {
+	func moveRowsDown(_ rows: [Row], rowStrings: RowStrings? = nil) async {
 		guard let undoManager, let outline else { return }
 		
 		let command = MoveRowDownCommand(actionName: .moveDownControlLabel,
@@ -3209,11 +3303,11 @@ private extension EditorViewController {
 										 rows: rows,
 										 rowStrings: rowStrings)
 		
-		command.execute()
+		await command.execute()
 		makeCursorVisibleIfNecessary()
 	}
 
-	func splitRow(_ row: Row, topic: NSAttributedString, cursorPosition: Int) {
+	func splitRow(_ row: Row, topic: NSAttributedString, cursorPosition: Int) async {
 		guard let undoManager, let outline else { return }
 
 		let command = SplitRowCommand(actionName: .splitRowControlLabel,
@@ -3225,10 +3319,10 @@ private extension EditorViewController {
 									  cursorPosition: cursorPosition)
 												  
 		
-		command.execute()
+		await command.execute()
 	}
 
-	func completeRows(_ rows: [Row], rowStrings: RowStrings? = nil) {
+	func completeRows(_ rows: [Row], rowStrings: RowStrings? = nil) async {
 		guard let undoManager, let outline else { return }
 		
 		let cursorIsInCompletingRows = rows.contains(where: { $0 == currentTextView?.row })
@@ -3240,7 +3334,7 @@ private extension EditorViewController {
 									  rows: rows,
 									  rowStrings: rowStrings)
 		
-		command.execute()
+		await command.execute()
 
 		guard cursorIsInCompletingRows && isCompletedFiltered else { return }
 		
@@ -3251,7 +3345,7 @@ private extension EditorViewController {
 		}
 	}
 	
-	func uncompleteRows(_ rows: [Row], rowStrings: RowStrings? = nil) {
+	func uncompleteRows(_ rows: [Row], rowStrings: RowStrings? = nil) async {
 		guard let undoManager, let outline else { return }
 		
 		let command = UncompleteCommand(actionName: .uncompleteControlLabel,
@@ -3261,10 +3355,10 @@ private extension EditorViewController {
 										rows: rows,
 										rowStrings: rowStrings)
 		
-		command.execute()
+		await command.execute()
 	}
 	
-	func createRowNotes(_ rows: [Row], rowStrings: RowStrings? = nil) {
+	func createRowNotes(_ rows: [Row], rowStrings: RowStrings? = nil) async {
 		guard let undoManager, let outline else { return }
 		
 		let command = CreateNoteCommand(actionName: .addNoteControlLabel,
@@ -3274,10 +3368,10 @@ private extension EditorViewController {
 										rows: rows,
 										rowStrings: rowStrings)
 		
-		command.execute()
+		await command.execute()
 	}
 
-	func deleteRowNotes(_ rows: [Row], rowStrings: RowStrings? = nil) {
+	func deleteRowNotes(_ rows: [Row], rowStrings: RowStrings? = nil) async {
 		// If the user is currently editing a note and wants to delete it, the text view will try to save
 		// its current contents to the row after the note data was already cleared.
 		if let noteTextView = currentTextView as? EditorRowNoteTextView {
@@ -3293,7 +3387,7 @@ private extension EditorViewController {
 										rows: rows,
 										rowStrings: rowStrings)
 		
-		command.execute()
+		await command.execute()
 	}
 
 	func makeCursorVisibleIfNecessary(animated: Bool = true) {
@@ -3317,12 +3411,6 @@ private extension EditorViewController {
 	func updateSpotlightIndex() {
 		if let outline {
 			DocumentIndexer.updateIndex(forDocument: .outline(outline))
-		}
-	}
-	
-	func saveCurrentText() {
-		if let textView = UIResponder.currentFirstResponder as? EditorRowTextView {
-			textView.saveText()
 		}
 	}
 	
@@ -3373,6 +3461,13 @@ private extension EditorViewController {
 		
 		if !adjustedCollectionViewFrame.contains(cellFrame) {
 			collectionView.scrollRectToVisibleBypass(cellFrame, animated: true)
+		}
+	}
+	
+	func saveCurrentText() async {
+		if let textView = UIResponder.currentFirstResponder as? EditorRowTextView, let row = textView.row {
+			let isInNotes = textView is EditorRowNoteTextView
+			await textChanged(row: row, rowStrings: textView.rowStrings, isInNotes: isInNotes, selection: textView.selectedRange)
 		}
 	}
 	

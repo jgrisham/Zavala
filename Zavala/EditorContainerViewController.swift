@@ -130,7 +130,9 @@ class EditorContainerViewController: UIViewController, MainCoordinator {
 	
 	override func delete(_ sender: Any?) {
 		guard editorViewController?.isDeleteCurrentRowUnavailable ?? true else {
-			editorViewController?.deleteCurrentRows()
+			Task {
+				await editorViewController?.deleteCurrentRows()
+			}
 			return
 		}
 	}

@@ -33,12 +33,10 @@ public class OutlineCommand {
 		self.cursorCoordinates = cursorCoordinates
 	}
 	
-	public func execute() {
+	public func execute() async {
 		registerUndo()
-		Task {
-			await saveCursorCoordinates()
-			await perform()
-		}
+		await saveCursorCoordinates()
+		await perform()
 	}
 	
 	func unexecute() {
@@ -67,7 +65,9 @@ public class OutlineCommand {
 	func registerRedo() {
 		undoManager.setActionName(actionName)
 		undoManager.registerUndo(withTarget: self) { _ in
-			self.execute()
+			Task {
+				await self.execute()
+			}
 		}
 	}
 	
