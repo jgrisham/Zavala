@@ -52,7 +52,7 @@ class EditorContainerViewController: UIViewController, MainCoordinator {
 	func handle(_ activity: NSUserActivity) async {
 		guard activity.activityType != NSUserActivity.ActivityType.newOutline else {
 			let document = await newOutlineDocument()
-			editorViewController?.edit(document?.outline, isNew: true)
+			await editorViewController?.edit(document?.outline, isNew: true)
 			if let document {
 				pinWasVisited(Pin(document: document))
 			}
@@ -79,7 +79,7 @@ class EditorContainerViewController: UIViewController, MainCoordinator {
 		if let document = await AccountManager.shared.findDocument(documentID), let outline = document.outline {
 			sceneDelegate?.window?.windowScene?.title = outline.title
 			await activityManager.selectingDocument(nil, document)
-			editorViewController?.edit(outline, isNew: false)
+			await editorViewController?.edit(outline, isNew: false)
 			pinWasVisited(Pin(document: document))
 		}
 	}
@@ -121,7 +121,9 @@ class EditorContainerViewController: UIViewController, MainCoordinator {
 	
 	func shutdown() {
 		activityManager.invalidateSelectDocument()
-		editorViewController?.edit(nil, isNew: false)
+		Task {
+			await editorViewController?.edit(nil, isNew: false)
+		}
 	}
 	
 	// MARK: Actions

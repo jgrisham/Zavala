@@ -507,7 +507,7 @@ extension MainSplitViewController: DocumentsDelegate {
 			
 			guard documents.count == 1, let document = documents.first else {
 				activityManager.invalidateSelectDocument()
-				editorViewController?.edit(nil, isNew: isNew)
+				await editorViewController?.edit(nil, isNew: isNew)
 				if documents.isEmpty {
 					editorViewController?.showMessage(.noSelectionLabel)
 				} else {
@@ -544,13 +544,13 @@ extension MainSplitViewController: DocumentsDelegate {
 			
 			if let search = documentContainers.first as? Search {
 				if search.searchText.isEmpty {
-					editorViewController?.edit(nil, isNew: isNew)
+					await editorViewController?.edit(nil, isNew: isNew)
 				} else {
-					editorViewController?.edit(document.outline, isNew: isNew, searchText: search.searchText)
+					await editorViewController?.edit(document.outline, isNew: isNew, searchText: search.searchText)
 					pinWasVisited(Pin(containers: documentContainers, document: document))
 				}
 			} else {
-				editorViewController?.edit(document.outline, isNew: isNew)
+				await editorViewController?.edit(document.outline, isNew: isNew)
 				pinWasVisited(Pin(containers: documentContainers, document: document))
 			}
 		}

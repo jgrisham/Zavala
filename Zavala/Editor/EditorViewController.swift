@@ -8,6 +8,7 @@
 import UIKit
 import MobileCoreServices
 import PhotosUI
+import Semaphore
 import VinOutlineKit
 import VinUtility
 
@@ -36,6 +37,7 @@ protocol EditorDelegate: AnyObject {
 	func zoomImage(_: EditorViewController, image: UIImage, transitioningDelegate: UIViewControllerTransitioningDelegate)
 }
 
+@MainActor
 class EditorViewController: UIViewController, DocumentsActivityItemsConfigurationDelegate, MainControllerIdentifiable {
 
 	private static let searchBarHeight: CGFloat = 44
@@ -335,6 +337,8 @@ class EditorViewController: UIViewController, DocumentsActivityItemsConfiguratio
 	override var canBecomeFirstResponder: Bool { return true }
 
 	private var messageLabel: UILabel?
+	
+	private var outlineSemaphore = AsyncSemaphore(value: 1)
 	
 	private(set) var outline: Outline?
 	private(set) var outlineTags: [Tag]?
@@ -868,7 +872,10 @@ class EditorViewController: UIViewController, DocumentsActivityItemsConfiguratio
 		])
 	}
 	
-	func edit(_ newOutline: Outline?, isNew: Bool, searchText: String? = nil) {
+	func edit(_ newOutline: Outline?, isNew: Bool, searchText: String? = nil) async {
+		await outlineSemaphore.wait()
+		defer { outlineSemaphore.signal() }
+
 		guard outline != newOutline else { return }
 		isOutlineNewFlag = isNew
 		
@@ -897,48 +904,46 @@ class EditorViewController: UIViewController, DocumentsActivityItemsConfiguratio
 		isSearching = false // Necessary to prevent crashing while switching outlines during a find session
 		findInteraction.dismissFindNavigator()
 		
-		Task {
-			await outline?.unload()
-			undoManager?.removeAllActions()
-		
-			// Assign the new Outline or clear the editor
-			if let newOutline {
-				await apply(newOutline)
-			} else {
-				self.outline = nil
-				self.outlineTags = nil
-				self.otherUnusedTags = nil
-				updateUI()
-				collectionView.reloadData()
-				return
-			}
-
-			// Outline was assigned above in apply, so start force unwrapping
-			await outline!.load()
-			outline!.incrementBeingUsedCount()
-			checkForCorruptOutline()
-			outline!.prepareForViewing()
-			
-			guard isViewLoaded else { return }
-			
-			updateNavigationMenus()
-			collectionView.reloadData()
-			
-			// If we don't have this delay, when switching between documents in the documents view, while searching,
-			// causes the find interaction to glitch out. This is especially true on macOS. We could have a shorter
-			// duration on iOS, but I don't see the need to complicate the code.
-			if let searchText {
-				DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-					self.showFindInteraction(text: searchText)
-				}
-				return
-			}
-			
+		await outline?.unload()
+		undoManager?.removeAllActions()
+	
+		// Assign the new Outline or clear the editor
+		if let newOutline {
+			await apply(newOutline)
+		} else {
+			self.outline = nil
+			self.outlineTags = nil
+			self.otherUnusedTags = nil
 			updateUI()
-			restoreScrollPosition()
-			restoreOutlineCursorPosition()
-			moveCursorToTitleOnNew()
+			collectionView.reloadData()
+			return
 		}
+
+		// Outline was assigned above in apply, so start force unwrapping
+		await outline!.load()
+		outline!.incrementBeingUsedCount()
+		checkForCorruptOutline()
+		outline!.prepareForViewing()
+		
+		guard isViewLoaded else { return }
+		
+		updateNavigationMenus()
+		collectionView.reloadData()
+		
+		// If we don't have this delay, when switching between documents in the documents view, while searching,
+		// causes the find interaction to glitch out. This is especially true on macOS. We could have a shorter
+		// duration on iOS, but I don't see the need to complicate the code.
+		if let searchText {
+			DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+				self.showFindInteraction(text: searchText)
+			}
+			return
+		}
+		
+		updateUI()
+		restoreScrollPosition()
+		restoreOutlineCursorPosition()
+		moveCursorToTitleOnNew()
 	}
 	
 	func selectAllRows() {
