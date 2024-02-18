@@ -87,9 +87,11 @@ private extension ActivityManager {
 		return activity
 	}
 	
-    @objc func documentTitleDidChange(_ note: Notification) async {
+    @objc func documentTitleDidChange(_ note: Notification) {
         guard let document = note.object as? Document, document == selectDocument else { return }
-        await selectingDocument(selectDocumentContainers, document)
+		Task { @MainActor in
+			await selectingDocument(selectDocumentContainers, document)
+		}
     }
     
 	func makeSelectDocumentActivity(_ documentContainers: [DocumentContainer]?, _ document: Document) async -> NSUserActivity {
