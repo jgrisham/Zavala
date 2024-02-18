@@ -256,12 +256,10 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		get async {
 			let wordCountVisitor = WordCountVisitor()
 
-			incrementBeingUsedCount()
 			await loadRows()
 			
 			rows.forEach { $0.visit(visitor: wordCountVisitor.visitor)	}
 			
-			decrementBeingUsedCount()
 			await unloadRows()
 			
 			return wordCountVisitor.count
