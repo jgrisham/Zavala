@@ -1,7 +1,4 @@
 //
-//  AccountManager.swift
-//  
-//
 //  Created by Maurice Parker on 11/6/20.
 //
 
@@ -9,9 +6,9 @@ import Foundation
 import OSLog
 import Semaphore
 
-public actor AccountManager {
+public actor Outliner {
 	
-	nonisolated(unsafe) public static var shared: AccountManager!
+	nonisolated(unsafe) public static var shared: Outliner!
 	
 	public var localAccount: Account? {
 		get async {
@@ -309,7 +306,7 @@ public actor AccountManager {
 
 // MARK: Helpers
 
-private extension AccountManager {
+private extension Outliner {
 	
 	func activeAccountsDidChange() {
 		NotificationCenter.default.post(name: .ActiveAccountsDidChange, object: self, userInfo: nil)
@@ -332,7 +329,7 @@ private extension AccountManager {
 			file = cloudKitAccountFile
 		}
 		
-		let managedFile = AccountFile(fileURL: file, accountType: accountType, accountManager: self)
+		let managedFile = AccountFile(fileURL: file, accountType: accountType, outliner: self)
 		await managedFile.load()
 		accountFiles[accountType.rawValue] = managedFile
 	}

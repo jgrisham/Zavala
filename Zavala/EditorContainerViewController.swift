@@ -76,7 +76,7 @@ class EditorContainerViewController: UIViewController, MainCoordinator {
 	}
 	
 	func openDocument(_ documentID: EntityID) async {
-		if let document = await AccountManager.shared.findDocument(documentID), let outline = document.outline {
+		if let document = await Outliner.shared.findDocument(documentID), let outline = document.outline {
 			sceneDelegate?.window?.windowScene?.title = outline.title
 			await activityManager.selectingDocument(nil, document)
 			await editorViewController?.edit(outline, isNew: false)
@@ -87,8 +87,8 @@ class EditorContainerViewController: UIViewController, MainCoordinator {
 	func newOutlineDocument(title: String? = nil) async -> Document? {
 		let accountID = AppDefaults.shared.lastSelectedAccountID
 		
-		let firstActiveAccount = await AccountManager.shared.activeAccounts.first
-		guard let account = await AccountManager.shared.findAccount(accountID: accountID) ?? firstActiveAccount else { return nil }
+		let firstActiveAccount = await Outliner.shared.activeAccounts.first
+		guard let account = await Outliner.shared.findAccount(accountID: accountID) ?? firstActiveAccount else { return nil }
 		let document = await account.createOutline(title: title)
 		
 		let defaults = AppDefaults.shared
@@ -110,7 +110,7 @@ class EditorContainerViewController: UIViewController, MainCoordinator {
 	}
 	
 	func manageSharing() async {
-		guard let shareRecord = selectedDocuments.first!.shareRecord, let container = await AccountManager.shared.cloudKitAccount?.cloudKitContainer else {
+		guard let shareRecord = selectedDocuments.first!.shareRecord, let container = await Outliner.shared.cloudKitAccount?.cloudKitContainer else {
 			return
 		}
 		
@@ -177,7 +177,7 @@ class EditorContainerViewController: UIViewController, MainCoordinator {
 
 	@objc func sync(_ sender: Any?) {
 		Task {
-			await AccountManager.shared.sync()
+			await Outliner.shared.sync()
 		}
 	}
 
@@ -316,7 +316,7 @@ extension EditorContainerViewController: UICloudSharingControllerDelegate {
 	func cloudSharingControllerDidStopSharing(_ csc: UICloudSharingController) {
 		Task { 
 			try await Task.sleep(for: .seconds(2))
-			await AccountManager.shared.sync()
+			await Outliner.shared.sync()
 		}
 	}
 	
@@ -391,7 +391,7 @@ extension EditorContainerViewController: NSToolbarDelegate {
 		case .sync:
 			let item = ValidatingToolbarItem(itemIdentifier: itemIdentifier)
 //			item.checkForUnavailable = { _ in
-//				return !AccountManager.shared.isSyncAvailable
+//				return !Outliner.shared.isSyncAvailable
 //			}
 			item.image = .sync.symbolSizedForCatalyst()
 			item.label = .syncControlLabel

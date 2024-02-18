@@ -249,7 +249,7 @@ class DocumentsViewController: UICollectionViewController, MainControllerIdentif
 	func manageSharing() async {
 		guard let document = selectedDocuments.first,
 			  let shareRecord = document.shareRecord,
-			  let container = await AccountManager.shared.cloudKitAccount?.cloudKitContainer,
+			  let container = await Outliner.shared.cloudKitAccount?.cloudKitContainer,
 			  let indexPath = collectionView.indexPathsForSelectedItems?.first,
 			  let cell = collectionView.cellForItem(at: indexPath) else {
 			return
@@ -297,8 +297,8 @@ class DocumentsViewController: UICollectionViewController, MainControllerIdentif
 	
 	@objc func sync() {
 		Task {
-			if await AccountManager.shared.isSyncAvailable {
-				await AccountManager.shared.sync()
+			if await Outliner.shared.isSyncAvailable {
+				await Outliner.shared.sync()
 			}
 		}
 		collectionView?.refreshControl?.endRefreshing()
@@ -347,7 +347,7 @@ extension DocumentsViewController: UICloudSharingControllerDelegate {
 	func cloudSharingControllerDidStopSharing(_ csc: UICloudSharingController) {
 		Task {
 			try await Task.sleep(for: .seconds(2))
-			await AccountManager.shared.sync()
+			await Outliner.shared.sync()
 		}
 	}
 	
@@ -707,7 +707,7 @@ private extension DocumentsViewController {
 
 		let action = UIAction(title: .manageSharingEllipsisControlLabel, image: .collaborating) { [weak self] action in
 			Task {
-				guard let self, let container = await AccountManager.shared.cloudKitAccount?.cloudKitContainer else { return }
+				guard let self, let container = await Outliner.shared.cloudKitAccount?.cloudKitContainer else { return }
 				let controller = UICloudSharingController(share: shareRecord, container: container)
 				controller.popoverPresentationController?.sourceView = sourceView
 				controller.delegate = self

@@ -87,9 +87,9 @@ public actor Account: Identifiable, Equatable {
 	var folder: URL {
 		switch type {
 		case .local:
-			return AccountManager.shared.localAccountFolder
+			return Outliner.shared.localAccountFolder
 		case .cloudKit:
-			return AccountManager.shared.cloudKitAccountFolder
+			return Outliner.shared.cloudKitAccountFolder
 		}
 	}
 	var cloudKitManager: CloudKitManager?

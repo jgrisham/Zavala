@@ -18,7 +18,7 @@ extension ZavalaIntentHandler {
 	func resume() {
 		Task { @MainActor in
 			if UIApplication.shared.applicationState == .background {
-				AccountManager.shared.resume()
+				Outliner.shared.resume()
 			}
 		}
 	}
@@ -26,7 +26,7 @@ extension ZavalaIntentHandler {
 	func suspend() {
 		Task { @MainActor in
 			if UIApplication.shared.applicationState == .background {
-				AccountManager.shared.suspend()
+				Outliner.shared.suspend()
 			}
 		}
 	}
@@ -38,7 +38,7 @@ extension ZavalaIntentHandler {
 	func findOutline(_ intentEntityID: IntentEntityID?) -> Outline? {
 		guard let description = intentEntityID?.identifier,
 			  let id = EntityID(description: description),
-			  let outline = AccountManager.shared.findDocument(id)?.outline else {
+			  let outline = Outliner.shared.findDocument(id)?.outline else {
 				  return nil
 			  }
 		return outline

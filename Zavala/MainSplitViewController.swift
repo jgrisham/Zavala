@@ -207,7 +207,7 @@ class MainSplitViewController: UISplitViewController, MainCoordinator {
 	}
 	
 	func handleDocument(_ documentID: EntityID, isNavigationBranch: Bool) async {
-		guard let account = await AccountManager.shared.findAccount(accountID: documentID.accountID),
+		guard let account = await Outliner.shared.findAccount(accountID: documentID.accountID),
 			  let document = await account.findDocument(documentID) else { return }
 		
 		if let collectionsTags = selectedTags, document.hasAnyTag(collectionsTags) {
@@ -310,7 +310,7 @@ class MainSplitViewController: UISplitViewController, MainCoordinator {
 	
 	@objc func sync() {
 		Task {
-			await AccountManager.shared.sync()
+			await Outliner.shared.sync()
 		}
 	}
 	
@@ -808,8 +808,8 @@ private extension MainSplitViewController {
 	func selectDefaultDocumentContainer() async {
 		let accountID = AppDefaults.shared.lastSelectedAccountID
 		
-		let firstActiveAccount = await AccountManager.shared.activeAccounts.first
-		guard let account = await AccountManager.shared.findAccount(accountID: accountID) ?? firstActiveAccount else {
+		let firstActiveAccount = await Outliner.shared.activeAccounts.first
+		guard let account = await Outliner.shared.findAccount(accountID: accountID) ?? firstActiveAccount else {
 			return
 		}
 		
@@ -819,7 +819,7 @@ private extension MainSplitViewController {
 	}
 	
 	func cleanUpNavigationStacks() async {
-		let allDocumentIDs = await AccountManager.shared.activeDocuments.map { $0.id }
+		let allDocumentIDs = await Outliner.shared.activeDocuments.map { $0.id }
 		
 		var replacementGoBackwardStack = [Pin]()
 		for pin in goBackwardStack {
@@ -958,7 +958,7 @@ extension MainSplitViewController: NSToolbarDelegate {
 		case .sync:
 			let item = ValidatingToolbarItem(itemIdentifier: itemIdentifier)
 //			item.checkForUnavailable = { _ in
-//				return !AccountManager.shared.isSyncAvailable
+//				return !Outliner.shared.isSyncAvailable
 //			}
 			item.image = .sync.symbolSizedForCatalyst()
 			item.label = .syncControlLabel

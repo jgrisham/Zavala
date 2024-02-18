@@ -21,7 +21,7 @@ class IndexRequestHandler: CSIndexExtensionRequestHandler {
 			await self.resume()
 
 			await withTaskGroup(of: Void.self) { taskGroup in
-				for document in await AccountManager.shared.documents {
+				for document in await Outliner.shared.documents {
 					autoreleasepool {
 						taskGroup.addTask {
 							let searchableItem = await DocumentIndexer.makeSearchableItem(forDocument: document)
@@ -49,7 +49,7 @@ class IndexRequestHandler: CSIndexExtensionRequestHandler {
 
 			await withTaskGroup(of: Void.self) { taskGroup in
 				for description in identifiers {
-					if let entityID = EntityID(description: description), let document = await AccountManager.shared.findDocument(entityID) {
+					if let entityID = EntityID(description: description), let document = await Outliner.shared.findDocument(entityID) {
 						autoreleasepool {
 							taskGroup.addTask {
 								let searchableItem = await DocumentIndexer.makeSearchableItem(forDocument: document)
@@ -87,19 +87,19 @@ extension IndexRequestHandler: ErrorHandler {
 private extension IndexRequestHandler {
 	
 	func resume() async {
-		if AccountManager.shared == nil {
+		if Outliner.shared == nil {
 			let appGroup = Bundle.main.object(forInfoDictionaryKey: "AppGroup") as! String
 			let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup)
 			let documentAccountsFolderPath = containerURL!.appendingPathComponent("Accounts").path
-			AccountManager.shared = AccountManager(accountsFolderPath: documentAccountsFolderPath)
-			await AccountManager.shared.startUp(errorHandler: self)
+			Outliner.shared = Outliner(accountsFolderPath: documentAccountsFolderPath)
+			await Outliner.shared.startUp(errorHandler: self)
 		} else {
-			await AccountManager.shared.resume()
+			await Outliner.shared.resume()
 		}
 	}
 	
 	func suspend() async {
-		await AccountManager.shared.suspend()
+		await Outliner.shared.suspend()
 	}
 	
 }

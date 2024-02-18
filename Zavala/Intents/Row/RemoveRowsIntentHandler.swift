@@ -24,7 +24,7 @@ class RemoveRowsIntentHandler: NSObject, ZavalaIntentHandler, RemoveRowsIntentHa
 		let inputRows: [Row] = intentRows
 			.compactMap { $0.entityID?.toEntityID() }
 			.compactMap {
-				if let rowOutline = AccountManager.shared.findDocument($0)?.outline {
+				if let rowOutline = Outliner.shared.findDocument($0)?.outline {
 					rowOutline.load()
 					outlines.insert(rowOutline)
 					return rowOutline.findRow(id: $0.rowUUID)

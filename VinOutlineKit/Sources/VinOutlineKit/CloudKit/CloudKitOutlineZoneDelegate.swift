@@ -42,7 +42,7 @@ class CloudKitOutlineZoneDelegate: VCKZoneDelegate {
 
 		for deletedRecordKey in deleted {
 			if deletedRecordKey.recordType == CKRecord.SystemType.share {
-				if let outline = await AccountManager.shared.cloudKitAccount?.findDocument(shareRecordID: deletedRecordKey.recordID)?.outline {
+				if let outline = await Outliner.shared.cloudKitAccount?.findDocument(shareRecordID: deletedRecordKey.recordID)?.outline {
 					Task { @MainActor in
 						outline.cloudKitShareRecord = nil
 					}
@@ -66,7 +66,7 @@ class CloudKitOutlineZoneDelegate: VCKZoneDelegate {
 
 		for changedRecord in changed {
 			if let shareRecord = changedRecord as? CKShare {
-				if let outline = await AccountManager.shared.cloudKitAccount?.findDocument(shareRecordID: shareRecord.recordID)?.outline {
+				if let outline = await Outliner.shared.cloudKitAccount?.findDocument(shareRecordID: shareRecord.recordID)?.outline {
 					Task { @MainActor in
 						outline.cloudKitShareRecord = shareRecord
 					}

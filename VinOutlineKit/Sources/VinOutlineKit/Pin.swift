@@ -39,14 +39,14 @@ public struct Pin: Equatable {
 		
 		if let userInfos = userInfo["containerIDs"] as? [[AnyHashable : AnyHashable]] {
             let containerIDs = userInfos.compactMap { EntityID(userInfo: $0) }
-			containers = await AccountManager.shared.findDocumentContainers(containerIDs)
+			containers = await Outliner.shared.findDocumentContainers(containerIDs)
 		} else {
 			self.containers = nil
 		}
 		
 		if let userInfo = userInfo["documentID"] as? [AnyHashable : AnyHashable] {
 			if let documentID = EntityID(userInfo: userInfo) {
-				self.document = await AccountManager.shared.findDocument(documentID)
+				self.document = await Outliner.shared.findDocument(documentID)
 			} else {
 				self.document = nil
 			}

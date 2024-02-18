@@ -13,7 +13,7 @@ class GetRowsIntentHandler: NSObject, ZavalaIntentHandler, GetRowsIntentHandling
 	func handle(intent: GetRowsIntent, completion: @escaping (GetRowsIntentResponse) -> Void) {
 		resume()
 		
-		guard let entityID = intent.entityID?.toEntityID(), let outline = AccountManager.shared.findDocument(entityID)?.outline else {
+		guard let entityID = intent.entityID?.toEntityID(), let outline = Outliner.shared.findDocument(entityID)?.outline else {
 			suspend()
 			completion(.init(code: .success, userActivity: nil))
 			return

@@ -56,7 +56,7 @@ public final class Search: Identifiable, DocumentContainer {
 						Task {
 							var documents = [Document]()
 							for documentID in documentIDs {
-								if let document = await AccountManager.shared.findDocument(documentID) {
+								if let document = await Outliner.shared.findDocument(documentID) {
 									documents.append(document)
 								}
 							}

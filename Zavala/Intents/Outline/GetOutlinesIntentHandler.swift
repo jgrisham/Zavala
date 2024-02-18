@@ -28,13 +28,13 @@ class GetOutlinesIntentHandler: NSObject, ZavalaIntentHandler, GetOutlinesIntent
 		let outlineNames: [String]
 		switch intent.accountType {
 		case .onMyDevice:
-			outlineNames = AccountManager.shared.localAccount.documents?.compactMap({ $0.title ?? "" as String }) ?? [String]()
+			outlineNames = Outliner.shared.localAccount.documents?.compactMap({ $0.title ?? "" as String }) ?? [String]()
 		case .iCloud:
-			outlineNames = AccountManager.shared.cloudKitAccount?.documents?.compactMap({ $0.title ?? "" as String }) ?? [String]()
+			outlineNames = Outliner.shared.cloudKitAccount?.documents?.compactMap({ $0.title ?? "" as String }) ?? [String]()
 		default:
 			var names = Set<String>()
-			names.formUnion(Set(AccountManager.shared.localAccount.documents?.compactMap({ $0.title ?? "" as String }) ?? [String]()))
-			names.formUnion(Set(AccountManager.shared.cloudKitAccount?.documents?.compactMap({ $0.title ?? "" as String }) ?? [String]()))
+			names.formUnion(Set(Outliner.shared.localAccount.documents?.compactMap({ $0.title ?? "" as String }) ?? [String]()))
+			names.formUnion(Set(Outliner.shared.cloudKitAccount?.documents?.compactMap({ $0.title ?? "" as String }) ?? [String]()))
 			outlineNames = Array(names)
 		}
 		
@@ -53,13 +53,13 @@ class GetOutlinesIntentHandler: NSObject, ZavalaIntentHandler, GetOutlinesIntent
 		let tagNames: [String]
 		switch intent.accountType {
 		case .onMyDevice:
-			tagNames = AccountManager.shared.localAccount.tags?.compactMap({ $0.name as String }) ?? [String]()
+			tagNames = Outliner.shared.localAccount.tags?.compactMap({ $0.name as String }) ?? [String]()
 		case .iCloud:
-			tagNames = AccountManager.shared.cloudKitAccount?.tags?.compactMap({ $0.name as String }) ?? [String]()
+			tagNames = Outliner.shared.cloudKitAccount?.tags?.compactMap({ $0.name as String }) ?? [String]()
 		default:
 			var names = Set<String>()
-			names.formUnion(Set(AccountManager.shared.localAccount.tags?.compactMap({ $0.name as String }) ?? [String]()))
-			names.formUnion(Set(AccountManager.shared.cloudKitAccount?.tags?.compactMap({ $0.name as String }) ?? [String]()))
+			names.formUnion(Set(Outliner.shared.localAccount.tags?.compactMap({ $0.name as String }) ?? [String]()))
+			names.formUnion(Set(Outliner.shared.cloudKitAccount?.tags?.compactMap({ $0.name as String }) ?? [String]()))
 			tagNames = Array(names)
 		}
 		
@@ -110,7 +110,7 @@ class GetOutlinesIntentHandler: NSObject, ZavalaIntentHandler, GetOutlinesIntent
 		resume()
 		
 		guard let searchText = intent.search, !searchText.isEmpty else {
-			filter(documents: AccountManager.shared.documents, intent: intent, completion: completion)
+			filter(documents: Outliner.shared.documents, intent: intent, completion: completion)
 			return
 		}
 

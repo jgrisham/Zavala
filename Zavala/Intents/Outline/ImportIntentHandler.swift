@@ -13,7 +13,7 @@ class ImportIntentHandler: NSObject, ZavalaIntentHandler, ImportIntentHandling {
 	func handle(intent: ImportIntent, completion: @escaping (ImportIntentResponse) -> Void) {
 		resume()
 		let acctType = intent.accountType == .onMyDevice ? AccountType.local : AccountType.cloudKit
-		guard let account = AccountManager.shared.findAccount(accountType: acctType), let data = intent.inputFile?.data else {
+		guard let account = Outliner.shared.findAccount(accountType: acctType), let data = intent.inputFile?.data else {
 			suspend()
 			completion(.init(code: .failure, userActivity: nil))
 			return

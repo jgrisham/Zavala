@@ -302,9 +302,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 			try? FileManager.default.moveItem(atPath: oldDocumentAccountsFolderPath, toPath: documentAccountsFolderPath)
 		}
 		
-		AccountManager.shared = AccountManager(accountsFolderPath: documentAccountsFolderPath)
+		Outliner.shared = Outliner(accountsFolderPath: documentAccountsFolderPath)
 		Task {
-			await AccountManager.shared.startUp(errorHandler: self)
+			await Outliner.shared.startUp(errorHandler: self)
 		}
 		let _ = OutlineFontCache.shared
 		
@@ -347,11 +347,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 	func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable : Any], fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
 		Task { @MainActor in
 			if UIApplication.shared.applicationState == .background {
-				await AccountManager.shared.resume()
+				await Outliner.shared.resume()
 			}
-			await AccountManager.shared.receiveRemoteNotification(userInfo: userInfo)
+			await Outliner.shared.receiveRemoteNotification(userInfo: userInfo)
 			if UIApplication.shared.applicationState == .background {
-				await AccountManager.shared.suspend()
+				await Outliner.shared.suspend()
 			}
 			completionHandler(.newData)
 		}
@@ -443,7 +443,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
 	@objc func syncCommand(_ sender: Any?) {
 		Task {
-			await AccountManager.shared.sync()
+			await Outliner.shared.sync()
 		}
 	}
 
@@ -719,7 +719,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 				command.attributes = .disabled
 			}
 //		case #selector(syncCommand(_:)):
-//			if !AccountManager.shared.isSyncAvailable {
+//			if !Outliner.shared.isSyncAvailable {
 //				command.attributes = .disabled
 //			}
 		case #selector(outlineGetInfoCommand(_:)):
@@ -1012,8 +1012,8 @@ extension AppDelegate: AppKitPluginDelegate {
 	func importOPML(_ url: URL) {
 		Task {
 			let accountID = AppDefaults.shared.lastSelectedAccountID
-			let firstActiveAccount = await AccountManager.shared.activeAccounts.first
-			guard let account = await AccountManager.shared.findAccount(accountID: accountID) ?? firstActiveAccount else { return }
+			let firstActiveAccount = await Outliner.shared.activeAccounts.first
+			guard let account = await Outliner.shared.findAccount(accountID: accountID) ?? firstActiveAccount else { return }
 			guard let document = try? await account.importOPML(url, tags: nil) else { return }
 
 			let activity = NSUserActivity(activityType: NSUserActivity.ActivityType.openEditor)
@@ -1043,7 +1043,7 @@ private extension AppDelegate {
 	@objc func willEnterForeground() {
 		Task {
 			checkForUserDefaultsChanges()
-			await AccountManager.shared.resume()
+			await Outliner.shared.resume()
 			
 			if let userInfos = AppDefaults.shared.documentHistory {
 				var pins = [Pin]()
@@ -1063,14 +1063,14 @@ private extension AppDelegate {
 	
 	@objc private func didEnterBackground() {
 		Task {
-			await AccountManager.shared.suspend()
+			await Outliner.shared.suspend()
 			AppDefaults.shared.documentHistory = history.map { $0.userInfo }
 		}
 	}
 	
 	@objc private func checkForUserDefaultsChanges() {
 		Task {
-			guard let localAccount = await AccountManager.shared.localAccount else { return }
+			guard let localAccount = await Outliner.shared.localAccount else { return }
 			
 			if await AppDefaults.shared.enableLocalAccount != localAccount.isActive {
 				if AppDefaults.shared.enableLocalAccount {
@@ -1080,12 +1080,12 @@ private extension AppDelegate {
 				}
 			}
 			
-			let cloudKitAccount = await AccountManager.shared.cloudKitAccount
+			let cloudKitAccount = await Outliner.shared.cloudKitAccount
 			
 			if AppDefaults.shared.enableCloudKit && cloudKitAccount == nil {
-				await AccountManager.shared.createCloudKitAccount(errorHandler: self)
+				await Outliner.shared.createCloudKitAccount(errorHandler: self)
 			} else if !AppDefaults.shared.enableCloudKit && cloudKitAccount != nil {
-				await AccountManager.shared.deleteCloudKitAccount()
+				await Outliner.shared.deleteCloudKitAccount()
 			}
 		}
 	}
@@ -1129,7 +1129,7 @@ private extension AppDelegate {
 
 	private func cleanUpHistory() {
 		Task {
-			let allDocumentIDs = await AccountManager.shared.activeDocuments.map { $0.id }
+			let allDocumentIDs = await Outliner.shared.activeDocuments.map { $0.id }
 			
 			for pin in history {
 				if let documentID = pin.document?.id {

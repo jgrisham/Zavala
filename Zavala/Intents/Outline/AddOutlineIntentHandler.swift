@@ -38,7 +38,7 @@ class AddOutlineIntentHandler: NSObject, ZavalaIntentHandler, AddOutlineIntentHa
 		resume()
 		
 		let acctType = intent.accountType == .onMyDevice ? AccountType.local : AccountType.cloudKit
-		guard let account = AccountManager.shared.findAccount(accountType: acctType), let title = intent.title else {
+		guard let account = Outliner.shared.findAccount(accountType: acctType), let title = intent.title else {
 			suspend()
 			completion(.init(code: .failure, userActivity: nil))
 			return

@@ -11,7 +11,7 @@ import CloudKit
 public struct CloudKitActionRequest: Codable, Hashable, Equatable {
 
 	static var actionRequestFile: URL {
-		return AccountManager.shared.cloudKitAccountFolder.appendingPathComponent("cloudKitRequests.plist")
+		return Outliner.shared.cloudKitAccountFolder.appendingPathComponent("cloudKitRequests.plist")
 	}
 	
 	let zoneName: String

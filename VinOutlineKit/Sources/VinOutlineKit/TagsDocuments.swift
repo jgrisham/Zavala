@@ -13,7 +13,7 @@ public final class TagsDocuments: DocumentProvider {
 
 	public var documents: [Document] {
 		get async throws {
-			let documents = await AccountManager.shared.activeDocuments
+			let documents = await Outliner.shared.activeDocuments
 			return documents.filter { $0.hasAllTags(tags) }
 		}
 	}

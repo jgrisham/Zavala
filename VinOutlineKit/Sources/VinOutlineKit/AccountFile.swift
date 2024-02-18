@@ -13,20 +13,20 @@ final class AccountFile: ManagedResourceFile {
 
 	public static let filenameComponent = "account.plist"
 	private let accountType: AccountType
-	private weak var accountManager: AccountManager?
+	private weak var outliner: Outliner?
 	
-	public init(fileURL: URL, accountType: AccountType, accountManager: AccountManager) {
+	public init(fileURL: URL, accountType: AccountType, outliner: Outliner) {
 		self.accountType = accountType
-		self.accountManager = accountManager
+		self.outliner = outliner
 		super.init(fileURL: fileURL)
 	}
 	
 	public override func fileDidLoad(data: Data) async {
-		await accountManager?.loadAccountFileData(data, accountType: accountType)
+		await outliner?.loadAccountFileData(data, accountType: accountType)
 	}
 	
 	public override func fileWillSave() async -> Data? {
-		return await accountManager?.buildAccountFileData(accountType: accountType)
+		return await outliner?.buildAccountFileData(accountType: accountType)
 	}
 	
 }

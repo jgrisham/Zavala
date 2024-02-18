@@ -136,7 +136,7 @@ private extension MacOpenQuicklyCollectionsViewController {
 	}
 	
 	func localAccountSnapshot() async -> NSDiffableDataSourceSectionSnapshot<CollectionsItem>? {
-		guard let localAccount = await AccountManager.shared.localAccount else { return nil }
+		guard let localAccount = await Outliner.shared.localAccount else { return nil }
 		
 		guard await localAccount.isActive else { return nil }
 		
@@ -152,7 +152,7 @@ private extension MacOpenQuicklyCollectionsViewController {
 	}
 	
 	func cloudKitAccountSnapshot() async -> NSDiffableDataSourceSectionSnapshot<CollectionsItem>? {
-		guard let cloudKitAccount = await AccountManager.shared.cloudKitAccount else { return nil }
+		guard let cloudKitAccount = await Outliner.shared.cloudKitAccount else { return nil }
 		
 		var snapshot = NSDiffableDataSourceSectionSnapshot<CollectionsItem>()
 		let header = CollectionsItem.item(id: .header(.cloudKitAccount))
@@ -168,7 +168,7 @@ private extension MacOpenQuicklyCollectionsViewController {
 	func rebuildContainersDictionary() async {
 		var containersDictionary = [EntityID: DocumentContainer]()
 		
-		let containers = await AccountManager.shared.documentContainers
+		let containers = await Outliner.shared.documentContainers
 		for container in containers {
 			containersDictionary[container.id] = container
 		}

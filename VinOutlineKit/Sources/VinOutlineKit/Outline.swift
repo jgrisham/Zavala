@@ -2446,7 +2446,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	
 	public func delete() async {
 		for link in documentLinks ?? [EntityID]() {
-			if let outline = await AccountManager.shared.findDocument(link)?.outline {
+			if let outline = await Outliner.shared.findDocument(link)?.outline {
 				outline.deleteBacklink(id)
 			}
 		}
@@ -2484,7 +2484,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		outline.documentLinks = documentLinks
 		
 		for linkedDocumentID in outline.documentLinks ?? [EntityID]() {
-			if let linkedOutline = await AccountManager.shared.findDocument(linkedDocumentID)?.outline {
+			if let linkedOutline = await Outliner.shared.findDocument(linkedDocumentID)?.outline {
 				linkedOutline.createBacklink(outline.id)
 			}
 		}
@@ -3206,7 +3206,7 @@ private extension Outline {
 	}
 	
 	func createLinkRelationship(_ entityID: EntityID) async {
-		guard let outline = await AccountManager.shared.findDocument(entityID)?.outline else { return }
+		guard let outline = await Outliner.shared.findDocument(entityID)?.outline else { return }
 		
 		if isCloudKit && ancestorDocumentLinks == nil {
 			ancestorDocumentLinks = documentLinks
@@ -3223,7 +3223,7 @@ private extension Outline {
 	}
 
 	func deleteLinkRelationship(_ entityID: EntityID) async {
-		guard let outline = await AccountManager.shared.findDocument(entityID)?.outline else { return }
+		guard let outline = await Outliner.shared.findDocument(entityID)?.outline else { return }
 
 		if isCloudKit && ancestorDocumentLinks == nil {
 			ancestorDocumentLinks = documentLinks

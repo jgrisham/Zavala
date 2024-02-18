@@ -179,8 +179,8 @@ class CollectionsViewController: UICollectionViewController, MainControllerIdent
 	
 	@objc func sync() {
 		Task {
-			if await AccountManager.shared.isSyncAvailable {
-				await AccountManager.shared.sync()
+			if await Outliner.shared.isSyncAvailable {
+				await Outliner.shared.sync()
 			}
 		}
 		collectionView?.refreshControl?.endRefreshing()
@@ -378,7 +378,7 @@ extension CollectionsViewController {
 	}
 	
 	private func localAccountSnapshot() async -> NSDiffableDataSourceSectionSnapshot<CollectionsItem>? {
-		guard let localAccount = await AccountManager.shared.localAccount else { return nil }
+		guard let localAccount = await Outliner.shared.localAccount else { return nil }
 		
 		guard await localAccount.isActive else { return nil }
 		
@@ -394,7 +394,7 @@ extension CollectionsViewController {
 	}
 	
 	private func cloudKitAccountSnapshot() async -> NSDiffableDataSourceSectionSnapshot<CollectionsItem>? {
-		guard let cloudKitAccount = await AccountManager.shared.cloudKitAccount else { return nil }
+		guard let cloudKitAccount = await Outliner.shared.cloudKitAccount else { return nil }
 		
 		var snapshot = NSDiffableDataSourceSectionSnapshot<CollectionsItem>()
 		let header = CollectionsItem.item(id: .header(.cloudKitAccount))
@@ -608,7 +608,7 @@ private extension CollectionsViewController {
 	func rebuildContainersDictionary() async {
 		var containersDictionary = [EntityID: DocumentContainer]()
 		
-		let containers = await AccountManager.shared.documentContainers
+		let containers = await Outliner.shared.documentContainers
 		for container in containers {
 			containersDictionary[container.id] = container
 		}

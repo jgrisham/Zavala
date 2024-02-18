@@ -15,7 +15,7 @@ struct RequestReview {
 	// Only prompt every 30 days if they have 10 active documents and the app version is different
 	static func request() {
 		Task {
-			let activeDocumentsCount = await AccountManager.shared.activeDocuments.count
+			let activeDocumentsCount = await Outliner.shared.activeDocuments.count
 			
 			if BuildInfo.shared.versionNumber != AppDefaults.shared.lastReviewPromptAppVersion &&
 				Date().addingTimeInterval(-2592000) > AppDefaults.shared.lastReviewPromptDate ?? .distantPast &&

@@ -85,7 +85,7 @@ extension Array where Element == CollectionsItem {
 		var containers = [DocumentContainer]()
 		
 		for item in self {
-			if case .documentContainer(let entityID) = item.id, let container = await AccountManager.shared.findDocumentContainer(entityID) {
+			if case .documentContainer(let entityID) = item.id, let container = await Outliner.shared.findDocumentContainer(entityID) {
 				containers.append(container)
 			}
 		}

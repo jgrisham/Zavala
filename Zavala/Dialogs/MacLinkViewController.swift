@@ -61,7 +61,7 @@ class MacLinkViewController: UIViewController {
 		}
 		
 		Task {
-			let searchItems = await AccountManager.shared.activeDocuments.map { SearchTextFieldItem(title: $0.title ?? "", associatedObject: $0.id) }
+			let searchItems = await Outliner.shared.activeDocuments.map { SearchTextFieldItem(title: $0.title ?? "", associatedObject: $0.id) }
 			textTextField.filterItems(searchItems)
 		}
 		

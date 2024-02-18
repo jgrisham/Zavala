@@ -1,14 +1,11 @@
 //
-//  File.swift
-//  
-//
 //  Created by Maurice Parker on 2/7/24.
 //
 
 import Foundation
 import VinCloudKit
 
-public extension AccountManager {
+public extension Outliner {
 	
 	func loadAccountFileData(_ data: Data, accountType: AccountType) async {
 		let decoder = PropertyListDecoder()

@@ -182,7 +182,7 @@ class MacOpenQuicklyDocumentsViewController: UICollectionViewController {
 	func rebuildDocumentsDictionary() async {
 		var documentsDictionary = [EntityID: Document]()
 		
-		let documents = await AccountManager.shared.documents
+		let documents = await Outliner.shared.documents
 		for document in documents {
 			documentsDictionary[document.id] = document
 		}

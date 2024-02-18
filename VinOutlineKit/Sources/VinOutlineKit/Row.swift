@@ -790,7 +790,7 @@ private extension Row {
 //		result.enumerateAttribute(.link, in: .init(location: 0, length: result.length), options: []) { (value, range, _) in
 //			guard let url = value as? URL,
 //				  let entityID = EntityID(url: url),
-//				  let document = AccountManager.shared.findDocument(entityID),
+//				  let document = Outliner.shared.findDocument(entityID),
 //				  let newURL = URL(string: document.filename(representation: representation)) else { return }
 //			
 //			result.removeAttribute(.link, range: range)
