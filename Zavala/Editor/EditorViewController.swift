@@ -342,6 +342,7 @@ class EditorViewController: UIViewController, OutlinesActivityItemsConfiguration
 	private(set) var outline: Outline?
 	private(set) var outlineTags: [Tag]?
 	private(set) var otherUnusedTags: [Tag]?
+	private(set) var outlineBacklinkVerbaige: NSAttributedString?
 	
 	private var currentTitle: String? {
 		guard let titleCell = collectionView.cellForItem(at: IndexPath(row: 0, section: Outline.Section.title.rawValue)) as? EditorTitleViewCell else {
@@ -500,7 +501,7 @@ class EditorViewController: UIViewController, OutlinesActivityItemsConfiguration
 		}
 		
 		backlinkRegistration = UICollectionView.CellRegistration<EditorBacklinkViewCell, Outline> { [weak self] (cell, indexPath, outline) in
-			cell.reference = self?.generateBacklinkVerbaige(outline: outline)
+			cell.reference = self?.outlineBacklinkVerbaige
 		}
 
 		configureButtonBars()
@@ -1936,6 +1937,8 @@ extension EditorViewController: LinkViewControllerDelegate {
 	
 	func updateLink(cursorCoordinates: CursorCoordinates, text: String, link: String?, range: NSRange) {
 		var correctedLink = link
+		
+		// If the link doesn't have a scheme then add one
 		if correctedLink != nil, !correctedLink!.isEmpty {
 			if var urlComponents = URLComponents(string: correctedLink!), urlComponents.scheme == nil {
 				urlComponents.scheme = "https"
@@ -3412,12 +3415,18 @@ private extension EditorViewController {
 		}
 	}
 	
-	func generateBacklinkVerbaige(outline: Outline) -> NSAttributedString? {
+	func generateBacklinkVerbaige(outline: Outline) async -> NSAttributedString? {
 		guard let backlinks = outline.outlineBacklinks, !backlinks.isEmpty else {
 			return nil
 		}
 		
-		let references = Set(backlinks).map({ generateBacklink(id: $0) }).sorted() { lhs, rhs in
+		let uniqueBacklinks = Set(backlinks)
+		var backlinkAttrStrings = [NSAttributedString]()
+		for uniqueBacklink in uniqueBacklinks {
+			backlinkAttrStrings.append(await generateBacklink(id: uniqueBacklink))
+		}
+		
+		let references = backlinkAttrStrings.sorted() { lhs, rhs in
 			return lhs.string.caseInsensitiveCompare(rhs.string) == .orderedAscending
 		}
 		
@@ -3437,13 +3446,12 @@ private extension EditorViewController {
 		return result
 	}
 	
-	#warning("Uncomment this code and fix it")
-	func generateBacklink(id: EntityID) -> NSAttributedString {
-//		if let title = Outliner.shared.findDocument(id)?.title, !title.isEmpty, let url = id.url {
-//			let result = NSMutableAttributedString(string: title)
-//			result.addAttribute(.link, value: url, range: NSRange(0..<result.length))
-//			return result
-//		}
+	func generateBacklink(id: EntityID) async -> NSAttributedString {
+		if let title = await Outliner.shared.findOutline(id)?.title, !title.isEmpty, let url = id.url {
+			let result = NSMutableAttributedString(string: title)
+			result.addAttribute(.link, value: url, range: NSRange(0..<result.length))
+			return result
+		}
 		return NSAttributedString()
 	}
 	
@@ -3480,6 +3488,7 @@ private extension EditorViewController {
 		self.outline = outline
 		self.outlineTags = await outline.tags
 		self.otherUnusedTags = await outline.account?.tags?.filter({ !outlineTags!.contains($0) })
+		self.outlineBacklinkVerbaige = await generateBacklinkVerbaige(outline: outline)
 	}
 	
 }

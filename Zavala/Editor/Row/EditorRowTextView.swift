@@ -264,7 +264,7 @@ class EditorRowTextView: UITextView {
 
         selectedRange = NSRange(location: range.location + text.count, length: 0)
         
-        processTextChanges()
+        textWasChanged()
 	}
 	
 	func replaceCharacters(_ range: NSRange, withImage image: UIImage) {
