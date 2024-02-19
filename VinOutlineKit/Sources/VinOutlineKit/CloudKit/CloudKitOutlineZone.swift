@@ -38,14 +38,14 @@ final class CloudKitOutlineZone: VCKZone {
 		self.zoneID = zoneID
 	}
 	
-	func generateCKShare(for document: Document) async throws -> CKShare {
-		guard let unsharedRootRecord = try await self.fetch(externalID: document.id.description) else {
+	func generateCKShare(for outline: Outline) async throws -> CKShare {
+		guard let unsharedRootRecord = try await self.fetch(externalID: outline.id.description) else {
 			throw CloudKitOutlineZoneError.unknown
 		}
 		
 		let shareID = self.generateRecordID()
 		let share = CKShare(rootRecord: unsharedRootRecord, shareID: shareID)
-		share[CKShare.SystemFieldKey.title] = (document.title ?? "") as CKRecordValue
+		share[CKShare.SystemFieldKey.title] = (outline.title ?? "") as CKRecordValue
 		
 		let modelsToSave = [CloudKitModelRecordWrapper(share), CloudKitModelRecordWrapper(unsharedRootRecord)]
 		let result = try await self.modify(modelsToSave: modelsToSave, recordIDsToDelete: [], strategy: .overWriteServerValue)

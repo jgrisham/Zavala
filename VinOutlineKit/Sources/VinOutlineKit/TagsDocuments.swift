@@ -1,20 +1,17 @@
 //
-//  TagsDocuments.swift
-//  
-//
 //  Created by Maurice Parker on 11/7/21.
 //
 
 import Foundation
 
-public final class TagsDocuments: DocumentProvider {
+public final class TagsOutlines: OutlineProvider {
     
     private let tags: [Tag]
 
-	public var documents: [Document] {
+	public var outlines: [Outline] {
 		get async throws {
-			let documents = await Outliner.shared.activeDocuments
-			return documents.filter { $0.hasAllTags(tags) }
+			let outlines = await Outliner.shared.activeOutlines
+			return outlines.filter { $0.hasAllTags(tags) }
 		}
 	}
 

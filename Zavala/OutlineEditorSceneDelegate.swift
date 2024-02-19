@@ -62,8 +62,8 @@ class OutlineEditorSceneDelegate: UIResponder, UIWindowSceneDelegate {
 				return
 			}
 			
-			if let url = connectionOptions.urlContexts.first?.url, let documentID = EntityID(url: url) {
-				await editorContainerViewController.openDocument(documentID)
+			if let url = connectionOptions.urlContexts.first?.url, let outlineID = EntityID(url: url) {
+				await editorContainerViewController.openOutline(outlineID)
 				if let windowFrame = window?.frame {
 					window?.frame = CGRect(x: windowFrame.origin.x, y: windowFrame.origin.y, width: 700, height: 600)
 				}
@@ -90,10 +90,10 @@ class OutlineEditorSceneDelegate: UIResponder, UIWindowSceneDelegate {
 	}
 	
 	func scene(_ scene: UIScene, openURLContexts urlContexts: Set<UIOpenURLContext>) {
-		if let url = urlContexts.first?.url, let documentID = EntityID(url: url) {
+		if let url = urlContexts.first?.url, let outlineID = EntityID(url: url) {
 		
 			if let scene =  UIApplication.shared.connectedScenes.first(where: {
-				(($0 as? UIWindowScene)?.keyWindow?.rootViewController as? MainCoordinator)?.selectedDocuments.first?.id == documentID
+				(($0 as? UIWindowScene)?.keyWindow?.rootViewController as? MainCoordinator)?.selectedOutlines.first?.id == outlineID
 			}) {
 				
 				UIApplication.shared.requestSceneSessionActivation(scene.session, userActivity: nil, options: nil, errorHandler: nil)
@@ -101,7 +101,7 @@ class OutlineEditorSceneDelegate: UIResponder, UIWindowSceneDelegate {
 			} else {
 				
 				let activity = NSUserActivity(activityType: NSUserActivity.ActivityType.openEditor)
-				activity.userInfo = [Pin.UserInfoKeys.pin: Pin.userInfo(documentID: documentID)]
+				activity.userInfo = [Pin.UserInfoKeys.pin: Pin.userInfo(outlineID: outlineID)]
 				UIApplication.shared.requestSceneSessionActivation(nil, userActivity: activity, options: nil, errorHandler: nil)
 				
 			}

@@ -12,17 +12,17 @@ import VinOutlineKit
 
 class ActivityManager {
 	
-	private var selectDocumentContainerActivity: NSUserActivity?
-	private var selectDocumentActivity: NSUserActivity?
-    private var selectDocumentContainers: [DocumentContainer]?
-    private var selectDocument: Document?
+	private var selectOutlineContainerActivity: NSUserActivity?
+	private var selectOutlineActivity: NSUserActivity?
+    private var selectOutlineContainers: [OutlineContainer]?
+    private var selectOutline: Outline?
 
 	var stateRestorationActivity: NSUserActivity {
-		if let activity = selectDocumentActivity {
+		if let activity = selectOutlineActivity {
 			return activity
 		}
 		
-		if let activity = selectDocumentContainerActivity {
+		if let activity = selectOutlineContainerActivity {
 			return activity
 		}
 		
@@ -33,35 +33,35 @@ class ActivityManager {
 	}
 	
 	init() {
-		NotificationCenter.default.addObserver(self, selector: #selector(documentDidDelete(_:)), name: .DocumentDidDelete, object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(documentTitleDidChange(_:)), name: .DocumentTitleDidChange, object: nil)
+		NotificationCenter.default.addObserver(self, selector: #selector(outlineDidDelete(_:)), name: .OutlineDidDelete, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(outlineTitleDidChange(_:)), name: .OutlineTitleDidChange, object: nil)
 	}
     
-    func selectingDocumentContainers(_ documentContainers: [DocumentContainer]) {
-        self.invalidateSelectDocumentContainers()
-        self.selectDocumentContainerActivity = self.makeSelectDocumentContainerActivity(documentContainers)
-        self.selectDocumentContainerActivity!.becomeCurrent()
+    func selectingOutlineContainers(_ containers: [OutlineContainer]) {
+        self.invalidateSelectOutlineContainers()
+        self.selectOutlineContainerActivity = self.makeSelectOutlineContainerActivity(containers)
+        self.selectOutlineContainerActivity!.becomeCurrent()
     }
     
-    func invalidateSelectDocumentContainers() {
-        invalidateSelectDocument()
-        selectDocumentContainerActivity?.invalidate()
-        selectDocumentContainerActivity = nil
+    func invalidateSelectOutlineContainers() {
+        invalidateSelectOutline()
+        selectOutlineContainerActivity?.invalidate()
+        selectOutlineContainerActivity = nil
     }
 
-	func selectingDocument(_ documentContainers: [DocumentContainer]?, _ document: Document) async {
-		self.invalidateSelectDocument()
-		self.selectDocumentActivity = await self.makeSelectDocumentActivity(documentContainers, document)
-		self.selectDocumentActivity!.becomeCurrent()
-        self.selectDocumentContainers = documentContainers
-        self.selectDocument = document
+	func selectingOutline(_ outlineContainers: [OutlineContainer]?, _ outline: Outline) async {
+		self.invalidateSelectOutline()
+		self.selectOutlineActivity = await self.makeSelectOutlineActivity(outlineContainers, outline)
+		self.selectOutlineActivity!.becomeCurrent()
+        self.selectOutlineContainers = outlineContainers
+        self.selectOutline = outline
 	}
 	
-	func invalidateSelectDocument() {
-		selectDocumentActivity?.invalidate()
-		selectDocumentActivity = nil
-        selectDocumentContainers = nil
-        selectDocument = nil
+	func invalidateSelectOutline() {
+		selectOutlineActivity?.invalidate()
+		selectOutlineActivity = nil
+        selectOutlineContainers = nil
+        selectOutline = nil
 	}
 
 }
@@ -70,50 +70,50 @@ class ActivityManager {
 
 private extension ActivityManager {
 
-	@objc func documentDidDelete(_ note: Notification) {
-		guard let document = note.object as? Document else { return }
-		CSSearchableIndex.default().deleteSearchableItems(withIdentifiers: [document.id.description])
+	@objc func outlineDidDelete(_ note: Notification) {
+		guard let outline = note.object as? Outline else { return }
+		CSSearchableIndex.default().deleteSearchableItems(withIdentifiers: [outline.id.description])
 	}
 	
-	func makeSelectDocumentContainerActivity(_ documentContainers: [DocumentContainer]) -> NSUserActivity {
-		let activity = NSUserActivity(activityType: NSUserActivity.ActivityType.selectingDocumentContainer)
+	@objc func outlineTitleDidChange(_ note: Notification) {
+		guard let outline = note.object as? Outline, outline == selectOutline else { return }
+		Task { @MainActor in
+			await selectingOutline(selectOutlineContainers, outline)
+		}
+	}
+	
+	func makeSelectOutlineContainerActivity(_ outlineContainers: [OutlineContainer]) -> NSUserActivity {
+		let activity = NSUserActivity(activityType: NSUserActivity.ActivityType.selectingOutlineContainer)
 		
-		let title = String.seeDocumentsInPrompt(documentContainerTitle: documentContainers.title)
+		let title = String.seeOutlinesInPrompt(outlineContainerTitle: outlineContainers.title)
 		activity.title = title
 		
-		activity.userInfo = [Pin.UserInfoKeys.pin: Pin(containers: documentContainers).userInfo]
+		activity.userInfo = [Pin.UserInfoKeys.pin: Pin(containers: outlineContainers).userInfo]
 		activity.requiredUserInfoKeys = Set(activity.userInfo!.keys.map { $0 as! String })
 		
 		return activity
 	}
 	
-    @objc func documentTitleDidChange(_ note: Notification) {
-        guard let document = note.object as? Document, document == selectDocument else { return }
-		Task { @MainActor in
-			await selectingDocument(selectDocumentContainers, document)
-		}
-    }
-    
-	func makeSelectDocumentActivity(_ documentContainers: [DocumentContainer]?, _ document: Document) async -> NSUserActivity {
-		let activity = NSUserActivity(activityType: NSUserActivity.ActivityType.selectingDocument)
+	func makeSelectOutlineActivity(_ outlineContainers: [OutlineContainer]?, _ outline: Outline) async -> NSUserActivity {
+		let activity = NSUserActivity(activityType: NSUserActivity.ActivityType.selectingOutline)
 
-		let title = String.editDocumentPrompt(documentTitle: document.title ?? "")
+		let title = String.editOutlinePrompt(outlineTitle: outline.title ?? "")
 		activity.title = title
 		
-		activity.userInfo = [Pin.UserInfoKeys.pin: Pin(containers: documentContainers, document: document).userInfo]
+		activity.userInfo = [Pin.UserInfoKeys.pin: Pin(containers: outlineContainers, outline: outline).userInfo]
 		activity.requiredUserInfoKeys = Set(activity.userInfo!.keys.map { $0 as! String })
 		
-		if let keywords = await document.tags?.map({ $0.name }) {
-			activity.keywords = Set(keywords)
-		}
+		let keywords = await outline.tags.map({ $0.name })
+		activity.keywords = Set(keywords)
+
 		activity.isEligibleForSearch = true
 		activity.isEligibleForPrediction = true
 		
-		if await document.account?.type == .cloudKit {
+		if await outline.account?.type == .cloudKit {
 			activity.isEligibleForHandoff = true
 		}
 
-		activity.persistentIdentifier = document.id.description
+		activity.persistentIdentifier = outline.id.description
 		
 		return activity
 	}

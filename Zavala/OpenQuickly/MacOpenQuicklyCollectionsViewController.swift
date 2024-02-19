@@ -10,7 +10,7 @@ import VinOutlineKit
 import VinUtility
 
 protocol MacOpenQuicklyCollectionsDelegate: AnyObject {
-	func documentContainerSelectionsDidChange(_: MacOpenQuicklyCollectionsViewController, documentContainers: [DocumentContainer])
+	func outlineContainerSelectionsDidChange(_: MacOpenQuicklyCollectionsViewController, outlineContainers: [OutlineContainer])
 }
 
 class MacOpenQuicklyCollectionsViewController: UICollectionViewController {
@@ -19,7 +19,7 @@ class MacOpenQuicklyCollectionsViewController: UICollectionViewController {
 	
 	var dataSource: UICollectionViewDiffableDataSource<CollectionsSection, CollectionsItem>!
 
-	var documentContainersDictionary = [EntityID: DocumentContainer]()
+	var outlineContainersDictionary = [EntityID: OutlineContainer]()
 
 	override func viewDidLoad() {
         super.viewDidLoad()
@@ -58,7 +58,7 @@ private extension MacOpenQuicklyCollectionsViewController {
 		let items = selectedIndexes.compactMap { dataSource.itemIdentifier(for: $0) }
 		
 		Task {
-			await delegate?.documentContainerSelectionsDidChange(self, documentContainers: items.toContainers())
+			await delegate?.outlineContainerSelectionsDidChange(self, outlineContainers: items.toContainers())
 		}
 	}
 	
@@ -88,7 +88,7 @@ private extension MacOpenQuicklyCollectionsViewController {
 			cell.highlightImageInWhite = true
 			var contentConfiguration = UIListContentConfiguration.sidebarSubtitleCell()
 
-			if case .documentContainer(let entityID) = item.id, let container = self?.documentContainersDictionary[entityID] {
+			if case .outlineContainer(let entityID) = item.id, let container = self?.outlineContainersDictionary[entityID] {
 				contentConfiguration.text = container.name
 				contentConfiguration.image = container.image
 			}
@@ -143,7 +143,7 @@ private extension MacOpenQuicklyCollectionsViewController {
 		var snapshot = NSDiffableDataSourceSectionSnapshot<CollectionsItem>()
 		let header = CollectionsItem.item(id: .header(.localAccount))
 		
-		let items = await localAccount.documentContainers.map { CollectionsItem.item($0) }
+		let items = await localAccount.outlineContainers.map { CollectionsItem.item($0) }
 		
 		snapshot.append([header])
 		snapshot.expand([header])
@@ -157,7 +157,7 @@ private extension MacOpenQuicklyCollectionsViewController {
 		var snapshot = NSDiffableDataSourceSectionSnapshot<CollectionsItem>()
 		let header = CollectionsItem.item(id: .header(.cloudKitAccount))
 		
-		let items = await cloudKitAccount.documentContainers.map { CollectionsItem.item($0) }
+		let items = await cloudKitAccount.outlineContainers.map { CollectionsItem.item($0) }
 		
 		snapshot.append([header])
 		snapshot.expand([header])
@@ -166,14 +166,14 @@ private extension MacOpenQuicklyCollectionsViewController {
 	}
 
 	func rebuildContainersDictionary() async {
-		var containersDictionary = [EntityID: DocumentContainer]()
+		var containersDictionary = [EntityID: OutlineContainer]()
 		
-		let containers = await Outliner.shared.documentContainers
+		let containers = await Outliner.shared.outlineContainers
 		for container in containers {
 			containersDictionary[container.id] = container
 		}
 		
-		self.documentContainersDictionary = containersDictionary
+		self.outlineContainersDictionary = containersDictionary
 	}
 	
 }

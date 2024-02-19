@@ -13,11 +13,11 @@ import VinUtility
 
 class EditorContainerViewController: UIViewController, MainCoordinator {
 		
-	var currentDocumentContainer: DocumentContainer? = nil
+	var currentOutlineContainer: OutlineContainer? = nil
 
-	var selectedDocuments: [Document] {
+	var selectedOutlines: [Outline] {
 		guard let editorViewController else { return []	}
-		return editorViewController.selectedDocuments
+		return editorViewController.selectedOutlines
 	}
 	
 	var editorViewController: EditorViewController? {
@@ -42,64 +42,64 @@ class EditorContainerViewController: UIViewController, MainCoordinator {
     override func viewDidLoad() {
         super.viewDidLoad()
 		editorViewController?.delegate = self
-		NotificationCenter.default.addObserver(self, selector: #selector(documentTitleDidChange(_:)), name: .DocumentTitleDidChange, object: nil)
+		NotificationCenter.default.addObserver(self, selector: #selector(outlineTitleDidChange(_:)), name: .OutlineTitleDidChange, object: nil)
     }
     
-	@objc func documentTitleDidChange(_ note: Notification) {
+	@objc func outlineTitleDidChange(_ note: Notification) {
 		sceneDelegate?.window?.windowScene?.title = editorViewController?.outline?.title
 	}
 
 	func handle(_ activity: NSUserActivity) async {
 		guard activity.activityType != NSUserActivity.ActivityType.newOutline else {
-			let document = await newOutlineDocument()
-			await editorViewController?.edit(document?.outline, isNew: true)
-			if let document {
-				pinWasVisited(Pin(document: document))
+			let outline = await newOutline()
+			await editorViewController?.edit(outline?.outline, isNew: true)
+			if let outline {
+				pinWasVisited(Pin(outline: outline))
 			}
 			return
 		}
 		
 		guard let userInfo = activity.userInfo else { return }
 		
-		if let searchIdentifier = userInfo[CSSearchableItemActivityIdentifier] as? String, let documentID = EntityID(description: searchIdentifier) {
-			await openDocument(documentID)
+		if let searchIdentifier = userInfo[CSSearchableItemActivityIdentifier] as? String, let outlineID = EntityID(description: searchIdentifier) {
+			await openOutline(outlineID)
 			return
 		}
 		
 		let pin = await Pin(userInfo: userInfo[Pin.UserInfoKeys.pin])
-		if let documentID = pin.document?.id {
-			await openDocument(documentID)
+		if let outlineID = pin.outline?.id {
+			await openOutline(outlineID)
 			return
 		}
 		
 		sceneDelegate?.closeWindow()
 	}
 	
-	func openDocument(_ documentID: EntityID) async {
-		if let document = await Outliner.shared.findDocument(documentID), let outline = document.outline {
+	func openOutline(_ outlineID: EntityID) async {
+		if let outline = await Outliner.shared.findOutline(outlineID)  {
 			sceneDelegate?.window?.windowScene?.title = outline.title
-			await activityManager.selectingDocument(nil, document)
+			await activityManager.selectingOutline(nil, outline)
 			await editorViewController?.edit(outline, isNew: false)
-			pinWasVisited(Pin(document: document))
+			pinWasVisited(Pin(outline: outline))
 		}
 	}
 
-	func newOutlineDocument(title: String? = nil) async -> Document? {
+	func newOutline(title: String? = nil) async -> Outline? {
 		let accountID = AppDefaults.shared.lastSelectedAccountID
 		
 		let firstActiveAccount = await Outliner.shared.activeAccounts.first
 		guard let account = await Outliner.shared.findAccount(accountID: accountID) ?? firstActiveAccount else { return nil }
-		let document = await account.createOutline(title: title)
+		let outline = await account.createOutline(title: title)
 		
 		let defaults = AppDefaults.shared
-		document.outline?.update(checkSpellingWhileTyping: defaults.checkSpellingWhileTyping,
-								 correctSpellingAutomatically: defaults.correctSpellingAutomatically,
-								 autoLinkingEnabled: defaults.autoLinkingEnabled,
-								 ownerName: defaults.ownerName,
-								 ownerEmail: defaults.ownerEmail,
-								 ownerURL: defaults.ownerURL)
+		outline.update(checkSpellingWhileTyping: defaults.checkSpellingWhileTyping,
+					   correctSpellingAutomatically: defaults.correctSpellingAutomatically,
+					   autoLinkingEnabled: defaults.autoLinkingEnabled,
+					   ownerName: defaults.ownerName,
+					   ownerEmail: defaults.ownerEmail,
+					   ownerURL: defaults.ownerURL)
 		
-		return document
+		return outline
 	}
 
 	func goBackwardOne() {	}
@@ -110,7 +110,7 @@ class EditorContainerViewController: UIViewController, MainCoordinator {
 	}
 	
 	func manageSharing() async {
-		guard let shareRecord = selectedDocuments.first!.shareRecord, let container = await Outliner.shared.cloudKitAccount?.cloudKitContainer else {
+		guard let shareRecord = selectedOutlines.first!.cloudKitShareRecord, let container = await Outliner.shared.cloudKitAccount?.cloudKitContainer else {
 			return
 		}
 		
@@ -120,7 +120,7 @@ class EditorContainerViewController: UIViewController, MainCoordinator {
 	}
 	
 	func shutdown() {
-		activityManager.invalidateSelectDocument()
+		activityManager.invalidateSelectOutline()
 		Task {
 			await editorViewController?.edit(nil, isNew: false)
 		}
@@ -139,16 +139,15 @@ class EditorContainerViewController: UIViewController, MainCoordinator {
 
 	@objc func deleteOutline(_ sender: Any?) {
 		guard let outline = editorViewController?.outline else { return }
-		let document = Document.outline(outline)
 		
 		func delete() {
 			Task {
-				await document.account?.deleteDocument(document)
+				await outline.account?.deleteOutline(outline)
 				sceneDelegate?.closeWindow()
 			}
 		}
 
-		guard !document.isEmpty else {
+		guard !outline.isEmpty else {
 			delete()
 			return
 		}
@@ -159,9 +158,9 @@ class EditorContainerViewController: UIViewController, MainCoordinator {
 		
 		let cancelAction = UIAlertAction(title: .cancelControlLabel, style: .cancel)
 		
-		let alert = UIAlertController(title: .deleteOutlinePrompt(outlineTitle: document.title ?? ""),
-																					message: .deleteOutlineMessage,
-																					preferredStyle: .alert)
+		let alert = UIAlertController(title: .deleteOutlinePrompt(outlineTitle: outline.title ?? ""),
+									  message: .deleteOutlineMessage,
+									  preferredStyle: .alert)
 		alert.addAction(deleteAction)
 		alert.addAction(cancelAction)
 		alert.preferredAction = deleteAction
@@ -275,7 +274,7 @@ extension EditorContainerViewController: EditorDelegate {
 	func goForward(_ : EditorViewController, to: Int) {}
 
 	func createNewOutline(_: EditorViewController, title: String) async -> Outline? {
-		return await newOutlineDocument(title: title)?.outline
+		return await newOutline(title: title)?.outline
 	}
 
 	func validateToolbar(_: EditorViewController) {
@@ -656,7 +655,7 @@ extension EditorContainerViewController: NSToolbarDelegate {
 			let item = NSSharingServicePickerToolbarItem(itemIdentifier: .share)
 			item.label = .shareControlLabel
 			item.toolTip = .shareControlLabel
-			item.activityItemsConfiguration = DocumentsActivityItemsConfiguration(delegate: self)
+			item.activityItemsConfiguration = OutlinesActivityItemsConfiguration(delegate: self)
 			toolbarItem = item
 		case .getInfo:
 			let item = ValidatingToolbarItem(itemIdentifier: itemIdentifier)

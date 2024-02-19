@@ -87,8 +87,8 @@ public class Image: Identifiable, Codable, Equatable {
 		return lhs.id == rhs.id && lhs.isInNotes == rhs.isInNotes && lhs.offset == rhs.offset && lhs.data == rhs.data
 	}
 	
-    public func duplicate(outline: Outline, accountID: Int, documentUUID: String, rowUUID: String) -> Image {
-		let id = EntityID.image(accountID, documentUUID, rowUUID, UUID().uuidString)
+    public func duplicate(outline: Outline, accountID: Int, outlineUUID: String, rowUUID: String) -> Image {
+		let id = EntityID.image(accountID, outlineUUID, rowUUID, UUID().uuidString)
         return Image(outline: outline, id: id, isInNotes: isInNotes, offset: offset, data: data)
 	}
 	

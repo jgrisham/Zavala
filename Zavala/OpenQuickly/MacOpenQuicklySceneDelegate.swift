@@ -35,19 +35,19 @@ class MacOpenQuicklySceneDelegate: UIResponder, UIWindowSceneDelegate {
 			window?.frame = CGRect(x: windowFrame.origin.x, y: windowFrame.origin.y, width: 500, height: 400)
 		}
 		
-		if let url = connectionOptions.urlContexts.first?.url, let documentID = EntityID(url: url) {
+		if let url = connectionOptions.urlContexts.first?.url, let outlineID = EntityID(url: url) {
 			closeWindow()
 			let activity = NSUserActivity(activityType: NSUserActivity.ActivityType.openEditor)
-			activity.userInfo = [Pin.UserInfoKeys.pin: Pin.userInfo(documentID: documentID)]
+			activity.userInfo = [Pin.UserInfoKeys.pin: Pin.userInfo(outlineID: outlineID)]
 			UIApplication.shared.requestSceneSessionActivation(nil, userActivity: activity, options: nil, errorHandler: nil)
 		}
 	}
 
 	func scene(_ scene: UIScene, openURLContexts urlContexts: Set<UIOpenURLContext>) {
 		closeWindow()
-		if let url = urlContexts.first?.url, let documentID = EntityID(url: url) {
+		if let url = urlContexts.first?.url, let outlineID = EntityID(url: url) {
 			let activity = NSUserActivity(activityType: NSUserActivity.ActivityType.openEditor)
-			activity.userInfo = [Pin.UserInfoKeys.pin: Pin.userInfo(documentID: documentID)]
+			activity.userInfo = [Pin.UserInfoKeys.pin: Pin.userInfo(outlineID: outlineID)]
 			UIApplication.shared.requestSceneSessionActivation(nil, userActivity: activity, options: nil, errorHandler: nil)
 		}
 	}

@@ -27,17 +27,17 @@ class MacOpenQuicklyViewController: UIViewController {
 		return children.first(where: { $0 is MacOpenQuicklyCollectionsViewController }) as? MacOpenQuicklyCollectionsViewController
 	}
 	
-	private var documentsViewController: MacOpenQuicklyDocumentsViewController? {
-		return children.first(where: { $0 is MacOpenQuicklyDocumentsViewController }) as? MacOpenQuicklyDocumentsViewController
+	private var listViewController: MacOpenQuicklyListViewController? {
+		return children.first(where: { $0 is MacOpenQuicklyListViewController }) as? MacOpenQuicklyListViewController
 	}
 
-	private var selectedDocumentID: EntityID?
+	private var selectedOutlineID: EntityID?
 
     override func viewDidLoad() {
         super.viewDidLoad()
 		
 		collectionsViewController?.delegate = self
-		documentsViewController?.delegate = self
+		listViewController?.delegate = self
 
 		searchTextField.delegate = self
 		searchTextField.layer.borderWidth = 1
@@ -45,14 +45,14 @@ class MacOpenQuicklyViewController: UIViewController {
 		searchTextField.layer.cornerRadius = 3
 		
 		searchTextField.itemSelectionHandler = { [weak self] (filteredResults: [SearchTextFieldItem], index: Int) in
-			guard let self, let documentID = filteredResults[index].associatedObject as? EntityID else {
+			guard let self, let outlineID = filteredResults[index].associatedObject as? EntityID else {
 				return
 			}
-			self.openDocument(documentID)
+			self.openOutline(outlineID)
 		}
 
 		Task {
-			let searchItems = await Outliner.shared.activeDocuments.map { SearchTextFieldItem(title: $0.title ?? "", associatedObject: $0.id) }
+			let searchItems = await Outliner.shared.activeOutlines.map { SearchTextFieldItem(title: $0.title ?? "", associatedObject: $0.id) }
 			searchTextField.filterItems(searchItems)
 		}
 	}
@@ -85,8 +85,8 @@ class MacOpenQuicklyViewController: UIViewController {
 	}
 	
 	@IBAction func submit(_ sender: Any) {
-		guard let documentID = selectedDocumentID else { return }
-		openDocument(documentID)
+		guard let outlineID = selectedOutlineID else { return }
+		openOutline(outlineID)
 	}
 	
 }
@@ -106,23 +106,23 @@ extension MacOpenQuicklyViewController: UITextFieldDelegate {
 
 extension MacOpenQuicklyViewController: MacOpenQuicklyCollectionsDelegate {
 	
-	func documentContainerSelectionsDidChange(_: MacOpenQuicklyCollectionsViewController, documentContainers: [DocumentContainer]) {
-		documentsViewController?.setDocumentContainers(documentContainers)
+	func outlineContainerSelectionsDidChange(_: MacOpenQuicklyCollectionsViewController, outlineContainers: [OutlineContainer]) {
+		listViewController?.setOutlineContainers(outlineContainers)
 	}
 	
 }
 
-// MARK: MacOpenQuicklyDocumentsDelegate
+// MARK: MacOpenQuicklyListDelegate
 
-extension MacOpenQuicklyViewController: MacOpenQuicklyDocumentsDelegate {
+extension MacOpenQuicklyViewController: MacOpenQuicklyListDelegate {
 	
-	func documentSelectionDidChange(_: MacOpenQuicklyDocumentsViewController, documentID: EntityID?) {
-		selectedDocumentID = documentID
+	func outlineSelectionDidChange(_: MacOpenQuicklyListViewController, outlineID: EntityID?) {
+		selectedOutlineID = outlineID
 		updateUI()
 	}
 	
-	func openDocument(_: MacOpenQuicklyDocumentsViewController, documentID: EntityID) {
-		openDocument(documentID)
+	func openOutline(_: MacOpenQuicklyListViewController, outlineID: EntityID) {
+		openOutline(outlineID)
 	}
 	
 }
@@ -132,13 +132,13 @@ extension MacOpenQuicklyViewController: MacOpenQuicklyDocumentsDelegate {
 private extension MacOpenQuicklyViewController {
 	
 	func updateUI() {
-		openButton.isEnabled = selectedDocumentID != nil
+		openButton.isEnabled = selectedOutlineID != nil
 	}
 	
-	func openDocument(_ documentID: EntityID) {
+	func openOutline(_ outlineID: EntityID) {
 		self.sceneDelegate?.closeWindow()
 		let activity = NSUserActivity(activityType: NSUserActivity.ActivityType.openEditor)
-		activity.userInfo = [Pin.UserInfoKeys.pin: Pin.userInfo(documentID: documentID)]
+		activity.userInfo = [Pin.UserInfoKeys.pin: Pin.userInfo(outlineID: outlineID)]
 		UIApplication.shared.requestSceneSessionActivation(nil, userActivity: activity, options: nil, errorHandler: nil)
 	}
 	

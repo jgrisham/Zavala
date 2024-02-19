@@ -13,7 +13,7 @@ final class CollectionsItem: NSObject, NSCopying, Identifiable {
 	enum ID: Hashable {
 		case header(CollectionsSection)
 		case search
-		case documentContainer(EntityID)
+		case outlineContainer(EntityID)
 		
 		var accountType: AccountType? {
 			if case .header(let section) = self {
@@ -38,7 +38,7 @@ final class CollectionsItem: NSObject, NSCopying, Identifiable {
 	let id: CollectionsItem.ID
 	
 	var entityID: EntityID? {
-		if case .documentContainer(let entityID) = id {
+		if case .outlineContainer(let entityID) = id {
 			return entityID
 		}
 		return nil
@@ -56,8 +56,8 @@ final class CollectionsItem: NSObject, NSCopying, Identifiable {
 		return CollectionsItem(id: id)
 	}
 	
-	static func item(_ documentContainer: DocumentContainer) -> CollectionsItem {
-		let id = CollectionsItem.ID.documentContainer(documentContainer.id)
+	static func item(_ container: OutlineContainer) -> CollectionsItem {
+		let id = CollectionsItem.ID.outlineContainer(container.id)
 		return CollectionsItem(id: id)
 	}
 
@@ -81,11 +81,11 @@ final class CollectionsItem: NSObject, NSCopying, Identifiable {
 
 extension Array where Element == CollectionsItem {
 	
-	func toContainers() async -> [DocumentContainer] {
-		var containers = [DocumentContainer]()
+	func toContainers() async -> [OutlineContainer] {
+		var containers = [OutlineContainer]()
 		
 		for item in self {
-			if case .documentContainer(let entityID) = item.id, let container = await Outliner.shared.findDocumentContainer(entityID) {
+			if case .outlineContainer(let entityID) = item.id, let container = await Outliner.shared.findOutlineContainer(entityID) {
 				containers.append(container)
 			}
 		}

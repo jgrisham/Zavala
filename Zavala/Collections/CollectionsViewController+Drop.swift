@@ -11,7 +11,7 @@ import VinOutlineKit
 extension CollectionsViewController: UICollectionViewDropDelegate {
 	
 	func collectionView(_ collectionView: UICollectionView, canHandle session: UIDropSession) -> Bool {
-		guard !(session.items.first?.localObject is Document) else { return true }
+		guard !(session.items.first?.localObject is Outline) else { return true }
 		return session.hasItemsConforming(toTypeIdentifiers: [DataRepresentation.opml.typeIdentifier])
 	}
 	
@@ -19,7 +19,7 @@ extension CollectionsViewController: UICollectionViewDropDelegate {
 		guard let destinationIndexPath,
 			  let item = dataSource.itemIdentifier(for: destinationIndexPath),
 			  let entityID = item.entityID,
-			  let container = documentContainersDictionary[entityID] else {
+			  let container = outlineContainersDictionary[entityID] else {
 			return UICollectionViewDropProposal(operation: .cancel)
 		}
 		
@@ -27,12 +27,12 @@ extension CollectionsViewController: UICollectionViewDropDelegate {
 			return UICollectionViewDropProposal(operation: .copy, intent: .insertIntoDestinationIndexPath)
 		}
 		
-		let sourceAccount = (session.localDragSession?.localContext as? Document)?.account
+		let sourceAccount = (session.localDragSession?.localContext as? Outline)?.account
 		let destinationAccount = container.account
 		
 		if sourceAccount == destinationAccount {
-			if let tag = (container as? TagDocuments)?.tag {
-				if let document = session.localDragSession?.localContext as? Document, document.hasTag(tag) {
+			if let tag = (container as? TagOutlines)?.tag {
+				if let outline = session.localDragSession?.localContext as? Outline, outline.hasTag(tag) {
 					return UICollectionViewDropProposal(operation: .cancel)
 				}
 			}
@@ -48,21 +48,21 @@ extension CollectionsViewController: UICollectionViewDropDelegate {
 			  let destinationIndexPath = coordinator.destinationIndexPath,
 			  let item = dataSource.itemIdentifier(for: destinationIndexPath),
 			  let entityID = item.entityID,
-			  let container = documentContainersDictionary[entityID] else { return }
+			  let container = outlineContainersDictionary[entityID] else { return }
 		
 		// Dragging an OPML file into the Collections View
-		guard let document = dragItem.localObject as? Document else {
+		guard let outline = dragItem.localObject as? Outline else {
 			for dropItem in coordinator.items {
 				let provider = dropItem.dragItem.itemProvider
 				provider.loadDataRepresentation(forTypeIdentifier: DataRepresentation.opml.typeIdentifier) { (opmlData, error) in
 					guard let opmlData else { return }
 					Task {
                         var tags: [Tag]? = nil
-                        if let tag = (container as? TagDocuments)?.tag {
+                        if let tag = (container as? TagOutlines)?.tag {
                             tags = [tag]
                         }
-						if let document = try? await container.account?.importOPML(opmlData, tags: tags) {
-							DocumentIndexer.updateIndex(forDocument: document)
+						if let outline = try? await container.account?.importOPML(opmlData, tags: tags) {
+							OutlineIndexer.updateIndex(for: outline)
 						}
 					}
 				}
@@ -71,43 +71,43 @@ extension CollectionsViewController: UICollectionViewDropDelegate {
 		}
 
 		// Local copy between accounts
-		guard document.account == container.account else {
+		guard outline.account == container.account else {
 			Task {
-				await document.load()
+				await outline.load()
 				
 				var tagNames = [String]()
-				for tag in await document.tags ?? [Tag]() {
-					document.deleteTag(tag)
-					await document.account?.deleteTag(tag)
+				for tag in await outline.tags ?? [Tag]() {
+					outline.deleteTag(tag)
+					await outline.account?.deleteTag(tag)
 					tagNames.append(tag.name)
 				}
 				
-				await document.account?.deleteDocument(document)
+				await outline.account?.deleteOutline(outline)
 				if let containerAccount = container.account {
-					document.reassignAccount(containerAccount.id.accountID)
-					await containerAccount.createDocument(document)
+					outline.reassignAccount(containerAccount.id.accountID)
+					await containerAccount.createOutline(outline)
 				}
 				
 				for tagName in tagNames {
 					if let tag = await container.account?.createTag(name: tagName) {
-						document.createTag(tag)
+						outline.createTag(tag)
 					}
 				}
 				
-				document.deleteAllBacklinks()
+				outline.deleteAllBacklinks()
 				
-				await document.forceSave()
-				await document.unload()
+				await outline.forceSave()
+				await outline.unload()
 			}
 			return
 		}
 		
-		// Adding a tag by dragging a document to it
-		guard let tag = (container as? TagDocuments)?.tag else {
+		// Adding a tag by dragging a outline to it
+		guard let tag = (container as? TagOutlines)?.tag else {
 			return
 		}
 		
-		document.createTag(tag)
+		outline.createTag(tag)
 	}
 	
 	

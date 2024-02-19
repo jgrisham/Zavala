@@ -101,7 +101,7 @@ extension Image: VCKModel {
 			}
 		}()
 		
-		let rowID = EntityID.row(id.accountID, id.documentUUID, id.rowUUID)
+		let rowID = EntityID.row(id.accountID, id.outlineUUID, id.rowUUID)
 		let rowRecordID = CKRecord.ID(recordName: rowID.description, zoneID: zoneID)
 		record.parent = CKRecord.Reference(recordID: rowRecordID, action: .none)
 		record[Image.CloudKitRecord.Fields.row] = CKRecord.Reference(recordID: rowRecordID, action: .deleteSelf)

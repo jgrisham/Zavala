@@ -16,58 +16,58 @@ public struct Pin: Equatable {
 		public static let pin = "pin"
 	}
 	
-	public let containers: [DocumentContainer]?
-	public let document: Document?
+	public let containers: [OutlineContainer]?
+	public let outline: Outline?
 	
 	public var userInfo: [AnyHashable: AnyHashable] {
 		let containerIDs = containers?.map({ $0.id })
-		let documentID = document?.id
-		return Self.userInfo(containerIDs: containerIDs, documentID: documentID)
+		let outlineID = outline?.id
+		return Self.userInfo(containerIDs: containerIDs, outlineID: outlineID)
 	}
 	
-	public init(containers: [DocumentContainer]? = nil, document: Document? = nil) {
+	public init(containers: [OutlineContainer]? = nil, outline: Outline? = nil) {
         self.containers = containers
-		self.document = document
+		self.outline = outline
 	}
 
 	public init(userInfo: Any?) async {
 		guard let userInfo = userInfo as? [AnyHashable: AnyHashable] else {
 			self.containers = nil
-			self.document = nil
+			self.outline = nil
 			return
 		}
 		
 		if let userInfos = userInfo["containerIDs"] as? [[AnyHashable : AnyHashable]] {
             let containerIDs = userInfos.compactMap { EntityID(userInfo: $0) }
-			containers = await Outliner.shared.findDocumentContainers(containerIDs)
+			containers = await Outliner.shared.findOutlineContainers(containerIDs)
 		} else {
 			self.containers = nil
 		}
 		
-		if let userInfo = userInfo["documentID"] as? [AnyHashable : AnyHashable] {
-			if let documentID = EntityID(userInfo: userInfo) {
-				self.document = await Outliner.shared.findDocument(documentID)
+		if let userInfo = userInfo["outlineID"] as? [AnyHashable : AnyHashable] {
+			if let outlineID = EntityID(userInfo: userInfo) {
+				self.outline = await Outliner.shared.findOutline(outlineID)
 			} else {
-				self.document = nil
+				self.outline = nil
 			}
 		} else {
-			self.document = nil
+			self.outline = nil
 		}
 	}
 	
-	public static func userInfo(containerIDs: [EntityID]? = nil, documentID: EntityID? = nil) -> [AnyHashable: AnyHashable] {
+	public static func userInfo(containerIDs: [EntityID]? = nil, outlineID: EntityID? = nil) -> [AnyHashable: AnyHashable] {
 		var userInfo = [AnyHashable: AnyHashable]()
 		if let containerIDs {
 			userInfo["containerIDs"] = containerIDs.map { $0.userInfo }
 		}
-		if let documentID {
-			userInfo["documentID"] = documentID.userInfo
+		if let outlineID {
+			userInfo["outlineID"] = outlineID.userInfo
 		}
 		return userInfo
 	}
 	
 	public static func == (lhs: Pin, rhs: Pin) -> Bool {
-		guard lhs.document == rhs.document else {
+		guard lhs.outline == rhs.outline else {
 			return false
 		}
 		

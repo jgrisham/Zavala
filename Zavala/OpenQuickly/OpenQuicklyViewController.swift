@@ -9,7 +9,7 @@ import UIKit
 import VinOutlineKit
 
 protocol OpenQuicklyViewControllerDelegate: AnyObject {
-	func quicklyOpenDocument(documentID: EntityID)
+	func quicklyOpenOutline(outlineID: EntityID)
 }
 
 class OpenQuicklyViewController: UITableViewController {
@@ -28,10 +28,10 @@ class OpenQuicklyViewController: UITableViewController {
 		searchTextField.inlineMode = true
 
 		searchTextField.itemSelectionHandler = { [weak self] (filteredResults: [SearchTextFieldItem], index: Int) in
-			guard let self, let documentID = filteredResults[index].associatedObject as? EntityID else {
+			guard let self, let outlineID = filteredResults[index].associatedObject as? EntityID else {
 				return
 			}
-			self.delegate?.quicklyOpenDocument(documentID: documentID)
+			self.delegate?.quicklyOpenOutline(outlineID: outlineID)
 			self.dismiss(animated: true)
 		}
 		
@@ -40,7 +40,7 @@ class OpenQuicklyViewController: UITableViewController {
 		}
 		
 		Task {
-			let searchItems = await Outliner.shared.activeDocuments.map { SearchTextFieldItem(title: $0.title ?? "", associatedObject: $0.id) }
+			let searchItems = await Outliner.shared.activeOutlines.map { SearchTextFieldItem(title: $0.title ?? "", associatedObject: $0.id) }
 			searchTextField.filterItems(searchItems)
 		}
     }

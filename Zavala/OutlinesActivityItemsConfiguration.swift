@@ -1,7 +1,4 @@
 //
-//  DocumentsActivityItemsConfiguration.swift
-//  Zavala
-//
 //  Created by Maurice Parker on 11/27/22.
 //
 
@@ -11,63 +8,63 @@ import UniformTypeIdentifiers
 import LinkPresentation
 import VinOutlineKit
 
-protocol DocumentsActivityItemsConfigurationDelegate: AnyObject {
-	var selectedDocuments: [Document] { get }
+protocol OutlinesActivityItemsConfigurationDelegate: AnyObject {
+	var selectedOutlines: [Outline] { get }
 }
 
-class DocumentsActivityItemsConfiguration: NSObject {
+class OutlinesActivityItemsConfiguration: NSObject {
 	
-	private weak var delegate: DocumentsActivityItemsConfigurationDelegate?
-	private var heldDocuments: [Document]?
+	private weak var delegate: OutlinesActivityItemsConfigurationDelegate?
+	private var heldOutlines: [Outline]?
 	
-	var selectedDocuments: [Document] {
-		return heldDocuments ?? delegate?.selectedDocuments ?? []
+	var selectedOutlines: [Outline] {
+		return heldOutlines ?? delegate?.selectedOutlines ?? []
 	}
 	
-	init(delegate: DocumentsActivityItemsConfigurationDelegate) {
+	init(delegate: OutlinesActivityItemsConfigurationDelegate) {
 		self.delegate = delegate
 	}
 	
-	init(selectedDocuments: [Document]) {
-		heldDocuments = selectedDocuments
+	init(selectedOutlines: [Outline]) {
+		heldOutlines = selectedOutlines
 	}
 }
 
-extension DocumentsActivityItemsConfiguration: UIActivityItemsConfigurationReading {
+extension OutlinesActivityItemsConfiguration: UIActivityItemsConfigurationReading {
 	
 	@objc var applicationActivitiesForActivityItemsConfiguration: [UIActivity]? {
-		guard !selectedDocuments.isEmpty else {
+		guard !selectedOutlines.isEmpty else {
 			return nil
 		}
 		
-		return [CopyDocumentLinkActivity(documents: selectedDocuments)]
+		return [CopyOutlineLinkActivity(outlines: selectedOutlines)]
 	}
 	
 	var itemProvidersForActivityItemsConfiguration: [NSItemProvider] {
-		guard !selectedDocuments.isEmpty else {
+		guard !selectedOutlines.isEmpty else {
 			return [NSItemProvider]()
 		}
 		
-		let itemProviders: [NSItemProvider] = selectedDocuments.compactMap { document in
+		let itemProviders: [NSItemProvider] = selectedOutlines.compactMap { outline in
 			let itemProvider = NSItemProvider()
 			
 			itemProvider.registerDataRepresentation(for: UTType.utf8PlainText, visibility: .all) { completion in
 				Task {
-					let data = await document.formattedPlainText.data(using: .utf8)
+					let data = await outline.markdownList().data(using: .utf8)
 					completion(data, nil)
 				}
 				return nil
 			}
 			
 			Task {
-				if document.isCloudKit, let container = await Outliner.shared.cloudKitAccount?.cloudKitContainer {
+				if outline.isCloudKit, let container = await Outliner.shared.cloudKitAccount?.cloudKitContainer {
 					let sharingOptions = CKAllowedSharingOptions(allowedParticipantPermissionOptions: .readWrite, allowedParticipantAccessOptions: .any)
 
-					if let shareRecord = document.shareRecord {
+					if let shareRecord = outline.cloudKitShareRecord {
 						itemProvider.registerCKShare(shareRecord, container: container, allowedSharingOptions: sharingOptions)
 					} else {
 						itemProvider.registerCKShare(container: container, allowedSharingOptions: sharingOptions) {
-							let share = try await Outliner.shared.cloudKitAccount!.generateCKShare(for: document)
+							let share = try await Outliner.shared.cloudKitAccount!.generateCKShare(for: outline)
 							Task {
 								await Outliner.shared.sync()
 							}
@@ -84,13 +81,13 @@ extension DocumentsActivityItemsConfiguration: UIActivityItemsConfigurationReadi
 	}
 	
 	func activityItemsConfigurationMetadataForItem(at: Int, key: UIActivityItemsConfigurationMetadataKey) -> Any? {
-		guard !selectedDocuments.isEmpty, at < selectedDocuments.count else {
+		guard !selectedOutlines.isEmpty, at < selectedOutlines.count else {
 			return nil
 		}
 
 		switch key {
 		case .title:
-			return selectedDocuments[at].title
+			return selectedOutlines[at].title
 		case .linkPresentationMetadata:
 			let iconView = UIImageView(image: .outline)
 			iconView.backgroundColor = .accentColor
@@ -98,7 +95,7 @@ extension DocumentsActivityItemsConfiguration: UIActivityItemsConfigurationReadi
 			iconView.contentMode = .scaleAspectFit
 			iconView.bounds = CGRect(x: 0, y: 0, width: 100, height: 100)
 			let metadata = LPLinkMetadata()
-			metadata.title = selectedDocuments[at].title
+			metadata.title = selectedOutlines[at].title
 			metadata.iconProvider = NSItemProvider(object: iconView.asImage())
 			return metadata
 		default:

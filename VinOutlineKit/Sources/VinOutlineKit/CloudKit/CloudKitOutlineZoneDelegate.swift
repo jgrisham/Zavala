@@ -30,19 +30,19 @@ class CloudKitOutlineZoneDelegate: VCKZoneDelegate {
 	func cloudKitDidModify(changed: [CKRecord], deleted: [CloudKitRecordKey]) async throws {
 		var updates = [EntityID: CloudKitOutlineUpdate]()
 
-		func update(for documentID: EntityID, zoneID: CKRecordZone.ID) -> CloudKitOutlineUpdate {
-			if let update = updates[documentID] {
+		func update(for outlineID: EntityID, zoneID: CKRecordZone.ID) -> CloudKitOutlineUpdate {
+			if let update = updates[outlineID] {
 				return update
 			} else {
-				let update = CloudKitOutlineUpdate(documentID: documentID, zoneID: zoneID)
-				updates[documentID] = update
+				let update = CloudKitOutlineUpdate(outlineID: outlineID, zoneID: zoneID)
+				updates[outlineID] = update
 				return update
 			}
 		}
 
 		for deletedRecordKey in deleted {
 			if deletedRecordKey.recordType == CKRecord.SystemType.share {
-				if let outline = await Outliner.shared.cloudKitAccount?.findDocument(shareRecordID: deletedRecordKey.recordID)?.outline {
+				if let outline = await Outliner.shared.cloudKitAccount?.findOutline(shareRecordID: deletedRecordKey.recordID) {
 					Task { @MainActor in
 						outline.cloudKitShareRecord = nil
 					}
@@ -50,14 +50,14 @@ class CloudKitOutlineZoneDelegate: VCKZoneDelegate {
 			} else {
 				guard let entityID = EntityID(description: deletedRecordKey.recordID.recordName) else { continue }
 				switch entityID {
-				case .document:
+				case .outline:
 					update(for: entityID, zoneID: deletedRecordKey.recordID.zoneID).isDelete = true
-				case .row(let accountID, let documentUUID, _):
-					let documentID = EntityID.document(accountID, documentUUID)
-					update(for: documentID, zoneID: deletedRecordKey.recordID.zoneID).deleteRowRecordIDs.append(entityID)
-				case .image(let accountID, let documentUUID, _, _):
-					let documentID = EntityID.document(accountID, documentUUID)
-					update(for: documentID, zoneID: deletedRecordKey.recordID.zoneID).deleteImageRecordIDs.append(entityID)
+				case .row(let accountID, let outlineUUID, _):
+					let outlineID = EntityID.outline(accountID, outlineUUID)
+					update(for: outlineID, zoneID: deletedRecordKey.recordID.zoneID).deleteRowRecordIDs.append(entityID)
+				case .image(let accountID, let outlineUUID, _, _):
+					let outlineID = EntityID.outline(accountID, outlineUUID)
+					update(for: outlineID, zoneID: deletedRecordKey.recordID.zoneID).deleteImageRecordIDs.append(entityID)
 				default:
 					assertionFailure("Unknown record type: \(deletedRecordKey.recordType)")
 				}
@@ -66,7 +66,7 @@ class CloudKitOutlineZoneDelegate: VCKZoneDelegate {
 
 		for changedRecord in changed {
 			if let shareRecord = changedRecord as? CKShare {
-				if let outline = await Outliner.shared.cloudKitAccount?.findDocument(shareRecordID: shareRecord.recordID)?.outline {
+				if let outline = await Outliner.shared.cloudKitAccount?.findOutline(shareRecordID: shareRecord.recordID) {
 					Task { @MainActor in
 						outline.cloudKitShareRecord = shareRecord
 					}
@@ -74,14 +74,14 @@ class CloudKitOutlineZoneDelegate: VCKZoneDelegate {
 			} else {
 				guard let entityID = EntityID(description: changedRecord.recordID.recordName) else { continue }
 				switch entityID {
-				case .document:
+				case .outline:
 					update(for: entityID, zoneID: changedRecord.recordID.zoneID).saveOutlineRecord = changedRecord
-				case .row(let accountID, let documentUUID, _):
-					let documentID = EntityID.document(accountID, documentUUID)
-					update(for: documentID, zoneID: changedRecord.recordID.zoneID).saveRowRecords.append(changedRecord)
-				case .image(let accountID, let documentUUID, _, _):
-					let documentID = EntityID.document(accountID, documentUUID)
-					update(for: documentID, zoneID: changedRecord.recordID.zoneID).saveImageRecords.append(changedRecord)
+				case .row(let accountID, let outlineUUID, _):
+					let outlineID = EntityID.outline(accountID, outlineUUID)
+					update(for: outlineID, zoneID: changedRecord.recordID.zoneID).saveRowRecords.append(changedRecord)
+				case .image(let accountID, let outlineUUID, _, _):
+					let outlineID = EntityID.outline(accountID, outlineUUID)
+					update(for: outlineID, zoneID: changedRecord.recordID.zoneID).saveImageRecords.append(changedRecord)
 				default:
 					assertionFailure("Unknown record type: \(changedRecord.recordType)")
 				}

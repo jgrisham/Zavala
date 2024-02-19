@@ -95,14 +95,14 @@ final class AppDefaults {
 		static let correctSpellingAutomatically = "correctSpellingAutomatically"
 		static let lastMainWindowWasClosed = "lastMainWindowWasClosed"
 		static let lastMainWindowState = "lastMainWindowState"
-		static let openQuicklyDocumentContainerID = "openQuicklyDocumentContainerID"
+		static let openQuicklyOutlineContainerID = "openQuicklyDocumentContainerID"
 		static let userInterfaceColorPalette = "userInterfaceColorPalette";
 		static let editorMaxWidth = "editorWidth";
 		static let rowIndentSize = "rowIndentSize"
 		static let rowSpacingSize = "rowSpacingSize"
 		static let textZoom = "textZoom"
 		static let outlineFonts = "outlineFonts"
-		static let documentHistory = "documentHistory"
+		static let outlineHistory = "documentHistory"
 		static let confirmDeleteCompletedRows = "confirmDeleteCompletedRows"
 		static let upgradedDefaultsToV2 = "upgradedDefaultsToV2"
 		static let upgradedDefaultsToV2dot3 = "upgradedDefaultsToV2dot3"
@@ -234,12 +234,12 @@ final class AppDefaults {
 		}
 	}
 
-	var openQuicklyDocumentContainerID: [AnyHashable : AnyHashable]? {
+	var openQuicklyOutlineContainerID: [AnyHashable : AnyHashable]? {
 		get {
-			return AppDefaults.store.object(forKey: Key.openQuicklyDocumentContainerID) as? [AnyHashable : AnyHashable]
+			return AppDefaults.store.object(forKey: Key.openQuicklyOutlineContainerID) as? [AnyHashable : AnyHashable]
 		}
 		set {
-			AppDefaults.store.set(newValue, forKey: Key.openQuicklyDocumentContainerID)
+			AppDefaults.store.set(newValue, forKey: Key.openQuicklyOutlineContainerID)
 		}
 	}
 
@@ -306,12 +306,12 @@ final class AppDefaults {
 		}
 	}
 
-	var documentHistory: [[AnyHashable: AnyHashable]]? {
+	var outlineHistory: [[AnyHashable: AnyHashable]]? {
 		get {
-			return AppDefaults.store.object(forKey: Key.documentHistory) as? [[AnyHashable: AnyHashable]]
+			return AppDefaults.store.object(forKey: Key.outlineHistory) as? [[AnyHashable: AnyHashable]]
 		}
 		set {
-			AppDefaults.store.set(newValue, forKey: Key.documentHistory)
+			AppDefaults.store.set(newValue, forKey: Key.outlineHistory)
 		}
 	}
 	

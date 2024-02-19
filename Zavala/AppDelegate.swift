@@ -31,9 +31,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 										  modifierFlags: [.shift, .command])
 	
 	let exportPDFDocsCommand = UICommand(title: .exportPDFDocEllipsisControlLabel, action: #selector(exportPDFDocsCommand(_:)))
-
+	
 	let exportPDFListsCommand = UICommand(title: .exportPDFListEllipsisControlLabel, action: #selector(exportPDFListsCommand(_:)))
-
+	
 	let exportMarkdownDocsCommand = UICommand(title: .exportMarkdownDocEllipsisControlLabel, action: #selector(exportMarkdownDocsCommand(_:)))
 	
 	let exportMarkdownListsCommand = UIKeyCommand(title: .exportMarkdownListEllipsisControlLabel,
@@ -166,7 +166,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 								   input: "k",
 								   modifierFlags: [.command])
 	
-	let copyDocumentLinkCommand = UICommand(title: .copyDocumentLinkControlLabel, action: #selector(copyDocumentLinkCommand(_:)))
+	let copyOutlineLinkCommand = UICommand(title: .copyOutlineLinkControlLabel, action: #selector(copyOutlineLinkCommand(_:)))
 	
 	let focusInCommand = UIKeyCommand(title: .focusInControlLabel,
 									  action: #selector(focusInCommand(_:)),
@@ -177,7 +177,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 									   action: #selector(focusOutCommand(_:)),
 									   input: UIKeyCommand.inputLeftArrow,
 									   modifierFlags: [.alternate, .command])
-
+	
 	let toggleFilterOnCommand = UIKeyCommand(title: .turnFilterOnControlLabel,
 											 action: #selector(toggleFilterOnCommand(_:)),
 											 input: "h",
@@ -228,33 +228,33 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 									 modifierFlags: [.command])
 	
 	let zoomOutCommand = UIKeyCommand(title: .zoomOutControlLabel,
-									 action: #selector(zoomOutCommand(_:)),
-									 input: "<",
-									 modifierFlags: [.command])
+									  action: #selector(zoomOutCommand(_:)),
+									  input: "<",
+									  modifierFlags: [.command])
 	
 	let actualSizeCommand = UICommand(title: .actualSizeControlLabel, action: #selector(actualSizeCommand(_:)))
 	
 	let deleteCompletedRowsCommand = UIKeyCommand(title: .deleteCompletedRowsControlLabel,
-									   action: #selector(deleteCompletedRowsCommand(_:)),
-									   input: "d",
-									   modifierFlags: [.command])
+												  action: #selector(deleteCompletedRowsCommand(_:)),
+												  input: "d",
+												  modifierFlags: [.command])
 	
 	let showHelpCommand = UICommand(title: .appHelpControlLabel, action: #selector(showHelpCommand(_:)))
-
+	
 	let showCommunityCommand = UICommand(title: .communityControlLabel, action: #selector(showCommunityCommand(_:)))
-
+	
 	let feedbackCommand = UICommand(title: .feedbackControlLabel, action: #selector(feedbackCommand(_:)))
-
+	
 	let showOpenQuicklyCommand = UIKeyCommand(title: .openQuicklyEllipsisControlLabel,
 											  action: #selector(showOpenQuicklyCommand(_:)),
 											  input: "o",
 											  modifierFlags: [.shift, .command])
 	
-	let beginDocumentSearchCommand = UIKeyCommand(title: .documentFindEllipsisControlLabel,
-												  action: #selector(beginDocumentSearchCommand(_:)),
-												  input: "f",
-												  modifierFlags: [.alternate, .command])
-		
+	let beginOutlineSearchCommand = UIKeyCommand(title: .outlineFindEllipsisControlLabel,
+												 action: #selector(beginOutlineSearchCommand(_:)),
+												 input: "f",
+												 modifierFlags: [.alternate, .command])
+	
 	let printDocsCommand = UIKeyCommand(title: .printDocEllipsisControlLabel,
 										action: #selector(printDocsCommand(_:)),
 										input: "p",
@@ -264,33 +264,33 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 										 action: #selector(printListsCommand(_:)),
 										 input: "p",
 										 modifierFlags: [.command])
-
+	
 	let shareCommand = UICommand(title: .shareEllipsisControlLabel, action: #selector(shareCommand(_:)))
-
+	
 	let manageSharingCommand = UICommand(title: .manageSharingEllipsisControlLabel, action: #selector(manageSharingCommand(_:)))
 	
 	let outlineGetInfoCommand = UIKeyCommand(title: .getInfoControlLabel,
 											 action: #selector(outlineGetInfoCommand(_:)),
 											 input: "i",
 											 modifierFlags: [.control, .command])
-
+	
 	var mainCoordinator: MainCoordinator? {
 		return UIApplication.shared.foregroundActiveScene?.keyWindow?.rootViewController as? MainCoordinator
 	}
 	
 	private var history = [Pin]()
-	private var documentIndexer: DocumentIndexer?
+	private var outlineIndexer: OutlineIndexer?
 	
-	#if targetEnvironment(macCatalyst)
+#if targetEnvironment(macCatalyst)
 	var appKitPlugin: AppKitPlugin?
-	#endif
-
+#endif
+	
 	func application(_ application: UIApplication, willFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
 		appDelegate = self
-
+		
 		let oldDocumentAccountURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
 		let oldDocumentAccountsFolder = oldDocumentAccountURL.appendingPathComponent("Accounts").absoluteString
-
+		
 		let oldDocumentAccountsFolderPath = String(oldDocumentAccountsFolder.suffix(from: oldDocumentAccountsFolder.index(oldDocumentAccountsFolder.startIndex, offsetBy: 7)))
 		
 		let appGroup = Bundle.main.object(forInfoDictionaryKey: "AppGroup") as! String
@@ -315,17 +315,17 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 	
 	func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
 		AppDefaults.registerDefaults()
-
+		
 		NotificationCenter.default.addObserver(self, selector: #selector(checkForUserDefaultsChanges), name: UserDefaults.didChangeNotification, object: nil)
 		NotificationCenter.default.addObserver(self, selector: #selector(willEnterForeground), name: UIApplication.willEnterForegroundNotification, object: nil)
 		NotificationCenter.default.addObserver(self, selector: #selector(didEnterBackground), name: UIApplication.didEnterBackgroundNotification, object: nil)
 		
 		NotificationCenter.default.addObserver(self, selector: #selector(pinWasVisited), name: .PinWasVisited, object: nil)
-		NotificationCenter.default.addObserver(self, selector: #selector(accountDocumentsDidChange), name: .AccountDocumentsDidChange, object: nil)
+		NotificationCenter.default.addObserver(self, selector: #selector(accountOutlinesDidChange), name: .AccountOutlinesDidChange, object: nil)
 		NotificationCenter.default.addObserver(self, selector: #selector(activeAccountsDidChange), name: .ActiveAccountsDidChange, object: nil)
-		NotificationCenter.default.addObserver(self, selector: #selector(documentTitleDidChange), name: .DocumentTitleDidChange, object: nil)
-
-		#if targetEnvironment(macCatalyst)
+		NotificationCenter.default.addObserver(self, selector: #selector(outlineTitleDidChange), name: .OutlineTitleDidChange, object: nil)
+		
+#if targetEnvironment(macCatalyst)
 		guard let pluginPath = (Bundle.main.builtInPlugInsPath as NSString?)?.appendingPathComponent("AppKitPlugin.bundle"),
 			  let bundle = Bundle(path: pluginPath),
 			  let cls = bundle.principalClass as? NSObject.Type,
@@ -334,16 +334,16 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 		self.appKitPlugin = appKitPlugin
 		appKitPlugin.setDelegate(self)
 		appKitPlugin.start()
-		#endif
+#endif
 		
 		UIApplication.shared.registerForRemoteNotifications()
 		NSUbiquitousKeyValueStore.default.synchronize()
 		
-		documentIndexer = DocumentIndexer()
+		outlineIndexer = OutlineIndexer()
 		
 		return true
 	}
-
+	
 	func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable : Any], fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
 		Task { @MainActor in
 			if UIApplication.shared.applicationState == .background {
@@ -357,51 +357,51 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 		}
 	}
 	
-//	func application(_ application: UIApplication, handlerFor intent: INIntent) -> Any? {
-//		switch intent {
-//		case is AddOutlineIntent:
-//			return AddOutlineIntentHandler()
-//		case is AddOutlineTagIntent:
-//			return AddOutlineTagIntentHandler()
-//		case is AddRowsIntent:
-//			return AddRowsIntentHandler()
-//		case is CopyRowsIntent:
-//			return CopyRowsIntentHandler()
-//		case is EditOutlineIntent:
-//			return EditOutlineIntentHandler()
-//		case is EditRowsIntent:
-//			return EditRowsIntentHandler()
-//		case is ExportIntent:
-//			return ExportIntentHandler()
-//		case is GetCurrentOutlineIntent:
-//			return GetCurrentOutlineIntentHandler(mainCoordinator: mainCoordinator)
-//		case is GetCurrentTagsIntent:
-//			return GetCurrentTagsIntentHandler(mainCoordinator: mainCoordinator)
-//		case is GetImagesForOutlineIntent:
-//			return GetImagesForOutlineIntentHandler()
-//		case is GetOutlinesIntent:
-//			return GetOutlinesIntentHandler()
-//		case is GetRowsIntent:
-//			return GetRowsIntentHandler()
-//		case is ImportIntent:
-//			return ImportIntentHandler()
-//		case is MoveRowsIntent:
-//			return MoveRowsIntentHandler()
-//		case is RemoveOutlineIntent:
-//			return RemoveOutlineIntentHandler()
-//		case is RemoveOutlineTagIntent:
-//			return RemoveOutlineTagIntentHandler()
-//		case is RemoveRowsIntent:
-//			return RemoveRowsIntentHandler()
-//		case is ShowOutlineIntent:
-//			return ShowOutlineIntentHandler(mainCoordinator: mainCoordinator)
-//		default:
-//			fatalError("Unhandled intent type: \(intent)")
-//		}
-//	}
+	//	func application(_ application: UIApplication, handlerFor intent: INIntent) -> Any? {
+	//		switch intent {
+	//		case is AddOutlineIntent:
+	//			return AddOutlineIntentHandler()
+	//		case is AddOutlineTagIntent:
+	//			return AddOutlineTagIntentHandler()
+	//		case is AddRowsIntent:
+	//			return AddRowsIntentHandler()
+	//		case is CopyRowsIntent:
+	//			return CopyRowsIntentHandler()
+	//		case is EditOutlineIntent:
+	//			return EditOutlineIntentHandler()
+	//		case is EditRowsIntent:
+	//			return EditRowsIntentHandler()
+	//		case is ExportIntent:
+	//			return ExportIntentHandler()
+	//		case is GetCurrentOutlineIntent:
+	//			return GetCurrentOutlineIntentHandler(mainCoordinator: mainCoordinator)
+	//		case is GetCurrentTagsIntent:
+	//			return GetCurrentTagsIntentHandler(mainCoordinator: mainCoordinator)
+	//		case is GetImagesForOutlineIntent:
+	//			return GetImagesForOutlineIntentHandler()
+	//		case is GetOutlinesIntent:
+	//			return GetOutlinesIntentHandler()
+	//		case is GetRowsIntent:
+	//			return GetRowsIntentHandler()
+	//		case is ImportIntent:
+	//			return ImportIntentHandler()
+	//		case is MoveRowsIntent:
+	//			return MoveRowsIntentHandler()
+	//		case is RemoveOutlineIntent:
+	//			return RemoveOutlineIntentHandler()
+	//		case is RemoveOutlineTagIntent:
+	//			return RemoveOutlineTagIntentHandler()
+	//		case is RemoveRowsIntent:
+	//			return RemoveRowsIntentHandler()
+	//		case is ShowOutlineIntent:
+	//			return ShowOutlineIntentHandler(mainCoordinator: mainCoordinator)
+	//		default:
+	//			fatalError("Unhandled intent type: \(intent)")
+	//		}
+	//	}
 	
 	// MARK: UISceneSession Lifecycle
-
+	
 	func application(_ application: UIApplication, configurationForConnecting connectingSceneSession: UISceneSession, options: UIScene.ConnectionOptions) -> UISceneConfiguration {
 		switch options.userActivities.first?.activityType {
 		case NSUserActivity.ActivityType.openEditor, NSUserActivity.ActivityType.newOutline:
@@ -428,65 +428,65 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 			}
 		}
 	}
-
+	
 	// MARK: Actions
-
+	
 	@objc func showPreferences(_ sender: Any?) {
-		#if targetEnvironment(macCatalyst)
+#if targetEnvironment(macCatalyst)
 		let userActivity = NSUserActivity(activityType: NSUserActivity.ActivityType.showSettings)
 		let scene = UIApplication.shared.connectedScenes.first(where: { $0.title == .settingsControlLabel})
 		UIApplication.shared.requestSceneSessionActivation(scene?.session, userActivity: userActivity, options: nil, errorHandler: nil)
-		#else
+#else
 		mainCoordinator?.showSettings()
-		#endif
+#endif
 	}
-
+	
 	@objc func syncCommand(_ sender: Any?) {
 		Task {
 			await Outliner.shared.sync()
 		}
 	}
-
+	
 	@objc func importOPMLCommand(_ sender: Any?) {
 		if let mainSplitViewController = mainCoordinator as? MainSplitViewController {
 			mainSplitViewController.importOPML()
 		} else {
-			#if targetEnvironment(macCatalyst)
+#if targetEnvironment(macCatalyst)
 			appKitPlugin?.importOPML()
-			#endif
+#endif
 		}
 	}
-
+	
 	@objc func exportPDFDocsCommand(_ sender: Any?) {
 		Task {
 			await mainCoordinator?.exportPDFDocs()
 		}
 	}
-
+	
 	@objc func exportPDFListsCommand(_ sender: Any?) {
 		Task {
 			await mainCoordinator?.exportPDFLists()
 		}
 	}
-
+	
 	@objc func exportMarkdownDocsCommand(_ sender: Any?) {
 		Task {
 			await mainCoordinator?.exportMarkdownDocs()
 		}
 	}
-
+	
 	@objc func exportMarkdownListsCommand(_ sender: Any?) {
 		Task {
 			await mainCoordinator?.exportMarkdownLists()
 		}
 	}
-
+	
 	@objc func exportOPMLsCommand(_ sender: Any?) {
 		Task {
 			await mainCoordinator?.exportOPMLs()
 		}
 	}
-
+	
 	@objc func newWindow(_ sender: Any?) {
 		let userActivity = NSUserActivity(activityType: NSUserActivity.ActivityType.newWindow)
 		UIApplication.shared.requestSceneSessionActivation(nil, userActivity: userActivity, options: nil, errorHandler: nil)
@@ -535,7 +535,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 		mainCoordinator?.createRowOutside()
 	}
 	
-
+	
 	@objc func moveRowsUpCommand(_ sender: Any?) {
 		mainCoordinator?.moveRowsUp()
 	}
@@ -579,55 +579,55 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 	@objc func insertImageCommand(_ sender: Any?) {
 		mainCoordinator?.insertImage()
 	}
-
+	
 	@objc func linkCommand(_ sender: Any?) {
 		mainCoordinator?.link()
 	}
-
-	@objc func copyDocumentLinkCommand(_ sender: Any?) {
-		mainCoordinator?.copyDocumentLink()
+	
+	@objc func copyOutlineLinkCommand(_ sender: Any?) {
+		mainCoordinator?.copyOutlineLink()
 	}
-
+	
 	@objc func focusInCommand(_ sender: Any?) {
 		mainCoordinator?.focusIn()
 	}
-
+	
 	@objc func focusOutCommand(_ sender: Any?) {
 		mainCoordinator?.focusOut()
 	}
-
+	
 	@objc func toggleFilterOnCommand(_ sender: Any?) {
 		mainCoordinator?.toggleFilterOn()
 	}
-
+	
 	@objc func toggleCompletedFilterCommand(_ sender: Any?) {
 		mainCoordinator?.toggleCompletedFilter()
 	}
-
+	
 	@objc func toggleNotesFilterCommand(_ sender: Any?) {
 		mainCoordinator?.toggleNotesFilter()
 	}
-
+	
 	@objc func expandAllInOutlineCommand(_ sender: Any?) {
 		mainCoordinator?.expandAllInOutline()
 	}
-
+	
 	@objc func collapseAllInOutlineCommand(_ sender: Any?) {
 		mainCoordinator?.collapseAllInOutline()
 	}
-
+	
 	@objc func expandAllCommand(_ sender: Any?) {
 		mainCoordinator?.expandAll()
 	}
-
+	
 	@objc func collapseAllCommand(_ sender: Any?) {
 		mainCoordinator?.collapseAll()
 	}
-
+	
 	@objc func expandCommand(_ sender: Any?) {
 		mainCoordinator?.expand()
 	}
-
+	
 	@objc func collapseCommand(_ sender: Any?) {
 		mainCoordinator?.collapse()
 	}
@@ -655,15 +655,15 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 	@objc func showHelpCommand(_ sender: Any?) {
 		UIApplication.shared.open(URL(string: .helpURL)!)
 	}
-
+	
 	@objc func showCommunityCommand(_ sender: Any?) {
 		UIApplication.shared.open(URL(string: .communityURL)!)
 	}
-
+	
 	@objc func feedbackCommand(_ sender: Any?) {
 		UIApplication.shared.open(URL(string: .feedbackURL)!)
 	}
-
+	
 	@objc func showOpenQuicklyCommand(_ sender: Any?) {
 		if let mainSplitViewController = mainCoordinator as? MainSplitViewController {
 			mainSplitViewController.showOpenQuickly()
@@ -672,36 +672,36 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 			UIApplication.shared.requestSceneSessionActivation(nil, userActivity: activity, options: nil, errorHandler: nil)
 		}
 	}
-
+	
 	@objc func showAbout(_ sender: Any?) {
 		let activity = NSUserActivity(activityType: NSUserActivity.ActivityType.showAbout)
 		UIApplication.shared.requestSceneSessionActivation(nil, userActivity: activity, options: nil, errorHandler: nil)
 	}
-
+	
 	@objc func printDocsCommand(_ sender: Any?) {
 		mainCoordinator?.printDocs()
 	}
-
+	
 	@objc func printListsCommand(_ sender: Any?) {
 		mainCoordinator?.printLists()
 	}
-
+	
 	@objc func shareCommand(_ sender: Any?) {
 		mainCoordinator?.share()
 	}
-
+	
 	@objc func manageSharingCommand(_ sender: Any?) {
 		Task {
 			await mainCoordinator?.manageSharing()
 		}
 	}
-
-	@objc func beginDocumentSearchCommand(_ sender: Any?) {
+	
+	@objc func beginOutlineSearchCommand(_ sender: Any?) {
 		if let mainSplitViewController = mainCoordinator as? MainSplitViewController {
-			mainSplitViewController.beginDocumentSearch()
+			mainSplitViewController.beginOutlineSearch()
 		}
 	}
-
+	
 	@objc func outlineGetInfoCommand(_ sender: Any?) {
 		mainCoordinator?.showGetInfo()
 	}
@@ -714,14 +714,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 			if !(mainCoordinator is MainSplitViewController) {
 				command.attributes = .disabled
 			}
-		case #selector(beginDocumentSearchCommand(_:)):
+		case #selector(beginOutlineSearchCommand(_:)):
 			if !(mainCoordinator is MainSplitViewController) {
 				command.attributes = .disabled
 			}
-//		case #selector(syncCommand(_:)):
-//			if !Outliner.shared.isSyncAvailable {
-//				command.attributes = .disabled
-//			}
+			//		case #selector(syncCommand(_:)):
+			//			if !Outliner.shared.isSyncAvailable {
+			//				command.attributes = .disabled
+			//			}
 		case #selector(outlineGetInfoCommand(_:)):
 			if mainCoordinator?.isOutlineFunctionsUnavailable ?? true {
 				command.attributes = .disabled
@@ -885,7 +885,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 			if mainCoordinator?.isManageSharingUnavailable ?? true {
 				command.attributes = .disabled
 			}
-		case #selector(copyDocumentLinkCommand(_:)):
+		case #selector(copyOutlineLinkCommand(_:)):
 			if mainCoordinator?.isOutlineFunctionsUnavailable ?? true {
 				command.attributes = .disabled
 			}
@@ -893,18 +893,18 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 			break
 		}
 	}
-		
+	
 	// MARK: Menu
-
+	
 	override func buildMenu(with builder: UIMenuBuilder) {
 		super.buildMenu(with: builder)
-
+		
 		guard builder.system == UIMenuSystem.main else { return }
-
+		
 		// Application Menu
 		let appMenu = UIMenu(title: "", options: .displayInline, children: [showPreferences])
 		builder.insertSibling(appMenu, afterMenu: .about)
-
+		
 		let aboutMenuTitle = builder.menu(for: .about)?.children.first?.title ?? "About Zavala"
 		let showAboutCommand = UICommand(title: aboutMenuTitle, action: #selector(showAbout(_:)))
 		builder.replace(menu: .about, with: UIMenu(options: .displayInline, children: [showAboutCommand]))
@@ -913,23 +913,23 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 		builder.remove(menu: .newScene)
 		builder.remove(menu: .openRecent)
 		builder.remove(menu: .document)
-
+		
 		let newMenu = UIMenu(title: "", options: .displayInline, children: [newOutlineCommand, newWindowCommand, showOpenQuicklyCommand])
 		builder.insertChild(newMenu, atStartOfMenu: .file)
-
+		
 		let syncMenu = UIMenu(title: "", options: .displayInline, children: [syncCommand])
 		builder.insertChild(syncMenu, atEndOfMenu: .file)
-
+		
 		let getInfoMenu = UIMenu(title: "", options: .displayInline, children: [outlineGetInfoCommand])
 		builder.insertChild(getInfoMenu, atEndOfMenu: .file)
-
+		
 		let exportMenu = UIMenu(title: .exportControlLabel, children: [exportPDFDocsCommand, exportPDFListsCommand, exportMarkdownDocsCommand, exportMarkdownListsCommand, exportOPMLsCommand])
 		let importExportMenu = UIMenu(title: "", options: .displayInline, children: [importOPMLCommand, shareCommand, manageSharingCommand, exportMenu])
 		builder.insertChild(importExportMenu, atEndOfMenu: .file)
-
+		
 		let printMenu = UIMenu(title: "", options: .displayInline, children: [printDocsCommand, printListsCommand])
 		builder.insertChild(printMenu, atEndOfMenu: .file)
-
+		
 		// Edit
 		builder.replaceChildren(ofMenu: .standardEdit) { oldElements in
 			var newElements = [UIMenuElement]()
@@ -943,17 +943,17 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 			return newElements
 		}
 		
-		let linkMenu = UIMenu(title: "", options: .displayInline, children: [insertImageCommand, linkCommand, copyDocumentLinkCommand])
+		let linkMenu = UIMenu(title: "", options: .displayInline, children: [insertImageCommand, linkCommand, copyOutlineLinkCommand])
 		builder.insertSibling(linkMenu, afterMenu: .standardEdit)
-
+		
 		builder.remove(menu: .spelling)
 		builder.remove(menu: .substitutions)
-
+		
 		// Format
 		builder.remove(menu: .format)
 		let formatMenu = UIMenu(title: .formatControlLabel, children: [toggleBoldCommand, toggleItalicsCommand])
 		builder.insertSibling(formatMenu, afterMenu: .edit)
-
+		
 		// View Menu
 		let zoomMenu = UIMenu(title: "", options: .displayInline, children: [zoomInCommand, zoomOutCommand, actualSizeCommand])
 		builder.insertChild(zoomMenu, atStartOfMenu: .view)
@@ -965,10 +965,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 		
 		let toggleFilterOutlineMenu = UIMenu(title: "", options: .displayInline, children: [toggleFilterOnCommand, toggleCompletedFilterCommand, toggleNotesFilterCommand])
 		builder.insertChild(toggleFilterOutlineMenu, atStartOfMenu: .view)
-
+		
 		let focusMenu = UIMenu(title: "", options: .displayInline, children: [focusInCommand, focusOutCommand])
 		builder.insertChild(focusMenu, atStartOfMenu: .view)
-
+		
 		// Outline Menu
 		let completeMenu = UIMenu(title: "", options: .displayInline, children: [toggleCompleteRowsCommand, deleteCompletedRowsCommand, createRowNotesCommand, deleteRowNotesCommand])
 		let moveRowMenu = UIMenu(title: "", options: .displayInline, children: [moveRowsLeftCommand, moveRowsRightCommand, moveRowsUpCommand, moveRowsDownCommand])
@@ -982,27 +982,27 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 												splitRowCommand])
 		let outlineMenu = UIMenu(title: .outlineControlLabel, children: [mainOutlineMenu, moveRowMenu, completeMenu])
 		builder.insertSibling(outlineMenu, afterMenu: .view)
-
+		
 		// History Menu
 		let navigateMenu = UIMenu(title: "", options: .displayInline, children: [goBackwardOneCommand, goForwardOneCommand])
 		
 		var historyItems = [UIAction]()
 		for (index, pin) in history.enumerated() {
-			historyItems.append(UIAction(title: pin.document?.title ?? .noTitleLabel) { [weak self] _ in
+			historyItems.append(UIAction(title: pin.outline?.title ?? .noTitleLabel) { [weak self] _ in
 				DispatchQueue.main.async {
 					self?.openHistoryItem(index: index)
 				}
 			})
 		}
 		let historyItemsMenu = UIMenu(title: "", options: .displayInline, children: historyItems)
-
+		
 		let historyMenu = UIMenu(title: .historyControlLabel, children: [navigateMenu, historyItemsMenu])
 		builder.insertSibling(historyMenu, afterMenu: .view)
-
+		
 		// Help Menu
 		builder.replaceChildren(ofMenu: .help, from: { _ in return [showHelpCommand, showCommunityCommand, feedbackCommand] })
 	}
-
+	
 }
 
 // MARK: AppKitPluginDelegate
@@ -1014,10 +1014,10 @@ extension AppDelegate: AppKitPluginDelegate {
 			let accountID = AppDefaults.shared.lastSelectedAccountID
 			let firstActiveAccount = await Outliner.shared.activeAccounts.first
 			guard let account = await Outliner.shared.findAccount(accountID: accountID) ?? firstActiveAccount else { return }
-			guard let document = try? await account.importOPML(url, tags: nil) else { return }
-
+			guard let outline = try? await account.importOPML(url, tags: nil) else { return }
+			
 			let activity = NSUserActivity(activityType: NSUserActivity.ActivityType.openEditor)
-			activity.userInfo = [Pin.UserInfoKeys.pin: Pin(document: document).userInfo]
+			activity.userInfo = [Pin.UserInfoKeys.pin: Pin(outline: outline).userInfo]
 			UIApplication.shared.requestSceneSessionActivation(nil, userActivity: activity, options: nil, errorHandler: nil)
 		}
 	}
@@ -1045,13 +1045,13 @@ private extension AppDelegate {
 			checkForUserDefaultsChanges()
 			await Outliner.shared.resume()
 			
-			if let userInfos = AppDefaults.shared.documentHistory {
+			if let userInfos = AppDefaults.shared.outlineHistory {
 				var pins = [Pin]()
 				
 				for userInfo in userInfos {
 					pins.append(await Pin(userInfo: userInfo))
 				}
-			
+				
 				history = pins
 			}
 			
@@ -1064,7 +1064,7 @@ private extension AppDelegate {
 	@objc private func didEnterBackground() {
 		Task {
 			await Outliner.shared.suspend()
-			AppDefaults.shared.documentHistory = history.map { $0.userInfo }
+			AppDefaults.shared.outlineHistory = history.map { $0.userInfo }
 		}
 	}
 	
@@ -1089,29 +1089,29 @@ private extension AppDelegate {
 			}
 		}
 	}
-
+	
 	@objc func pinWasVisited(_ note: Notification) {
 		guard let pin = note.object as? Pin else { return }
 		
-		history.removeAll(where: { $0.document?.id == pin.document?.id })
+		history.removeAll(where: { $0.outline?.id == pin.outline?.id })
 		history.insert(pin, at: 0)
 		history = Array(history.prefix(15))
 		
 		UIMenuSystem.main.setNeedsRebuild()
 	}
-
-	@objc func accountDocumentsDidChange() {
+	
+	@objc func accountOutlinesDidChange() {
 		cleanUpHistory()
 	}
-
+	
 	@objc func activeAccountsDidChange() {
 		cleanUpHistory()
 	}
-
-	@objc func documentTitleDidChange() {
+	
+	@objc func outlineTitleDidChange() {
 		UIMenuSystem.main.setNeedsRebuild()
 	}
-
+	
 	func openHistoryItem(index: Int) {
 		let pin = history[index]
 		
@@ -1126,14 +1126,14 @@ private extension AppDelegate {
 		}
 		
 	}
-
+	
 	private func cleanUpHistory() {
 		Task {
-			let allDocumentIDs = await Outliner.shared.activeDocuments.map { $0.id }
+			let allOutlineIDs = await Outliner.shared.activeOutlines.map { $0.id }
 			
 			for pin in history {
-				if let documentID = pin.document?.id {
-					if !allDocumentIDs.contains(documentID) {
+				if let outlineID = pin.outline?.id {
+					if !allOutlineIDs.contains(outlineID) {
 						history.removeFirst(object: pin)
 						UIMenuSystem.main.setNeedsRebuild()
 					}

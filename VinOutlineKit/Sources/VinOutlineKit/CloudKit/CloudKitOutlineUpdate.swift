@@ -10,7 +10,7 @@ import CloudKit
 
 class CloudKitOutlineUpdate {
 	
-	var documentID: EntityID
+	var outlineID: EntityID
 	var zoneID: CKRecordZone.ID
 	var isDelete = false
 	
@@ -20,8 +20,8 @@ class CloudKitOutlineUpdate {
 	var deleteImageRecordIDs = [EntityID]()
 	var saveImageRecords = [CKRecord]()
 
-	init(documentID: EntityID, zoneID: CKRecordZone.ID) {
-		self.documentID = documentID
+	init(outlineID: EntityID, zoneID: CKRecordZone.ID) {
+		self.outlineID = outlineID
 		self.zoneID = zoneID
 	}
 	

@@ -12,7 +12,7 @@ import VinOutlineKit
 import VinUtility
 
 protocol CollectionsDelegate: AnyObject {
-	func documentContainerSelectionsDidChange(_: CollectionsViewController, documentContainers: [DocumentContainer], isNavigationBranch: Bool, animated: Bool) async
+	func outlineContainerSelectionsDidChange(_: CollectionsViewController, outlineContainers: [OutlineContainer], isNavigationBranch: Bool, animated: Bool) async
 	func showSettings(_: CollectionsViewController)
 	func importOPML(_: CollectionsViewController)
 	func createOutline(_: CollectionsViewController)
@@ -28,21 +28,21 @@ class CollectionsViewController: UICollectionViewController, MainControllerIdent
 	weak var delegate: CollectionsDelegate?
 	
 	var selectedAccount: Account? {
-        selectedDocumentContainers?.uniqueAccount
+        selectedOutlineContainers?.uniqueAccount
 	}
 	
 	var selectedTags: [Tag]? {
-        return selectedDocumentContainers?.compactMap { ($0 as? TagDocuments)?.tag }
+        return selectedOutlineContainers?.compactMap { ($0 as? TagOutlines)?.tag }
 	}
 	
-	var selectedDocumentContainers: [DocumentContainer]? {
+	var selectedOutlineContainers: [OutlineContainer]? {
 		guard let selectedIndexPaths = collectionView.indexPathsForSelectedItems else {
 			return nil
 		}
         
         return selectedIndexPaths.compactMap { indexPath in
             if let entityID = dataSource.itemIdentifier(for: indexPath)?.entityID {
-                return documentContainersDictionary[entityID]
+                return outlineContainersDictionary[entityID]
             }
             return nil
         }
@@ -50,7 +50,7 @@ class CollectionsViewController: UICollectionViewController, MainControllerIdent
 
 	var dataSource: UICollectionViewDiffableDataSource<CollectionsSection, CollectionsItem>!
 	
-	var documentContainersDictionary = [EntityID: DocumentContainer]()
+	var outlineContainersDictionary = [EntityID: OutlineContainer]()
 	
 	private var applyChangeDebouncer = Debouncer(duration: 0.5)
 	private var reloadVisibleDebouncer = Debouncer(duration: 0.5)
@@ -77,7 +77,7 @@ class CollectionsViewController: UICollectionViewController, MainControllerIdent
 				navigationItem.rightBarButtonItem = selectBarButtonItem
 			} else {
 				let navButtonGroup = ButtonGroup(hostController: self, containerType: .standard, alignment: .right)
-				importButton = navButtonGroup.addButton(label: .importOPMLControlLabel, image: .importDocument, selector: "importOPML:")
+				importButton = navButtonGroup.addButton(label: .importOPMLControlLabel, image: .importOutline, selector: "importOPML:")
 				addButton = navButtonGroup.addButton(label: .addControlLabel, image: .createEntity, selector: "createOutline:")
 				let navButtonsBarButtonItem = navButtonGroup.buildBarButtonItem()
 
@@ -97,7 +97,7 @@ class CollectionsViewController: UICollectionViewController, MainControllerIdent
 		NotificationCenter.default.addObserver(self, selector: #selector(outlineTagsDidChange(_:)), name: .OutlineTagsDidChange, object: nil)
 		NotificationCenter.default.addObserver(self, selector: #selector(cloudKitSyncWillBegin(_:)), name: .CloudKitSyncWillBegin, object: nil)
 		NotificationCenter.default.addObserver(self, selector: #selector(cloudKitSyncDidComplete(_:)), name: .CloudKitSyncDidComplete, object: nil)
-		NotificationCenter.default.addObserver(self, selector: #selector(accountDocumentsDidChange(_:)), name: .AccountDocumentsDidChange, object: nil)
+		NotificationCenter.default.addObserver(self, selector: #selector(accountOutlinesDidChange(_:)), name: .AccountOutlinesDidChange, object: nil)
 	}
 	
 	// MARK: API
@@ -111,7 +111,7 @@ class CollectionsViewController: UICollectionViewController, MainControllerIdent
 		await applyInitialSnapshot()
 	}
 	
-	func selectDocumentContainers(_ containers: [DocumentContainer]?, isNavigationBranch: Bool, animated: Bool) async {
+	func selectOutlineContainers(_ containers: [OutlineContainer]?, isNavigationBranch: Bool, animated: Bool) async {
         collectionView.deselectAll()
         
         if let containers, containers.count > 1, traitCollection.userInterfaceIdiom == .pad {
@@ -158,7 +158,7 @@ class CollectionsViewController: UICollectionViewController, MainControllerIdent
 		debounceReloadVisible()
 	}
 
-	@objc func accountDocumentsDidChange(_ note: Notification) {
+	@objc func accountOutlinesDidChange(_ note: Notification) {
 		debounceReloadVisible()
 	}
 
@@ -200,7 +200,7 @@ class CollectionsViewController: UICollectionViewController, MainControllerIdent
     
     @objc func multipleSelect() {
 		Task {
-			await selectDocumentContainers(nil, isNavigationBranch: true, animated: true)
+			await selectOutlineContainers(nil, isNavigationBranch: true, animated: true)
 			collectionView.allowsMultipleSelection = true
 			navigationItem.rightBarButtonItem = selectDoneBarButtonItem
 		}
@@ -208,7 +208,7 @@ class CollectionsViewController: UICollectionViewController, MainControllerIdent
 
     @objc func multipleSelectDone() {
 		Task {
-			await selectDocumentContainers(nil, isNavigationBranch: true, animated: true)
+			await selectOutlineContainers(nil, isNavigationBranch: true, animated: true)
 			collectionView.allowsMultipleSelection = false
 			navigationItem.rightBarButtonItem = selectBarButtonItem
 		}
@@ -216,7 +216,7 @@ class CollectionsViewController: UICollectionViewController, MainControllerIdent
 
 	// MARK: API
 	
-	func beginDocumentSearch() {
+	func beginOutlineSearch() {
 		if let searchCellIndexPath = self.dataSource.indexPath(for: CollectionsItem.searchItem()) {
 			if let searchCell = self.collectionView.cellForItem(at: searchCellIndexPath) as? CollectionsSearchCell {
 				searchCell.setSearchField(searchText: "")
@@ -252,7 +252,7 @@ extension CollectionsViewController {
 		}
 		
 		guard let mainItem = dataSource.itemIdentifier(for: indexPath) else { return nil }
-		return makeDocumentContainerContextMenu(mainItem: mainItem, items: items)
+		return makeOutlineContainerContextMenu(mainItem: mainItem, items: items)
 	}
     
 	override func collectionView(_ collectionView: UICollectionView, canFocusItemAt indexPath: IndexPath) -> Bool {
@@ -284,7 +284,7 @@ extension CollectionsViewController {
         
 		Task {
 			let containers = await items.toContainers()
-			await delegate?.documentContainerSelectionsDidChange(self, documentContainers: containers, isNavigationBranch: true, animated: true)
+			await delegate?.outlineContainerSelectionsDidChange(self, outlineContainers: containers, isNavigationBranch: true, animated: true)
 		}
     }
     
@@ -345,7 +345,7 @@ extension CollectionsViewController {
 		let rowRegistration = UICollectionView.CellRegistration<ConsistentCollectionViewListCell, CollectionsItem> { [weak self] (cell, indexPath, item) in
 			var contentConfiguration = UIListContentConfiguration.sidebarSubtitleCell()
 			
-			if case .documentContainer(let entityID) = item.id, let container = self?.documentContainersDictionary[entityID] {
+			if case .outlineContainer(let entityID) = item.id, let container = self?.outlineContainersDictionary[entityID] {
 				contentConfiguration.text = container.name
 				contentConfiguration.image = container.image
 				
@@ -385,7 +385,7 @@ extension CollectionsViewController {
 		var snapshot = NSDiffableDataSourceSectionSnapshot<CollectionsItem>()
 		let header = CollectionsItem.item(id: .header(.localAccount))
 		
-		let items = await localAccount.documentContainers.map { CollectionsItem.item($0) }
+		let items = await localAccount.outlineContainers.map { CollectionsItem.item($0) }
 		
 		snapshot.append([header])
 		snapshot.expand([header])
@@ -399,7 +399,7 @@ extension CollectionsViewController {
 		var snapshot = NSDiffableDataSourceSectionSnapshot<CollectionsItem>()
 		let header = CollectionsItem.item(id: .header(.cloudKitAccount))
 		
-		let items = await cloudKitAccount.documentContainers.map { CollectionsItem.item($0) }
+		let items = await cloudKitAccount.outlineContainers.map { CollectionsItem.item($0) }
 		
 		snapshot.append([header])
 		snapshot.expand([header])
@@ -440,7 +440,7 @@ extension CollectionsViewController {
 			
 			if let selectedItems, !selectedItems.isEmpty, selectedIndexPaths.isEmpty {
 				Task {
-					await self.delegate?.documentContainerSelectionsDidChange(self, documentContainers: [], isNavigationBranch: false, animated: true)
+					await self.delegate?.outlineContainerSelectionsDidChange(self, outlineContainers: [], isNavigationBranch: false, animated: true)
 				}
 			} else {
 				for selectedIndexPath in selectedIndexPaths {
@@ -451,7 +451,7 @@ extension CollectionsViewController {
 
 	}
 	
-	func updateSelections(_ containers: [DocumentContainer]?, isNavigationBranch: Bool, animated: Bool) async {
+	func updateSelections(_ containers: [OutlineContainer]?, isNavigationBranch: Bool, animated: Bool) async {
         let items = containers?.map { CollectionsItem.item($0) } ?? [CollectionsItem]()
 		let indexPaths = items.compactMap { dataSource.indexPath(for: $0) }
 
@@ -464,7 +464,7 @@ extension CollectionsViewController {
 		}
 		
 		let containers = await items.toContainers()
-		await delegate?.documentContainerSelectionsDidChange(self, documentContainers: containers, isNavigationBranch: isNavigationBranch, animated: animated)
+		await delegate?.outlineContainerSelectionsDidChange(self, outlineContainers: containers, isNavigationBranch: isNavigationBranch, animated: animated)
 	}
 	
 	func reloadVisible() {
@@ -483,16 +483,16 @@ extension CollectionsViewController: CollectionsSearchCellDelegate {
 
 	func collectionsSearchDidBecomeActive() {
 		Task {
-			await selectDocumentContainers([Search(searchText: "")], isNavigationBranch: false, animated: false)
+			await selectOutlineContainers([Search(searchText: "")], isNavigationBranch: false, animated: false)
 		}
 	}
 
 	func collectionsSearchDidUpdate(searchText: String?) {
 		Task {
 			if let searchText {
-				await selectDocumentContainers([Search(searchText: searchText)], isNavigationBranch: false, animated: true)
+				await selectOutlineContainers([Search(searchText: searchText)], isNavigationBranch: false, animated: true)
 			} else {
-				await selectDocumentContainers([Search(searchText: "")], isNavigationBranch: false, animated: false)
+				await selectOutlineContainers([Search(searchText: "")], isNavigationBranch: false, animated: false)
 			}
 
 		}
@@ -526,13 +526,13 @@ private extension CollectionsViewController {
 		}
 	}
 	
-	func makeDocumentContainerContextMenu(mainItem: CollectionsItem, items: [CollectionsItem]) -> UIContextMenuConfiguration {
+	func makeOutlineContainerContextMenu(mainItem: CollectionsItem, items: [CollectionsItem]) -> UIContextMenuConfiguration {
 		return UIContextMenuConfiguration(identifier: mainItem as NSCopying, previewProvider: nil, actionProvider: { [weak self] suggestedActions in
-			guard let self else { return nil }
+			guard let self else { return UIMenu() }
 
-			let containers: [DocumentContainer] = items.compactMap { item in
-				if case .documentContainer(let entityID) = item.id {
-					return self.documentContainersDictionary[entityID]
+			let containers: [OutlineContainer] = items.compactMap { item in
+				if case .outlineContainer(let entityID) = item.id {
+					return self.outlineContainersDictionary[entityID]
 				}
 				return nil
 			}
@@ -548,8 +548,8 @@ private extension CollectionsViewController {
 		})
 	}
 
-	func renameTagAction(containers: [DocumentContainer]) -> UIAction? {
-		guard containers.count == 1, let container = containers.first, let tagDocuments = container as? TagDocuments else { return nil }
+	func renameTagAction(containers: [OutlineContainer]) -> UIAction? {
+		guard containers.count == 1, let container = containers.first, let tagOutlines = container as? TagOutlines else { return nil }
 		
 		let action = UIAction(title: .renameControlLabel, image: .rename) { [weak self] action in
 			guard let self else { return }
@@ -557,14 +557,14 @@ private extension CollectionsViewController {
 			if self.traitCollection.userInterfaceIdiom == .mac {
 				let renameTagViewController = UIStoryboard.dialog.instantiateController(ofType: MacRenameTagViewController.self)
 				renameTagViewController.preferredContentSize = CGSize(width: 400, height: 80)
-				renameTagViewController.tagDocuments = tagDocuments
+				renameTagViewController.tagOutlines = tagOutlines
 				self.present(renameTagViewController, animated: true)
 			} else {
 				let renameTagNavViewController = UIStoryboard.dialog.instantiateViewController(withIdentifier: "RenameTagViewControllerNav") as! UINavigationController
 				renameTagNavViewController.preferredContentSize = CGSize(width: 400, height: 100)
 				renameTagNavViewController.modalPresentationStyle = .formSheet
 				let renameTagViewController = renameTagNavViewController.topViewController as! RenameTagViewController
-				renameTagViewController.tagDocuments = tagDocuments
+				renameTagViewController.tagOutlines = tagOutlines
 				self.present(renameTagNavViewController, animated: true)
 			}
 		}
@@ -572,26 +572,26 @@ private extension CollectionsViewController {
 		return action
 	}
 
-	func deleteTagAction(containers: [DocumentContainer]) -> UIAction? {
-		let tagDocuments = containers.compactMap { $0 as? TagDocuments }
-		guard tagDocuments.count == containers.count else { return nil}
+	func deleteTagAction(containers: [OutlineContainer]) -> UIAction? {
+		let tagOutlines = containers.compactMap { $0 as? TagOutlines }
+		guard tagOutlines.count == containers.count else { return nil}
 		
 		let action = UIAction(title: .deleteControlLabel, image: .delete, attributes: .destructive) { [weak self] action in
 			let deleteAction = UIAlertAction(title: .deleteControlLabel, style: .destructive) { _ in
-				for tagDocument in tagDocuments {
-					if let tag = tagDocument.tag {
-						tagDocument.account?.forceDeleteTag(tag)
+				for tagOutline in tagOutlines {
+					if let tag = tagOutline.tag {
+						tagOutline.account?.forceDeleteTag(tag)
 					}
 				}
 			}
 			
 			let title: String
 			let message: String
-			if tagDocuments.count == 1, let tag = tagDocuments.first?.tag {
+			if tagOutlines.count == 1, let tag = tagOutlines.first?.tag {
 				title = .deleteTagPrompt(tagName: tag.name)
 				message = .deleteTagMessage
 			} else {
-				title = .deleteTagsPrompt(tagCount: tagDocuments.count)
+				title = .deleteTagsPrompt(tagCount: tagOutlines.count)
 				message = .deleteTagsMessage
 			}
 			
@@ -606,13 +606,13 @@ private extension CollectionsViewController {
 	}
 
 	func rebuildContainersDictionary() async {
-		var containersDictionary = [EntityID: DocumentContainer]()
+		var containersDictionary = [EntityID: OutlineContainer]()
 		
-		let containers = await Outliner.shared.documentContainers
+		let containers = await Outliner.shared.outlineContainers
 		for container in containers {
 			containersDictionary[container.id] = container
 		}
 		
-		self.documentContainersDictionary = containersDictionary
+		self.outlineContainersDictionary = containersDictionary
 	}
 }

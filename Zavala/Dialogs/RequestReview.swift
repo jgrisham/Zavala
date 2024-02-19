@@ -12,14 +12,14 @@ import VinUtility
 
 struct RequestReview {
 	
-	// Only prompt every 30 days if they have 10 active documents and the app version is different
+	// Only prompt every 30 days if they have 10 active outlines and the app version is different
 	static func request() {
 		Task {
-			let activeDocumentsCount = await Outliner.shared.activeDocuments.count
+			let activeOutlinesCount = await Outliner.shared.activeOutlines.count
 			
 			if BuildInfo.shared.versionNumber != AppDefaults.shared.lastReviewPromptAppVersion &&
 				Date().addingTimeInterval(-2592000) > AppDefaults.shared.lastReviewPromptDate ?? .distantPast &&
-				activeDocumentsCount >= 10 {
+				activeOutlinesCount >= 10 {
 				
 				AppDefaults.shared.lastReviewPromptAppVersion = BuildInfo.shared.versionNumber
 				AppDefaults.shared.lastReviewPromptDate = Date()

@@ -19,7 +19,7 @@ final class ImagesFile: ManagedResourceFile {
 			return nil
 		}
 
-		let fileURL = await account.folder.appendingPathComponent("\(outline.id.documentUUID)_images.plist")
+		let fileURL = await account.folder.appendingPathComponent("\(outline.id.outlineUUID)_images.plist")
 		super.init(fileURL: fileURL)
 	}
 	

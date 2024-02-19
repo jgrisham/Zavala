@@ -22,7 +22,7 @@ final class RowsFile: ManagedResourceFile {
 			return nil
 		}
 
-		let fileURL = await account.folder.appendingPathComponent("\(outline.id.documentUUID).plist")
+		let fileURL = await account.folder.appendingPathComponent("\(outline.id.outlineUUID).plist")
 		super.init(fileURL: fileURL)
 	}
 	

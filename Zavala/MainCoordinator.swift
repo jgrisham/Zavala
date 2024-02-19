@@ -10,10 +10,10 @@ import SwiftUI
 import VinOutlineKit
 
 @MainActor
-protocol MainCoordinator: UIViewController, DocumentsActivityItemsConfigurationDelegate {
+protocol MainCoordinator: UIViewController, OutlinesActivityItemsConfigurationDelegate {
 	var editorViewController: EditorViewController? { get }
 	var isExportAndPrintUnavailable: Bool { get }
-	var selectedDocuments: [Document] { get }
+	var selectedOutlines: [Outline] { get }
 	var isGoBackwardOneUnavailable: Bool { get }
 	var isGoForwardOneUnavailable: Bool { get }
 	func goBackwardOne()
@@ -25,7 +25,7 @@ protocol MainCoordinator: UIViewController, DocumentsActivityItemsConfigurationD
 extension MainCoordinator {
 	
 	var selectedOutlines: [Outline] {
-		return selectedDocuments.compactMap { $0.outline }
+		return selectedOutlines.compactMap { $0.outline }
 	}
 	
 	var isOutlineFunctionsUnavailable: Bool {
@@ -153,7 +153,7 @@ extension MainCoordinator {
 	}
 	
 	var isManageSharingUnavailable: Bool {
-		return !(selectedDocuments.count == 1 && selectedDocuments.first!.isCollaborating)
+		return !(selectedOutlines.count == 1 && selectedOutlines.first!.isCollaborating)
 	}
 	
 	func duplicateRows() {
@@ -270,9 +270,9 @@ extension MainCoordinator {
 		editorViewController?.createOrDeleteNotes()
 	}
 	
-	func copyDocumentLink() {
-		let documentURL = editorViewController?.outline?.id.url
-		UIPasteboard.general.url = documentURL
+	func copyOutlineLink() {
+		let outlineURL = editorViewController?.outline?.id.url
+		UIPasteboard.general.url = outlineURL
 	}
 	
 	func expandAllInOutline() {

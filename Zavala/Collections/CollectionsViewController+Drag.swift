@@ -20,8 +20,8 @@ extension CollectionsViewController: UICollectionViewDragDelegate {
 		let itemProvider = NSItemProvider()
 		
 		guard let item = dataSource.itemIdentifier(for: indexPath),
-			  case .documentContainer(let entityID) = item.id,
-			  let container = documentContainersDictionary[entityID]	else {
+			  case .outlineContainer(let entityID) = item.id,
+			  let container = outlineContainersDictionary[entityID]	else {
 			return []
 		}
 

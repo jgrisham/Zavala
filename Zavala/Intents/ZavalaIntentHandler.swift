@@ -38,7 +38,7 @@ extension ZavalaIntentHandler {
 	func findOutline(_ intentEntityID: IntentEntityID?) -> Outline? {
 		guard let description = intentEntityID?.identifier,
 			  let id = EntityID(description: description),
-			  let outline = Outliner.shared.findDocument(id)?.outline else {
+			  let outline = Outliner.shared.findOutline(id)?.outline else {
 				  return nil
 			  }
 		return outline

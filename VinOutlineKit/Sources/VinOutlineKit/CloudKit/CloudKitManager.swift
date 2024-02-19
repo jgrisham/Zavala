@@ -25,7 +25,7 @@ public extension Notification.Name {
 public class CloudKitManager {
 
 	class CombinedRequest {
-		var documentRequest: CloudKitActionRequest?
+		var outlineRequest: CloudKitActionRequest?
 		var rowRequests = [CloudKitActionRequest]()
 		var imageRequests = [CloudKitActionRequest]()
 	}
@@ -219,13 +219,13 @@ public class CloudKitManager {
 		}
 	}
 	
-	func generateCKShare(for document: Document) async throws -> CKShare {
-		guard let zoneID = document.zoneID else {
+	func generateCKShare(for outline: Outline) async throws -> CKShare {
+		guard let zoneID = outline.zoneID else {
 			throw CloudKitOutlineZoneError.unknown
 		}
 		
 		let zone = findZone(zoneID: zoneID)
-		return try await zone.generateCKShare(for: document)
+		return try await zone.generateCKShare(for: outline)
 	}
 	
 	func resume() async {
@@ -239,12 +239,12 @@ public class CloudKitManager {
 	func accountDidDelete(account: Account) async {
 		var zoneIDs = Set<CKRecordZone.ID>()
 
-		// If the user deletes all the documents prior to deleting the account, we
+		// If the user deletes all the outlines prior to deleting the account, we
 		// won't reset the default zone unless we add it manually.
 		zoneIDs.insert(outlineZone.zoneID)
 		
-		for doc in await account.documents ?? [Document]() {
-			if let zoneID = doc.zoneID {
+		for outline in await account.outlines ?? [Outline]() {
+			if let zoneID = outline.zoneID {
 				zoneIDs.insert(zoneID)
 			}
 		}
@@ -255,9 +255,8 @@ public class CloudKitManager {
 	// We need this function because at one time we didn't store the CKShare records locally. We
 	// probably need to keep it, becaust we sometimes miss the CKShare when accepting a shared
 	// outline. This fixes that problem.
-	func addSyncRecordIfNeeded(document: Document) {
-		guard let outline = document.outline,
-			  outline.cloudKitShareRecordName != nil && outline.cloudKitShareRecordData == nil,
+	func addSyncRecordIfNeeded(outline: Outline) {
+		guard outline.cloudKitShareRecordName != nil && outline.cloudKitShareRecordData == nil,
 			  let zoneID = outline.zoneID,
 			  isNetworkAvailable else { return }
 		
@@ -330,7 +329,7 @@ private extension CloudKitManager {
 		
 		logger.info("Sending \(requests.count) requests.")
 		
-		let (loadedDocuments, modifications) = await loadDocumentsAndStageModifications(requests: requests)
+		let (loadedOutlines, modifications) = await loadOutlinesAndStageModifications(requests: requests)
 		
 		// Send the grouped changes
 		
@@ -360,7 +359,7 @@ private extension CloudKitManager {
 					}
 				} catch {
 					if let ckError = error as? CKError, ckError.code == .userDeletedZone {
-						await account?.deleteAllDocuments(with: zoneID)
+						await account?.deleteAllOutlines(with: zoneID)
 						throw VCKError.userDeletedZone
 					} else {
 						throw error
@@ -371,8 +370,8 @@ private extension CloudKitManager {
 			return leftOverRequests
 		}
 		
-		for loadedDocument in loadedDocuments {
-			await loadedDocument.unload()
+		for loadedOutline in loadedOutlines {
+			await loadedOutline.unload()
 		}
 		
 		self.logger.info("Saving \(leftOverRequests.count) requests.")
@@ -450,7 +449,7 @@ private extension CloudKitManager {
 			try await zone.fetchChangesInZone(incremental: false)
 		} catch {
 			if let ckError = error as? CKError, ckError.code == .userDeletedZone {
-				await account?.deleteAllDocuments(with: zoneID)
+				await account?.deleteAllOutlines(with: zoneID)
 				throw VCKError.userDeletedZone
 			} else {
 				throw error
@@ -458,8 +457,8 @@ private extension CloudKitManager {
 		}
 	}
 	
-	func loadDocumentsAndStageModifications(requests: Set<CloudKitActionRequest>) async -> ([Document], [CKRecordZone.ID: ([VCKModel], [CKRecord.ID])]) {
-		var loadedDocuments = [Document]()
+	func loadOutlinesAndStageModifications(requests: Set<CloudKitActionRequest>) async -> ([Outline], [CKRecordZone.ID: ([VCKModel], [CKRecord.ID])]) {
+		var loadedOutlines = [Outline]()
 		var modifications = [CKRecordZone.ID: ([VCKModel], [CKRecord.ID])]()
 		
 		func addSave(_ zoneID: CKRecordZone.ID, _ model: VCKModel) {
@@ -496,25 +495,25 @@ private extension CloudKitManager {
 		
 		let combinedRequests = combine(requests: requests)
 		
-		for documentUUID in combinedRequests.keys {
-			guard let combinedRequest = combinedRequests[documentUUID] else { continue }
+		for outlineUUID in combinedRequests.keys {
+			guard let combinedRequest = combinedRequests[outlineUUID] else { continue }
 			
-			// If we don't have a document, we probably have a delete request to send.
+			// If we don't have an outline, we probably have a delete request to send.
 			// We don't have to continue processing since we cascade delete our rows.
-			guard let document = await account?.findDocument(documentUUID: documentUUID) else {
-				if let docRequest = combinedRequest.documentRequest {
-					addDelete(docRequest)
+			guard let outline = await account?.findOutline(outlineUUID: outlineUUID) else {
+				if let outlineRequest = combinedRequest.outlineRequest {
+					addDelete(outlineRequest)
 				}
 				continue
 			}
 			
-			await document.load()
-			loadedDocuments.append(document)
+			await outline.load()
+			loadedOutlines.append(outline)
 			
-			guard let outline = document.outline, let zoneID = outline.zoneID else { continue }
+			guard let zoneID = outline.zoneID else { continue }
 			
-			// This has to be a save for the document
-			if combinedRequest.documentRequest != nil {
+			// This has to be a save for the outline
+			if combinedRequest.outlineRequest != nil {
 				addSave(zoneID, outline)
 			}
 			
@@ -540,7 +539,7 @@ private extension CloudKitManager {
 			}
 		}
 		
-		return (loadedDocuments, modifications)
+		return (loadedOutlines, modifications)
 	}
 	
 	func combine(requests: Set<CloudKitActionRequest>) -> [String: CombinedRequest] {
@@ -548,32 +547,32 @@ private extension CloudKitManager {
 		
 		for request in requests {
 			switch request.id {
-			case .document(_, let documentUUID):
-				if let combinedRequest = combinedRequests[documentUUID] {
-					combinedRequest.documentRequest = request
-					combinedRequests[documentUUID] = combinedRequest
+			case .outline(_, let outlineUUID):
+				if let combinedRequest = combinedRequests[outlineUUID] {
+					combinedRequest.outlineRequest = request
+					combinedRequests[outlineUUID] = combinedRequest
 				} else {
 					let combinedRequest = CombinedRequest()
-					combinedRequest.documentRequest = request
-					combinedRequests[documentUUID] = combinedRequest
+					combinedRequest.outlineRequest = request
+					combinedRequests[outlineUUID] = combinedRequest
 				}
-			case .row(_, let documentUUID, _):
-				if let combinedRequest = combinedRequests[documentUUID] {
+			case .row(_, let outlineUUID, _):
+				if let combinedRequest = combinedRequests[outlineUUID] {
 					combinedRequest.rowRequests.append(request)
-					combinedRequests[documentUUID] = combinedRequest
+					combinedRequests[outlineUUID] = combinedRequest
 				} else {
 					let combinedRequest = CombinedRequest()
 					combinedRequest.rowRequests.append(request)
-					combinedRequests[documentUUID] = combinedRequest
+					combinedRequests[outlineUUID] = combinedRequest
 				}
-			case .image(_, let documentUUID, _, _):
-				if let combinedRequest = combinedRequests[documentUUID] {
+			case .image(_, let outlineUUID, _, _):
+				if let combinedRequest = combinedRequests[outlineUUID] {
 					combinedRequest.imageRequests.append(request)
-					combinedRequests[documentUUID] = combinedRequest
+					combinedRequests[outlineUUID] = combinedRequest
 				} else {
 					let combinedRequest = CombinedRequest()
 					combinedRequest.imageRequests.append(request)
-					combinedRequests[documentUUID] = combinedRequest
+					combinedRequests[outlineUUID] = combinedRequest
 				}
 			default:
 				fatalError()
@@ -590,7 +589,7 @@ private extension CloudKitManager {
 	func updateSyncMetaData(savedRecords: [CKRecord]) async {
 		for savedRecord in savedRecords {
 			guard let entityID = EntityID(description: savedRecord.recordID.recordName),
-				  let outline = await account?.findDocument(entityID)?.outline else { continue }
+				  let outline = await account?.findOutline(entityID)?.outline else { continue }
 			
 			switch savedRecord.recordType {
 			case "Outline":

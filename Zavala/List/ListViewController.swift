@@ -1,7 +1,4 @@
 //
-//  DocumentsViewController.swift
-//  Zavala
-//
 //  Created by Maurice Parker on 11/9/20.
 //
 
@@ -12,35 +9,35 @@ import Semaphore
 import VinOutlineKit
 import VinUtility
 
-protocol DocumentsDelegate: AnyObject  {
-	func documentSelectionDidChange(_: DocumentsViewController, documentContainers: [DocumentContainer], documents: [Document], isNew: Bool, isNavigationBranch: Bool, animated: Bool)
-	func showGetInfo(_: DocumentsViewController, outline: Outline)
-	func exportPDFDocs(_: DocumentsViewController, outlines: [Outline])
-	func exportPDFLists(_: DocumentsViewController, outlines: [Outline])
-	func exportMarkdownDocs(_: DocumentsViewController, outlines: [Outline])
-	func exportMarkdownLists(_: DocumentsViewController, outlines: [Outline])
-	func exportOPMLs(_: DocumentsViewController, outlines: [Outline])
-	func printDocs(_: DocumentsViewController, outlines: [Outline])
-	func printLists(_: DocumentsViewController, outlines: [Outline])
+protocol ListDelegate: AnyObject  {
+	func outlineSelectionDidChange(_: ListViewController, outlineContainers: [OutlineContainer], outlines: [Outline], isNew: Bool, isNavigationBranch: Bool, animated: Bool)
+	func showGetInfo(_: ListViewController, outline: Outline)
+	func exportPDFDocs(_: ListViewController, outlines: [Outline])
+	func exportPDFLists(_: ListViewController, outlines: [Outline])
+	func exportMarkdownDocs(_: ListViewController, outlines: [Outline])
+	func exportMarkdownLists(_: ListViewController, outlines: [Outline])
+	func exportOPMLs(_: ListViewController, outlines: [Outline])
+	func printDocs(_: ListViewController, outlines: [Outline])
+	func printLists(_: ListViewController, outlines: [Outline])
 }
 
-class DocumentsViewController: UICollectionViewController, MainControllerIdentifiable, DocumentsActivityItemsConfigurationDelegate {
+class ListViewController: UICollectionViewController, MainControllerIdentifiable, OutlinesActivityItemsConfigurationDelegate {
 
-	var mainControllerIdentifer: MainControllerIdentifier { return .documents }
+	var mainControllerIdentifer: MainControllerIdentifier { return .list }
 
-	weak var delegate: DocumentsDelegate?
+	weak var delegate: ListDelegate?
 
-	var selectedDocuments: [Document] {
+	var selectedOutlines: [Outline] {
 		guard let indexPaths = collectionView.indexPathsForSelectedItems else { return [] }
-		return indexPaths.sorted().map { documents[$0.row] }
+		return indexPaths.sorted().map { outlines[$0.row] }
 	}
 	
-	var documents = [Document]()
+	var outlines = [Outline]()
 
 	override var canBecomeFirstResponder: Bool { return true }
 
-	private(set) var documentContainers: [DocumentContainer]?
-	private var heldDocumentContainers: [DocumentContainer]?
+	private(set) var outlineContainers: [OutlineContainer]?
+	private var heldOutlineContainers: [OutlineContainer]?
 
 	private let searchController = UISearchController(searchResultsController: nil)
 
@@ -48,13 +45,13 @@ class DocumentsViewController: UICollectionViewController, MainControllerIdentif
 	private var addButton: UIButton!
 	private var importButton: UIButton!
 
-	private let loadDocumentsSemaphore = AsyncSemaphore(value: 1)
-	private var loadDocumentsDebouncer = Debouncer(duration: 0.5)
+	private let loadOutlinesSemaphore = AsyncSemaphore(value: 1)
+	private var loadOutlinesDebouncer = Debouncer(duration: 0.5)
 	
 	private var lastClick: TimeInterval = Date().timeIntervalSince1970
 	private var lastIndexPath: IndexPath? = nil
 
-	private var rowRegistration: UICollectionView.CellRegistration<ConsistentCollectionViewListCell, Document>!
+	private var rowRegistration: UICollectionView.CellRegistration<ConsistentCollectionViewListCell, Outline>!
 	
 	private var relativeFormatter: RelativeDateTimeFormatter = {
 		let relativeDateTimeFormatter = RelativeDateTimeFormatter()
@@ -73,7 +70,7 @@ class DocumentsViewController: UICollectionViewController, MainControllerIdentif
 			collectionView.contentInset = UIEdgeInsets(top: 7, left: 0, bottom: 7, right: 0)
 		} else {
 			let navButtonGroup = ButtonGroup(hostController: self, containerType: .standard, alignment: .right)
-			importButton = navButtonGroup.addButton(label: .importOPMLControlLabel, image: .importDocument, selector: "importOPML")
+			importButton = navButtonGroup.addButton(label: .importOPMLControlLabel, image: .importOutline, selector: "importOPML")
 			addButton = navButtonGroup.addButton(label: .addControlLabel, image: .createEntity, selector: "createOutline")
 			navButtonsBarButtonItem = navButtonGroup.buildBarButtonItem()
 
@@ -98,13 +95,13 @@ class DocumentsViewController: UICollectionViewController, MainControllerIdentif
 		collectionView.collectionViewLayout = createLayout()
 		collectionView.reloadData()
 		
-		rowRegistration = UICollectionView.CellRegistration<ConsistentCollectionViewListCell, Document> { [weak self] (cell, indexPath, document) in
+		rowRegistration = UICollectionView.CellRegistration<ConsistentCollectionViewListCell, Outline> { [weak self] (cell, indexPath, outline) in
 			guard let self else { return }
 			
-			let title = (document.title?.isEmpty ?? true) ? .noTitleLabel : document.title!
+			let title = (outline.title?.isEmpty ?? true) ? .noTitleLabel : outline.title!
 			
 			var contentConfiguration = UIListContentConfiguration.subtitleCell()
-			if document.isCollaborating {
+			if outline.isCollaborating {
 				let attrText = NSMutableAttributedString(string: "\(title) ")
 				let shareAttachement = NSTextAttachment(image: .collaborating)
 				attrText.append(NSAttributedString(attachment: shareAttachement))
@@ -113,7 +110,7 @@ class DocumentsViewController: UICollectionViewController, MainControllerIdentif
 				contentConfiguration.text = title
 			}
 
-			if let updated = document.updated {
+			if let updated = outline.updated {
 				contentConfiguration.secondaryTextProperties.font = .preferredFont(forTextStyle: .body)
 				contentConfiguration.secondaryText = self.relativeFormatter.localizedString(for: updated, relativeTo: Date())
 			}
@@ -130,11 +127,11 @@ class DocumentsViewController: UICollectionViewController, MainControllerIdentif
 			cell.setNeedsUpdateConfiguration()
 		}
 		
-		NotificationCenter.default.addObserver(self, selector: #selector(accountDocumentsDidChange(_:)), name: .AccountDocumentsDidChange, object: nil)
+		NotificationCenter.default.addObserver(self, selector: #selector(accountOutlinesDidChange(_:)), name: .AccountOutlinesDidChange, object: nil)
 		NotificationCenter.default.addObserver(self, selector: #selector(outlineTagsDidChange(_:)), name: .OutlineTagsDidChange, object: nil)
-		NotificationCenter.default.addObserver(self, selector: #selector(documentTitleDidChange(_:)), name: .DocumentTitleDidChange, object: nil)
-		NotificationCenter.default.addObserver(self, selector: #selector(documentUpdatedDidChange(_:)), name: .DocumentUpdatedDidChange, object: nil)
-		NotificationCenter.default.addObserver(self, selector: #selector(documentSharingDidChange(_:)), name: .DocumentSharingDidChange, object: nil)
+		NotificationCenter.default.addObserver(self, selector: #selector(outlineTitleDidChange(_:)), name: .OutlineTitleDidChange, object: nil)
+		NotificationCenter.default.addObserver(self, selector: #selector(outlineUpdatedDidChange(_:)), name: .OutlineUpdatedDidChange, object: nil)
+		NotificationCenter.default.addObserver(self, selector: #selector(outlineSharingDidChange(_:)), name: .OutlineSharingDidChange, object: nil)
 		
 		scheduleReconfigureAll()
 	}
@@ -145,110 +142,110 @@ class DocumentsViewController: UICollectionViewController, MainControllerIdentif
 	
 	// MARK: API
 	
-	func setDocumentContainers(_ documentContainers: [DocumentContainer], isNavigationBranch: Bool) async {
+	func setOutlineContainers(_ outlineContainers: [OutlineContainer], isNavigationBranch: Bool) async {
 		func updateContainer() async {
-			self.documentContainers = documentContainers
+			self.outlineContainers = outlineContainers
 			updateUI()
 			collectionView.deselectAll()
-			await loadDocuments(animated: false, isNavigationBranch: isNavigationBranch)
+			await loadOutlines(animated: false, isNavigationBranch: isNavigationBranch)
 		}
 		
-		if documentContainers.count == 1, documentContainers.first is Search {
+		if outlineContainers.count == 1, outlineContainers.first is Search {
 			await updateContainer()
 		} else {
-			heldDocumentContainers = nil
+			heldOutlineContainers = nil
 			searchController.searchBar.text = ""
 			searchController.dismiss(animated: false)
 			await updateContainer()
 		}
 	}
 
-	func selectDocument(_ document: Document?, isNew: Bool = false, isNavigationBranch: Bool = true, animated: Bool) {
-		guard let documentContainers else { return }
+	func selectOutline(_ outline: Outline?, isNew: Bool = false, isNavigationBranch: Bool = true, animated: Bool) {
+		guard let outlineContainers else { return }
 
 		collectionView.deselectAll()
 
-		if let document, let index = documents.firstIndex(of: document) {
+		if let outline, let index = outlines.firstIndex(of: outline) {
 			collectionView.selectItem(at: IndexPath(row: index, section: 0), animated: true, scrollPosition: .centeredVertically)
-			delegate?.documentSelectionDidChange(self, documentContainers: documentContainers, documents: [document], isNew: isNew, isNavigationBranch: isNavigationBranch, animated: animated)
+			delegate?.outlineSelectionDidChange(self, outlineContainers: outlineContainers, outlines: [outline], isNew: isNew, isNavigationBranch: isNavigationBranch, animated: animated)
 		} else {
-			delegate?.documentSelectionDidChange(self, documentContainers: documentContainers, documents: [], isNew: isNew, isNavigationBranch: isNavigationBranch, animated: animated)
+			delegate?.outlineSelectionDidChange(self, outlineContainers: outlineContainers, outlines: [], isNew: isNew, isNavigationBranch: isNavigationBranch, animated: animated)
 		}
 	}
 	
-	func selectAllDocuments() {
-		guard let documentContainers else { return }
+	func selectAllOutlines() {
+		guard let outlineContainers else { return }
 
 		for i in 0..<collectionView.numberOfItems(inSection: 0) {
 			collectionView.selectItem(at: IndexPath(row: i, section: 0), animated: false, scrollPosition: [])
 		}
 		
-		delegate?.documentSelectionDidChange(self, documentContainers: documentContainers, documents: documents, isNew: false, isNavigationBranch: false, animated: true)
+		delegate?.outlineSelectionDidChange(self, outlineContainers: outlineContainers, outlines: outlines, isNew: false, isNavigationBranch: false, animated: true)
 	}
 	
-	func deleteCurrentDocuments() {
-		deleteDocuments(selectedDocuments)
+	func deleteCurrentOutlines() {
+		deleteOutlines(selectedOutlines)
 	}
 	
 	func importOPMLs(urls: [URL]) async {
-		guard let documentContainers,
-			  let account = documentContainers.uniqueAccount else { return }
+		guard let outlineContainers,
+			  let account = outlineContainers.uniqueAccount else { return }
 
-		var document: Document?
+		var outline: Outline?
 		for url in urls {
 			do {
-				let tags = documentContainers.compactMap { ($0 as? TagDocuments)?.tag }
-				document = try await account.importOPML(url, tags: tags)
-				DocumentIndexer.updateIndex(forDocument: document!)
+				let tags = outlineContainers.compactMap { ($0 as? TagOutlines)?.tag }
+				outline = try await account.importOPML(url, tags: tags)
+				OutlineIndexer.updateIndex(for: outline!)
 			} catch {
 				self.presentError(title: .importFailedTitle, message: error.localizedDescription)
 			}
 		}
 		
-		if let document {
+		if let outline {
 			Task {
-				await loadDocuments(animated: true)
-				selectDocument(document, animated: true)
+				await loadOutlines(animated: true)
+				selectOutline(outline, animated: true)
 			}
 		}
 	}
 	
 	func createOutline(animated: Bool) async {
-		guard let document = await createOutlineDocument(title: "") else { return }
+		guard let outline = await createOutline(title: "") else { return }
 		Task {
-			await loadDocuments(animated: animated)
-			selectDocument(document, isNew: true, animated: true)
+			await loadOutlines(animated: animated)
+			selectOutline(outline, isNew: true, animated: true)
 		}
 	}
 
-	func createOutlineDocument(title: String) async -> Document? {
-		guard let documentContainers,
-			  let account = documentContainers.uniqueAccount else { return nil }
+	func createOutline(title: String) async -> Outline? {
+		guard let outlineContainers,
+			  let account = outlineContainers.uniqueAccount else { return nil }
 
-        let document = await account.createOutline(title: title, tags: documentContainers.tags)
+        let outline = await account.createOutline(title: title, tags: outlineContainers.tags)
 		
 		let defaults = AppDefaults.shared
-		document.outline?.update(checkSpellingWhileTyping: defaults.checkSpellingWhileTyping,
-								 correctSpellingAutomatically: defaults.correctSpellingAutomatically,
-								 autoLinkingEnabled: defaults.autoLinkingEnabled,
-								 ownerName: defaults.ownerName,
-								 ownerEmail: defaults.ownerEmail,
-								 ownerURL: defaults.ownerURL)
-		return document
+		outline.update(checkSpellingWhileTyping: defaults.checkSpellingWhileTyping,
+					   correctSpellingAutomatically: defaults.correctSpellingAutomatically,
+					   autoLinkingEnabled: defaults.autoLinkingEnabled,
+					   ownerName: defaults.ownerName,
+					   ownerEmail: defaults.ownerEmail,
+					   ownerURL: defaults.ownerURL)
+		return outline
 	}
 	
 	func share() {
 		guard let indexPath = collectionView.indexPathsForSelectedItems?.first,
 			  let cell = collectionView.cellForItem(at: indexPath) else { return }
 		
-		let controller = UIActivityViewController(activityItemsConfiguration: DocumentsActivityItemsConfiguration(selectedDocuments: selectedDocuments))
+		let controller = UIActivityViewController(activityItemsConfiguration: OutlinesActivityItemsConfiguration(selectedOutlines: selectedOutlines))
 		controller.popoverPresentationController?.sourceView = cell
 		self.present(controller, animated: true)
 	}
 	
 	func manageSharing() async {
-		guard let document = selectedDocuments.first,
-			  let shareRecord = document.shareRecord,
+		guard let outline = selectedOutlines.first,
+			  let shareRecord = outline.cloudKitShareRecord,
 			  let container = await Outliner.shared.cloudKitAccount?.cloudKitContainer,
 			  let indexPath = collectionView.indexPathsForSelectedItems?.first,
 			  let cell = collectionView.cellForItem(at: indexPath) else {
@@ -263,33 +260,33 @@ class DocumentsViewController: UICollectionViewController, MainControllerIdentif
 	
 	// MARK: Notifications
 	
-	@objc func accountDocumentsDidChange(_ note: Notification) {
-		debounceLoadDocuments()
+	@objc func accountOutlinesDidChange(_ note: Notification) {
+		debounceLoadOutlines()
 	}
 	
 	@objc func outlineTagsDidChange(_ note: Notification) {
-		debounceLoadDocuments()
+		debounceLoadOutlines()
 	}
 	
-	@objc func documentTitleDidChange(_ note: Notification) {
-		guard let document = note.object as? Document else { return }
+	@objc func outlineTitleDidChange(_ note: Notification) {
+		guard let outline = note.object as? Outline else { return }
 		Task { @MainActor in
-			reload(document: document)
-			await loadDocuments(animated: true)
+			reload(outline: outline)
+			await loadOutlines(animated: true)
 		}
 	}
 	
-	@objc func documentUpdatedDidChange(_ note: Notification) {
-		guard let document = note.object as? Document else { return }
+	@objc func outlineUpdatedDidChange(_ note: Notification) {
+		guard let outline = note.object as? Outline else { return }
 		Task { @MainActor in
-			reload(document: document)
+			reload(outline: outline)
 		}
 	}
 	
-	@objc func documentSharingDidChange(_ note: Notification) {
-		guard let document = note.object as? Document else { return }
+	@objc func outlineSharingDidChange(_ note: Notification) {
+		guard let outline = note.object as? Outline else { return }
 		Task { @MainActor in
-			reload(document: document)
+			reload(outline: outline)
 		}
 	}
 	
@@ -323,7 +320,7 @@ class DocumentsViewController: UICollectionViewController, MainControllerIdentif
 
 // MARK: UIDocumentPickerDelegate
 
-extension DocumentsViewController: UIDocumentPickerDelegate {
+extension ListViewController: UIDocumentPickerDelegate {
 	
 	func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
 		Task {
@@ -335,7 +332,7 @@ extension DocumentsViewController: UIDocumentPickerDelegate {
 
 // MARK: UICloudSharingControllerDelegate
 
-extension DocumentsViewController: UICloudSharingControllerDelegate {
+extension ListViewController: UICloudSharingControllerDelegate {
 	
 	func cloudSharingController(_ csc: UICloudSharingController, failedToSaveShareWithError error: Error) {
 	}
@@ -355,14 +352,14 @@ extension DocumentsViewController: UICloudSharingControllerDelegate {
 
 // MARK: Collection View
 
-extension DocumentsViewController {
+extension ListViewController {
 	
 	override func numberOfSections(in collectionView: UICollectionView) -> Int {
 		return 1
 	}
 	
 	override func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
-		return documents.count
+		return outlines.count
 	}
 		
 	override func collectionView(_ collectionView: UICollectionView, contextMenuConfigurationForItemAt indexPath: IndexPath, point: CGPoint) -> UIContextMenuConfiguration? {
@@ -386,7 +383,7 @@ extension DocumentsViewController {
 	}
 	
 	override func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
-		return collectionView.dequeueConfiguredReusableCell(using: rowRegistration, for: indexPath, item: documents[indexPath.row])
+		return collectionView.dequeueConfiguredReusableCell(using: rowRegistration, for: indexPath, item: outlines[indexPath.row])
 	}
 
 	override func collectionView(_ collectionView: UICollectionView, canFocusItemAt indexPath: IndexPath) -> Bool {
@@ -394,35 +391,35 @@ extension DocumentsViewController {
 	}
 	
 	override func collectionView(_ collectionView: UICollectionView, didDeselectItemAt indexPath: IndexPath) {
-		guard let documentContainers else { return }
+		guard let outlineContainers else { return }
 		
 		guard let selectedIndexPaths = collectionView.indexPathsForSelectedItems else {
-			delegate?.documentSelectionDidChange(self, documentContainers: documentContainers, documents: [], isNew: false, isNavigationBranch: false, animated: true)
+			delegate?.outlineSelectionDidChange(self, outlineContainers: outlineContainers, outlines: [], isNew: false, isNavigationBranch: false, animated: true)
 			return
 		}
 		
-		let selectedDocuments = selectedIndexPaths.map { documents[$0.row] }
-		delegate?.documentSelectionDidChange(self, documentContainers: documentContainers, documents: selectedDocuments, isNew: false, isNavigationBranch: true, animated: true)
+		let selectedOutlines = selectedIndexPaths.map { outlines[$0.row] }
+		delegate?.outlineSelectionDidChange(self, outlineContainers: outlineContainers, outlines: selectedOutlines, isNew: false, isNavigationBranch: true, animated: true)
 	}
 	
 	override func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
-		guard let documentContainers else { return }
+		guard let outlineContainers else { return }
 
 		// We have to figure out double clicks for ourselves
 		let now: TimeInterval = Date().timeIntervalSince1970
 		if now - lastClick < 0.3 && lastIndexPath?.row == indexPath.row {
-			openDocumentInNewWindow(indexPath: indexPath)
+			openOutlineInNewWindow(indexPath: indexPath)
 		}
 		lastClick = now
 		lastIndexPath = indexPath
 		
 		guard let selectedIndexPaths = collectionView.indexPathsForSelectedItems else {
-			delegate?.documentSelectionDidChange(self, documentContainers: documentContainers, documents: [], isNew: false, isNavigationBranch: false, animated: true)
+			delegate?.outlineSelectionDidChange(self, outlineContainers: outlineContainers, outlines: [], isNew: false, isNavigationBranch: false, animated: true)
 			return
 		}
 		
-		let selectedDocuments = selectedIndexPaths.map { documents[$0.row] }
-		delegate?.documentSelectionDidChange(self, documentContainers: documentContainers, documents: selectedDocuments, isNew: false, isNavigationBranch: true, animated: true)
+		let selectedOutlines = selectedIndexPaths.map { outlines[$0.row] }
+		delegate?.outlineSelectionDidChange(self, outlineContainers: outlineContainers, outlines: selectedOutlines, isNew: false, isNavigationBranch: true, animated: true)
 	}
 	
 	private func createLayout() -> UICollectionViewLayout {
@@ -441,18 +438,18 @@ extension DocumentsViewController {
 		return layout
 	}
 	
-	func openDocumentInNewWindow(indexPath: IndexPath) {
+	func openOutlineInNewWindow(indexPath: IndexPath) {
 		collectionView.deselectAll()
-		let document = documents[indexPath.row]
+		let outline = outlines[indexPath.row]
 		
 		let activity = NSUserActivity(activityType: NSUserActivity.ActivityType.openEditor)
-		activity.userInfo = [Pin.UserInfoKeys.pin: Pin(document: document).userInfo]
+		activity.userInfo = [Pin.UserInfoKeys.pin: Pin(outline: outline).userInfo]
 		UIApplication.shared.requestSceneSessionActivation(nil, userActivity: activity, options: nil, errorHandler: nil)
 	}
 	
-	func reload(document: Document) {
+	func reload(outline: Outline) {
 		let selectedIndexPaths = self.collectionView.indexPathsForSelectedItems
-		if let index = documents.firstIndex(of: document) {
+		if let index = outlines.firstIndex(of: outline) {
 			collectionView.reloadItems(at: [IndexPath(row: index, section: 0)])
 		}
 		if let selectedItem = selectedIndexPaths?.first {
@@ -460,49 +457,49 @@ extension DocumentsViewController {
 		}
 	}
 	
-	func loadDocuments(animated: Bool, isNavigationBranch: Bool = false) async {
-		guard let documentContainers else {
+	func loadOutlines(animated: Bool, isNavigationBranch: Bool = false) async {
+		guard let outlineContainers else {
 			return
 		}
 		
-		await loadDocumentsSemaphore.wait()
-		defer { loadDocumentsSemaphore.signal() }
+		await loadOutlinesSemaphore.wait()
+		defer { loadOutlinesSemaphore.signal() }
 
-		let tags = documentContainers.tags
-		var selectionContainers: [DocumentProvider]
+		let tags = outlineContainers.tags
+		var selectionContainers: [OutlineProvider]
 		if !tags.isEmpty {
-			selectionContainers = [TagsDocuments(tags: tags)]
+			selectionContainers = [TagsOutlines(tags: tags)]
 		} else {
-			selectionContainers = documentContainers
+			selectionContainers = outlineContainers
 		}
 		
-		let documents = await withTaskGroup(of: [Document].self, returning: Set<Document>.self) { taskGroup in
+		let outlines = await withTaskGroup(of: [Outline].self, returning: Set<Outline>.self) { taskGroup in
 			for container in selectionContainers {
 				taskGroup.addTask {
-					return (try? await container.documents) ?? []
+					return (try? await container.outlines) ?? []
 				}
 			}
 			
-			var documents = Set<Document>()
-			for await containerDocuments in taskGroup {
-				documents.formUnion(containerDocuments)
+			var outlines = Set<Outline>()
+			for await containerOutlines in taskGroup {
+				outlines.formUnion(containerOutlines)
 			}
-			return documents
+			return outlines
 		}
 		
-		let sortedDocuments = documents.sorted(by: { ($0.title ?? "").caseInsensitiveCompare($1.title ?? "") == .orderedAscending })
+		let sortedOutlines = outlines.sorted(by: { ($0.title ?? "").caseInsensitiveCompare($1.title ?? "") == .orderedAscending })
 
 		guard animated else {
-			self.documents = sortedDocuments
+			self.outlines = sortedOutlines
 			self.collectionView.reloadData()
-			self.delegate?.documentSelectionDidChange(self, documentContainers: documentContainers, documents: [], isNew: false, isNavigationBranch: isNavigationBranch, animated: true)
+			self.delegate?.outlineSelectionDidChange(self, outlineContainers: outlineContainers, outlines: [], isNew: false, isNavigationBranch: isNavigationBranch, animated: true)
 			return
 		}
 		
-		let prevSelectedDoc = self.collectionView.indexPathsForSelectedItems?.map({ self.documents[$0.row] }).first
+		let prevSelectedDoc = self.collectionView.indexPathsForSelectedItems?.map({ self.outlines[$0.row] }).first
 
-		let diff = sortedDocuments.difference(from: self.documents).inferringMoves()
-		self.documents = sortedDocuments
+		let diff = sortedOutlines.difference(from: self.outlines).inferringMoves()
+		self.outlines = sortedOutlines
 
 		self.collectionView.performBatchUpdates {
 			for change in diff {
@@ -523,17 +520,17 @@ extension DocumentsViewController {
 			}
 		}
 		
-		if let prevSelectedDoc, let index = self.documents.firstIndex(of: prevSelectedDoc) {
+		if let prevSelectedDoc, let index = self.outlines.firstIndex(of: prevSelectedDoc) {
 			let indexPath = IndexPath(row: index, section: 0)
 			self.collectionView.selectItem(at: indexPath, animated: false, scrollPosition: [])
 			self.collectionView.scrollToItem(at: indexPath, at: [], animated: true)
 		} else {
-			self.delegate?.documentSelectionDidChange(self, documentContainers: documentContainers, documents: [], isNew: false, isNavigationBranch: isNavigationBranch, animated: true)
+			self.delegate?.outlineSelectionDidChange(self, outlineContainers: outlineContainers, outlines: [], isNew: false, isNavigationBranch: isNavigationBranch, animated: true)
 		}
 	}
 	
 	private func reconfigureAll() {
-		let indexPaths = (0..<documents.count).map { IndexPath(row: $0, section: 0) }
+		let indexPaths = (0..<outlines.count).map { IndexPath(row: $0, section: 0) }
 		collectionView.reconfigureItems(at: indexPaths)
 	}
 	
@@ -548,20 +545,20 @@ extension DocumentsViewController {
 
 // MARK: UISearchControllerDelegate
 
-extension DocumentsViewController: UISearchControllerDelegate {
+extension ListViewController: UISearchControllerDelegate {
 
 	func willPresentSearchController(_ searchController: UISearchController) {
-		heldDocumentContainers = documentContainers
+		heldOutlineContainers = outlineContainers
 		Task {
-			await setDocumentContainers([Search(searchText: "")], isNavigationBranch: false)
+			await setOutlineContainers([Search(searchText: "")], isNavigationBranch: false)
 		}
 	}
 
 	func didDismissSearchController(_ searchController: UISearchController) {
-		if let heldDocumentContainers {
+		if let heldOutlineContainers {
 			Task {
-				await setDocumentContainers(heldDocumentContainers, isNavigationBranch: false)
-				self.heldDocumentContainers = nil
+				await setOutlineContainers(heldOutlineContainers, isNavigationBranch: false)
+				self.heldOutlineContainers = nil
 			}
 		}
 	}
@@ -570,13 +567,13 @@ extension DocumentsViewController: UISearchControllerDelegate {
 
 // MARK: UISearchResultsUpdating
 
-extension DocumentsViewController: UISearchResultsUpdating {
+extension ListViewController: UISearchResultsUpdating {
 
 	func updateSearchResults(for searchController: UISearchController) {
-		guard heldDocumentContainers != nil else { return }
+		guard heldOutlineContainers != nil else { return }
 		
 		Task {
-			await setDocumentContainers([Search(searchText: searchController.searchBar.text!)], isNavigationBranch: false)
+			await setOutlineContainers([Search(searchText: searchController.searchBar.text!)], isNavigationBranch: false)
 		}
 	}
 
@@ -584,23 +581,23 @@ extension DocumentsViewController: UISearchResultsUpdating {
 
 // MARK: Helpers
 
-private extension DocumentsViewController {
+private extension ListViewController {
 	
-	func debounceLoadDocuments() {
-		loadDocumentsDebouncer.debounce { [weak self] in
+	func debounceLoadOutlines() {
+		loadOutlinesDebouncer.debounce { [weak self] in
 			Task { @MainActor in
-				await self?.loadDocuments(animated: true)
+				await self?.loadOutlines(animated: true)
 			}
 		}
 	}
 	
 	func updateUI() {
 		guard isViewLoaded else { return }
-		let title = documentContainers?.title ?? ""
+		let title = outlineContainers?.title ?? ""
 		navigationItem.title = title
 		
 		var defaultAccount: Account? = nil
-		if let containers = documentContainers {
+		if let containers = outlineContainers {
 			if containers.count == 1, let onlyContainer = containers.first {
 				defaultAccount = onlyContainer.account
 			}
@@ -617,30 +614,28 @@ private extension DocumentsViewController {
 	
 	func makeOutlineContextMenu(mainRowID: GenericRowIdentifier, allRowIDs: [GenericRowIdentifier]) -> UIContextMenuConfiguration {
 		return UIContextMenuConfiguration(identifier: mainRowID as NSCopying, previewProvider: nil, actionProvider: { [weak self] suggestedActions in
-			guard let self else { return nil }
-			let documents = allRowIDs.map { self.documents[$0.indexPath.row] }
+			guard let self else { return UIMenu() }
+			let outlines = allRowIDs.map { self.outlines[$0.indexPath.row] }
 			
 			var menuItems = [UIMenuElement]()
 
-			if documents.count == 1, let document = documents.first {
-				menuItems.append(self.showGetInfoAction(document: document))
+			if outlines.count == 1, let outline = outlines.first {
+				menuItems.append(self.showGetInfoAction(outline: outline))
 			}
 			
-			menuItems.append(self.duplicateAction(documents: documents))
-
-			let outlines = documents.compactMap { $0.outline }
+			menuItems.append(self.duplicateAction(outlines: outlines))
 
 			var shareMenuItems = [UIMenuElement]()
 
 			if let cell = self.collectionView.cellForItem(at: allRowIDs.first!.indexPath) {
-				shareMenuItems.append(self.shareAction(documents: documents, sourceView: cell))
+				shareMenuItems.append(self.shareAction(outlines: outlines, sourceView: cell))
 			}
 			
-			if documents.count == 1,
-			   let document = documents.first,
-			   documents.first!.isCollaborating,
+			if outlines.count == 1,
+			   let outline = outlines.first,
+			   outlines.first!.isCollaborating,
 			   let cell = self.collectionView.cellForItem(at: allRowIDs.first!.indexPath),
-			   let action = manageSharingAction(document: document, sourceView: cell) {
+			   let action = manageSharingAction(outline: outline, sourceView: cell) {
 				shareMenuItems.append(action)
 			}
 
@@ -661,47 +656,47 @@ private extension DocumentsViewController {
 
 			menuItems.append(UIMenu(title: "", options: .displayInline, children: shareMenuItems))
 			
-			menuItems.append(UIMenu(title: "", options: .displayInline, children: [self.deleteDocumentsAction(documents: documents)]))
+			menuItems.append(UIMenu(title: "", options: .displayInline, children: [self.deleteOutlinesAction(outlines: outlines)]))
 			
 			return UIMenu(title: "", children: menuItems)
 		})
 	}
 
-	func showGetInfoAction(document: Document) -> UIAction {
+	func showGetInfoAction(outline: Outline) -> UIAction {
 		let action = UIAction(title: .getInfoControlLabel, image: .getInfo) { [weak self] action in
-			guard let self, let outline = document.outline else { return }
+			guard let self else { return }
 			self.delegate?.showGetInfo(self, outline: outline)
 		}
 		return action
 	}
 	
-	func duplicateAction(documents: [Document]) -> UIAction {
+	func duplicateAction(outlines: [Outline]) -> UIAction {
 		let action = UIAction(title: .duplicateControlLabel, image: .duplicate) { action in
-            for document in documents {
+            for outline in outlines {
 				Task {
-					await document.load()
-					let newDocument = await document.duplicate()
-					await document.account?.createDocument(newDocument)
-					await newDocument.forceSave()
-					await newDocument.unload()
-					await document.unload()
+					await outline.load()
+					let newOutline = await outline.duplicate()
+					await outline.account?.createOutline(newOutline)
+					await newOutline.forceSave()
+					await newOutline.unload()
+					await outline.unload()
 				}
             }
 		}
 		return action
 	}
 	
-	func shareAction(documents: [Document], sourceView: UIView) -> UIAction {
+	func shareAction(outlines: [Outline], sourceView: UIView) -> UIAction {
 		let action = UIAction(title: .shareEllipsisControlLabel, image: .share) { action in
-			let controller = UIActivityViewController(activityItemsConfiguration: DocumentsActivityItemsConfiguration(selectedDocuments: documents))
+			let controller = UIActivityViewController(activityItemsConfiguration: OutlinesActivityItemsConfiguration(selectedOutlines: outlines))
 			controller.popoverPresentationController?.sourceView = sourceView
 			self.present(controller, animated: true)
 		}
 		return action
 	}
 	
-	func manageSharingAction(document: Document, sourceView: UIView) -> UIAction? {
-		guard let shareRecord = document.shareRecord else {
+	func manageSharingAction(outline: Outline, sourceView: UIView) -> UIAction? {
+		guard let shareRecord = outline.cloudKitShareRecord else {
 			return nil
 		}
 
@@ -776,34 +771,35 @@ private extension DocumentsViewController {
 	func deleteContextualAction(indexPath: IndexPath) -> UIContextualAction {
 		return UIContextualAction(style: .destructive, title: .deleteControlLabel) { [weak self] _, _, completion in
 			guard let self else { return }
-			let document = self.documents[indexPath.row]
-			self.deleteDocuments([document], completion: completion)
+			let outline = self.outlines[indexPath.row]
+			self.deleteOutlines([outline], completion: completion)
 		}
 	}
 	
-	func deleteDocumentsAction(documents: [Document]) -> UIAction {
+	func deleteOutlinesAction(outlines: [Outline]) -> UIAction {
 		let action = UIAction(title: .deleteControlLabel, image: .delete, attributes: .destructive) { [weak self] action in
-			self?.deleteDocuments(documents)
+			self?.deleteOutlines(outlines)
 		}
 		
 		return action
 	}
 	
-	func deleteDocuments(_ documents: [Document], completion: ((Bool) -> Void)? = nil) {
+	#warning("Convert this syntax.")
+	func deleteOutlines(_ outlines: [Outline], completion: ((Bool) -> Void)? = nil) {
 		func delete() {
-			let deselect = selectedDocuments.filter({ documents.contains($0) }).isEmpty
-			if deselect, let documentContainers = self.documentContainers {
-				self.delegate?.documentSelectionDidChange(self, documentContainers: documentContainers, documents: [], isNew: false, isNavigationBranch: true, animated: true)
+			let deselect = selectedOutlines.filter({ outlines.contains($0) }).isEmpty
+			if deselect, let outlineContainers = self.outlineContainers {
+				self.delegate?.outlineSelectionDidChange(self, outlineContainers: outlineContainers, outlines: [], isNew: false, isNavigationBranch: true, animated: true)
 			}
-			for document in documents {
+			for outlines in outlines {
 				Task {
-					await document.account?.deleteDocument(document)
+					await outlines.account?.deleteOutline(outlines)
 				}
 			}
 		}
 
-		// We insta-delete anytime we don't have any document content
-		guard !documents.filter({ !$0.isEmpty }).isEmpty else {
+		// We insta-delete anytime we don't have any outline content
+		guard !outlines.filter({ !$0.isEmpty }).isEmpty else {
 			delete()
 			return
 		}
@@ -818,11 +814,11 @@ private extension DocumentsViewController {
 		
         let title: String
         let message: String
-        if documents.count > 1 {
-			title = .deleteOutlinesPrompt(outlineCount: documents.count)
+        if outlines.count > 1 {
+			title = .deleteOutlinesPrompt(outlineCount: outlines.count)
             message = .deleteOutlinesMessage
         } else {
-			title = .deleteOutlinePrompt(outlineName: documents.first?.title ?? "")
+			title = .deleteOutlinePrompt(outlineName: outlines.first?.title ?? "")
             message = .deleteOutlineMessage
         }
         

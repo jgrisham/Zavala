@@ -1,31 +1,28 @@
 //
-//  CopyDocumentLinkActivity.swift
-//  Zavala
-//
 //  Created by Maurice Parker on 11/16/22.
 //
 
 import UIKit
 import VinOutlineKit
 
-class CopyDocumentLinkActivity: UIActivity {
+class CopyOutlineLinkActivity: UIActivity {
 	
-	private let documents: [Document]
+	private let outlines: [Outline]
 	
-	init(documents: [Document]) {
-		self.documents = documents
+	init(outlines: [Outline]) {
+		self.outlines = outlines
 	}
 	
 	override var activityTitle: String? {
-		if documents.count > 1 {
-			return .copyDocumentLinksControlLabel
+		if outlines.count > 1 {
+			return .copyOutlineLinksControlLabel
 		} else {
-			return .copyDocumentLinkControlLabel
+			return .copyOutlineLinkControlLabel
 		}
 	}
 	
 	override var activityType: UIActivity.ActivityType? {
-		UIActivity.ActivityType(rawValue: "io.vincode.Zavala.copyDocumentLink")
+		UIActivity.ActivityType(rawValue: "io.vincode.Zavala.copyOutlineLink")
 	}
 	
 	override var activityImage: UIImage? {
@@ -45,7 +42,7 @@ class CopyDocumentLinkActivity: UIActivity {
 	}
 	
 	override func perform() {
-		UIPasteboard.general.strings = documents.compactMap { $0.id.url?.absoluteString }
+		UIPasteboard.general.strings = outlines.compactMap { $0.id.url?.absoluteString }
 		activityDidFinish(true)
 	}
 }

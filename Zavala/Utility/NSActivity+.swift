@@ -18,7 +18,7 @@ extension NSUserActivity {
 		static let viewImage = "io.vincode.Zavala.viewImage"
 
 		static let restoration = "io.vincode.Zavala.restoration"
-		static let selectingDocumentContainer = "io.vincode.Zavala.selectingDocumentContainer"
-		static let selectingDocument = "io.vincode.Zavala.selectingDocument"
+		static let selectingOutlineContainer = "io.vincode.Zavala.selectingOutlineContainer"
+		static let selectingOutline = "io.vincode.Zavala.selectingOutline"
 	}
 }

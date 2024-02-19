@@ -18,7 +18,7 @@ protocol MainControllerIdentifiable {
 enum MainControllerIdentifier {
 	case none
 	case collections
-	case documents
+	case list
 	case editor
 }
 
@@ -28,7 +28,7 @@ class MainSplitViewController: UISplitViewController, MainCoordinator {
 		static let goBackwardStack = "goBackwardStack"
 		static let goForwardStack = "goForwardStack"
 		static let collectionsWidth = "collectionsWidth"
-		static let documentsWidth = "documentsWidth"
+		static let listWidth = "listWidth"
 	}
 	
 	weak var sceneDelegate: SceneDelegate?
@@ -42,20 +42,19 @@ class MainSplitViewController: UISplitViewController, MainCoordinator {
 
 		if traitCollection.userInterfaceIdiom == .mac {
 			userInfo![UserInfoKeys.collectionsWidth] = primaryColumnWidth
-			userInfo![UserInfoKeys.documentsWidth] = supplementaryColumnWidth
+			userInfo![UserInfoKeys.listWidth] = supplementaryColumnWidth
 		}
 
 		activity.userInfo = userInfo
 		return activity
 	}
 	
-	var selectedDocuments: [Document] {
-		return documentsViewController?.selectedDocuments ?? []
+	var selectedOutlines: [Outline] {
+		return listViewController?.selectedOutlines ?? []
 	}
 	
 	var isExportAndPrintUnavailable: Bool {
-		guard let outlines = selectedOutlines else { return true }
-		return outlines.count < 1
+		return selectedOutlines.count < 1
 	}
 
 	var isDeleteEntityUnavailable: Bool {
@@ -63,17 +62,13 @@ class MainSplitViewController: UISplitViewController, MainCoordinator {
 			(editorViewController?.isDeleteCurrentRowUnavailable ?? true) 
 	}
 
-	var selectedDocumentContainers: [DocumentContainer]? {
-		return collectionsViewController?.selectedDocumentContainers
+	var selectedOutlineContainers: [OutlineContainer]? {
+		return collectionsViewController?.selectedOutlineContainers
 	}
     
     var selectedTags: [Tag]? {
         return collectionsViewController?.selectedTags
     }
-	
-	var selectedOutlines: [Outline]? {
-		return documentsViewController?.selectedDocuments.compactMap({ $0.outline })
-	}
 
 	var editorViewController: EditorViewController? {
 		viewController(for: .secondary) as? EditorViewController
@@ -93,8 +88,8 @@ class MainSplitViewController: UISplitViewController, MainCoordinator {
 		return viewController(for: .primary) as? CollectionsViewController
 	}
 	
-	private var documentsViewController: DocumentsViewController? {
-		viewController(for: .supplementary) as? DocumentsViewController
+	private var listViewController: ListViewController? {
+		viewController(for: .supplementary) as? ListViewController
 	}
 	
 	private var lastMainControllerToAppear = MainControllerIdentifier.none
@@ -122,7 +117,7 @@ class MainSplitViewController: UISplitViewController, MainCoordinator {
 	
 	// MARK: Notifications
 	
-	@objc func accountDocumentsDidChange(_ note: Notification) {
+	@objc func accountOutlinesDidChange(_ note: Notification) {
 		Task {
 			await cleanUpNavigationStacks()
 		}
@@ -139,12 +134,12 @@ class MainSplitViewController: UISplitViewController, MainCoordinator {
 	func startUp() async {
 		collectionsViewController?.navigationController?.delegate = self
 		collectionsViewController?.delegate = self
-		documentsViewController?.navigationController?.delegate = self
-		documentsViewController?.delegate = self
+		listViewController?.navigationController?.delegate = self
+		listViewController?.delegate = self
 		await collectionsViewController?.startUp()
 		editorViewController?.delegate = self
 		
-		NotificationCenter.default.addObserver(self, selector: #selector(accountDocumentsDidChange(_:)), name: .AccountDocumentsDidChange, object: nil)
+		NotificationCenter.default.addObserver(self, selector: #selector(accountOutlinesDidChange(_:)), name: .AccountOutlinesDidChange, object: nil)
 		NotificationCenter.default.addObserver(self, selector: #selector(activeAccountsDidChange(_:)), name: .ActiveAccountsDidChange, object: nil)
 	}
 	
@@ -154,8 +149,8 @@ class MainSplitViewController: UISplitViewController, MainCoordinator {
 	}
 
 	func handle(_ userInfo: [AnyHashable: Any], isNavigationBranch: Bool) async {
-		if let searchIdentifier = userInfo[CSSearchableItemActivityIdentifier] as? String, let documentID = EntityID(description: searchIdentifier) {
-			await handleDocument(documentID, isNavigationBranch: isNavigationBranch)
+		if let searchIdentifier = userInfo[CSSearchableItemActivityIdentifier] as? String, let outlineID = EntityID(description: searchIdentifier) {
+			await handleOutline(outlineID, isNavigationBranch: isNavigationBranch)
 			return
 		}
 		
@@ -185,52 +180,52 @@ class MainSplitViewController: UISplitViewController, MainCoordinator {
 			preferredPrimaryColumnWidth = collectionsWidth
 		}
 		
-		if let documentsWidth = userInfo[UserInfoKeys.documentsWidth] as? CGFloat {
-			preferredSupplementaryColumnWidth = documentsWidth
+		if let listWidth = userInfo[UserInfoKeys.listWidth] as? CGFloat {
+			preferredSupplementaryColumnWidth = listWidth
 		}
 
 		let pin = await Pin(userInfo: userInfo[Pin.UserInfoKeys.pin])
 		
-		let documentContainers = pin.containers
-		guard !(documentContainers?.isEmpty ?? true) else {
+		let containers = pin.containers
+		guard !(containers?.isEmpty ?? true) else {
 			return
 		}
 		
-		await collectionsViewController?.selectDocumentContainers(documentContainers, isNavigationBranch: isNavigationBranch, animated: false)
-		lastMainControllerToAppear = .documents
+		await collectionsViewController?.selectOutlineContainers(containers, isNavigationBranch: isNavigationBranch, animated: false)
+		lastMainControllerToAppear = .list
 
-		guard let document = pin.document else {
+		guard let outline = pin.outline else {
 			return
 		}
 		
-		handleSelectDocument(document, isNavigationBranch: isNavigationBranch)
+		handleSelectOutline(outline, isNavigationBranch: isNavigationBranch)
 	}
 	
-	func handleDocument(_ documentID: EntityID, isNavigationBranch: Bool) async {
-		guard let account = await Outliner.shared.findAccount(accountID: documentID.accountID),
-			  let document = await account.findDocument(documentID) else { return }
+	func handleOutline(_ outlineID: EntityID, isNavigationBranch: Bool) async {
+		guard let account = await Outliner.shared.findAccount(accountID: outlineID.accountID),
+			  let outline = await account.findOutline(outlineID) else { return }
 		
-		if let collectionsTags = selectedTags, document.hasAnyTag(collectionsTags) {
-			self.handleSelectDocument(document, isNavigationBranch: isNavigationBranch)
-		} else if document.tagCount == 1, let tag = await document.tags?.first {
-			await collectionsViewController?.selectDocumentContainers([TagDocuments(account: account, tag: tag)], isNavigationBranch: true, animated: false)
-			handleSelectDocument(document, isNavigationBranch: isNavigationBranch)
+		if let collectionsTags = selectedTags, outline.hasAnyTag(collectionsTags) {
+			self.handleSelectOutline(outline, isNavigationBranch: isNavigationBranch)
+		} else if outline.tagCount == 1, let tag = await outline.tags.first {
+			await collectionsViewController?.selectOutlineContainers([TagOutlines(account: account, tag: tag)], isNavigationBranch: true, animated: false)
+			handleSelectOutline(outline, isNavigationBranch: isNavigationBranch)
 		} else {
-			await collectionsViewController?.selectDocumentContainers([AllDocuments(account: account)], isNavigationBranch: true, animated: false)
-			handleSelectDocument(document, isNavigationBranch: isNavigationBranch)
+			await collectionsViewController?.selectOutlineContainers([AllOutlines(account: account)], isNavigationBranch: true, animated: false)
+			handleSelectOutline(outline, isNavigationBranch: isNavigationBranch)
 		}
 	}
 	
 	func handlePin(_ pin: Pin) async {
-		let documentContainers = pin.containers
-		await collectionsViewController?.selectDocumentContainers(documentContainers, isNavigationBranch: true, animated: false)
-		documentsViewController?.selectDocument(pin.document, isNavigationBranch: true, animated: false)
+		let containers = pin.containers
+		await collectionsViewController?.selectOutlineContainers(containers, isNavigationBranch: true, animated: false)
+		listViewController?.selectOutline(pin.outline, isNavigationBranch: true, animated: false)
 	}
 	
 	func importOPMLs(urls: [URL]) {
 		Task {
-			await selectDefaultDocumentContainerIfNecessary()
-			await documentsViewController?.importOPMLs(urls: urls)
+			await selectDefaultOutlineContainerIfNecessary()
+			await listViewController?.importOPMLs(urls: urls)
 		}
 	}
 	
@@ -263,11 +258,11 @@ class MainSplitViewController: UISplitViewController, MainCoordinator {
 	}
 	
 	func share() {
-		documentsViewController?.share()
+		listViewController?.share()
 	}
 	
 	func manageSharing() async {
-		await documentsViewController?.manageSharing()
+		await listViewController?.manageSharing()
 	}
 	
 	func validateToolbar() {
@@ -285,13 +280,13 @@ class MainSplitViewController: UISplitViewController, MainCoordinator {
 		}
 		
 		guard editorViewController?.isOutlineFunctionsUnavailable ?? true else {
-			documentsViewController?.deleteCurrentDocuments()
+			listViewController?.deleteCurrentOutlines()
 			return
 		}
 	}
 	
 	override func selectAll(_ sender: Any?) {
-		documentsViewController?.selectAllDocuments()
+		listViewController?.selectAllOutlines()
 	}
 
 	override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
@@ -316,15 +311,15 @@ class MainSplitViewController: UISplitViewController, MainCoordinator {
 	
 	@objc func createOutline() {
 		Task {
-			await selectDefaultDocumentContainerIfNecessary()
-			await documentsViewController?.createOutline(animated: false)
+			await selectDefaultOutlineContainerIfNecessary()
+			await listViewController?.createOutline(animated: false)
 		}
 	}
 	
 	@objc func importOPML() {
 		Task {
-			await selectDefaultDocumentContainerIfNecessary()
-			documentsViewController?.importOPML()
+			await selectDefaultOutlineContainerIfNecessary()
+			listViewController?.importOPML()
 		}
 	}
 	
@@ -410,8 +405,8 @@ class MainSplitViewController: UISplitViewController, MainCoordinator {
 		showGetInfo()
 	}
 
-	func beginDocumentSearch() {
-		collectionsViewController?.beginDocumentSearch()
+	func beginOutlineSearch() {
+		collectionsViewController?.beginOutlineSearch()
 	}
 	
 	// MARK: Validations
@@ -433,14 +428,14 @@ class MainSplitViewController: UISplitViewController, MainCoordinator {
 
 extension MainSplitViewController: CollectionsDelegate {
 	
-	func documentContainerSelectionsDidChange(_: CollectionsViewController,
-											  documentContainers: [DocumentContainer],
-											  isNavigationBranch: Bool,
-											  animated: Bool) async {
+	func outlineContainerSelectionsDidChange(_: CollectionsViewController,
+											 outlineContainers: [OutlineContainer],
+											 isNavigationBranch: Bool,
+											 animated: Bool) async {
 		
 		// The window might not be quite available at launch, so put a slight delay in to help it get there
 		DispatchQueue.main.async {
-			self.view.window?.windowScene?.title = documentContainers.title
+			self.view.window?.windowScene?.title = outlineContainers.title
 		}
 		
 		if isNavigationBranch, let lastPin {
@@ -450,12 +445,12 @@ extension MainSplitViewController: CollectionsDelegate {
 			goForwardStack.removeAll()
 		}
 
-        if let accountID = documentContainers.first?.account?.id.accountID {
+        if let accountID = outlineContainers.first?.account?.id.accountID {
 			AppDefaults.shared.lastSelectedAccountID = accountID
 		}
 		
-        if !documentContainers.isEmpty {
-            activityManager.selectingDocumentContainers(documentContainers)
+        if !outlineContainers.isEmpty {
+            activityManager.selectingOutlineContainers(outlineContainers)
 			
 			// In theory, we shouldn't need to do anything with the supplementary view when we aren't
 			// navigating because we should be using navigation buttons and already be looking at the
@@ -470,10 +465,10 @@ extension MainSplitViewController: CollectionsDelegate {
 				}
 			}
 		} else {
-			activityManager.invalidateSelectDocumentContainers()
+			activityManager.invalidateSelectOutlineContainers()
 		}
 		
-		await documentsViewController?.setDocumentContainers(documentContainers, isNavigationBranch: isNavigationBranch)
+		await listViewController?.setOutlineContainers(outlineContainers, isNavigationBranch: isNavigationBranch)
 	}
 
 	func showSettings(_: CollectionsViewController) {
@@ -490,27 +485,27 @@ extension MainSplitViewController: CollectionsDelegate {
 
 }
 
-// MARK: DocumentsDelegate
+// MARK: ListDelegate
 
-extension MainSplitViewController: DocumentsDelegate {
+extension MainSplitViewController: ListDelegate {
 	
-	func documentSelectionDidChange(_: DocumentsViewController,
-									documentContainers: [DocumentContainer],
-									documents: [Document],
-									isNew: Bool,
-									isNavigationBranch: Bool,
-									animated: Bool) {
+	func outlineSelectionDidChange(_: ListViewController,
+								   outlineContainers: [OutlineContainer],
+								   outlines: [Outline],
+								   isNew: Bool,
+								   isNavigationBranch: Bool,
+								   animated: Bool) {
 		
 		Task {
-			// Don't overlay the Document Container title if we are just switching Document Containers
-			if !documents.isEmpty {
-				view.window?.windowScene?.title = documents.title
+			// Don't overlay the Outline Container title if we are just switching Outline Containers
+			if !outlines.isEmpty {
+				view.window?.windowScene?.title = outlines.title
 			}
 			
-			guard documents.count == 1, let document = documents.first else {
-				activityManager.invalidateSelectDocument()
+			guard outlines.count == 1, let outline = outlines.first else {
+				activityManager.invalidateSelectOutline()
 				await editorViewController?.edit(nil, isNew: isNew)
-				if documents.isEmpty {
+				if outlines.isEmpty {
 					editorViewController?.showMessage(.noSelectionLabel)
 				} else {
 					editorViewController?.showMessage(.multipleSelectionsLabel)
@@ -518,21 +513,21 @@ extension MainSplitViewController: DocumentsDelegate {
 				return
 			}
 			
-			// This prevents the same document from entering the backward stack more than once in a row.
-			// If the first item on the backward stack equals the new document and there is nothing stored
-			// in the last pin, we know they clicked on a document twice without one between.
-			if let first = goBackwardStack.first, first.document == document && lastPin == nil{
+			// This prevents the same outline from entering the backward stack more than once in a row.
+			// If the first item on the backward stack equals the new outline and there is nothing stored
+			// in the last pin, we know they clicked on a outline twice without one between.
+			if let first = goBackwardStack.first, first.outline == outline && lastPin == nil{
 				goBackwardStack.removeFirst()
 			}
 			
-			if isNavigationBranch, let lastPin, lastPin.document != document {
+			if isNavigationBranch, let lastPin, lastPin.outline != outline {
 				goBackwardStack.insert(lastPin, at: 0)
 				goBackwardStack = Array(goBackwardStack.prefix(10))
 				self.lastPin = nil
 				goForwardStack.removeAll()
 			}
 			
-			await activityManager.selectingDocument(documentContainers, document)
+			await activityManager.selectingOutline(outlineContainers, outline)
 			
 			if animated {
 				show(.secondary)
@@ -542,61 +537,61 @@ extension MainSplitViewController: DocumentsDelegate {
 				}
 			}
 			
-			lastPin = Pin(containers: documentContainers, document: document)
+			lastPin = Pin(containers: outlineContainers, outline: outline)
 			
-			if let search = documentContainers.first as? Search {
+			if let search = outlineContainers.first as? Search {
 				if search.searchText.isEmpty {
 					await editorViewController?.edit(nil, isNew: isNew)
 				} else {
-					await editorViewController?.edit(document.outline, isNew: isNew, searchText: search.searchText)
-					pinWasVisited(Pin(containers: documentContainers, document: document))
+					await editorViewController?.edit(outline.outline, isNew: isNew, searchText: search.searchText)
+					pinWasVisited(Pin(containers: outlineContainers, outline: outline))
 				}
 			} else {
-				await editorViewController?.edit(document.outline, isNew: isNew)
-				pinWasVisited(Pin(containers: documentContainers, document: document))
+				await editorViewController?.edit(outline.outline, isNew: isNew)
+				pinWasVisited(Pin(containers: outlineContainers, outline: outline))
 			}
 		}
 	}
 
-	func showGetInfo(_: DocumentsViewController, outline: Outline) {
+	func showGetInfo(_: ListViewController, outline: Outline) {
 		showGetInfo(outline: outline)
 	}
 	
-	func exportPDFDocs(_: DocumentsViewController, outlines: [Outline]) {
+	func exportPDFDocs(_: ListViewController, outlines: [Outline]) {
 		Task {
 			await exportPDFDocsForOutlines(outlines)
 		}
 	}
 	
-	func exportPDFLists(_: DocumentsViewController, outlines: [Outline]) {
+	func exportPDFLists(_: ListViewController, outlines: [Outline]) {
 		Task {
 			await exportPDFListsForOutlines(outlines)
 		}
 	}
 	
-	func exportMarkdownDocs(_: DocumentsViewController, outlines: [Outline]) {
+	func exportMarkdownDocs(_: ListViewController, outlines: [Outline]) {
 		Task {
 			await exportMarkdownDocsForOutlines(outlines)
 		}
 	}
 	
-	func exportMarkdownLists(_: DocumentsViewController, outlines: [Outline]) {
+	func exportMarkdownLists(_: ListViewController, outlines: [Outline]) {
 		Task {
 			await exportMarkdownListsForOutlines(outlines)
 		}
 	}
 	
-	func exportOPMLs(_: DocumentsViewController, outlines: [Outline]) {
+	func exportOPMLs(_: ListViewController, outlines: [Outline]) {
 		Task {
 			await exportOPMLsForOutlines(outlines)
 		}
 	}
 	
-	func printDocs(_: DocumentsViewController, outlines: [Outline]) {
+	func printDocs(_: ListViewController, outlines: [Outline]) {
 		printDocsForOutlines(outlines)
 	}
 	
-	func printLists(_: DocumentsViewController, outlines: [Outline]) {
+	func printLists(_: ListViewController, outlines: [Outline]) {
 		printListsForOutlines(outlines)
 	}
 	
@@ -631,7 +626,7 @@ extension MainSplitViewController: EditorDelegate {
 	}
 	
 	func createNewOutline(_: EditorViewController, title: String) async -> Outline? {
-		return await documentsViewController?.createOutlineDocument(title: title)?.outline
+		return await listViewController?.createOutline(title: title)?.outline
 	}
 	
 	func validateToolbar(_: EditorViewController) {
@@ -705,7 +700,7 @@ extension MainSplitViewController: UISplitViewControllerDelegate {
 	func splitViewController(_ svc: UISplitViewController, topColumnForCollapsingToProposedTopColumn proposedTopColumn: UISplitViewController.Column) -> UISplitViewController.Column {
 		switch proposedTopColumn {
 		case .supplementary:
-            if let containers = documentsViewController?.documentContainers, !containers.isEmpty {
+            if let containers = listViewController?.outlineContainers, !containers.isEmpty {
 				return .supplementary
 			} else {
 				return .primary
@@ -714,7 +709,7 @@ extension MainSplitViewController: UISplitViewControllerDelegate {
 			if editorViewController?.outline != nil {
 				return .secondary
 			} else {
-                if let containers = documentsViewController?.documentContainers, !containers.isEmpty {
+                if let containers = listViewController?.outlineContainers, !containers.isEmpty {
 					return .supplementary
 				} else {
 					return .primary
@@ -745,16 +740,16 @@ extension MainSplitViewController: UINavigationControllerDelegate {
 		}
 
 		// If we are showing the Feeds and only the feeds start clearing stuff
-		if isCollapsed && viewController === collectionsViewController && lastMainControllerToAppear == .documents {
+		if isCollapsed && viewController === collectionsViewController && lastMainControllerToAppear == .list {
 			Task {
-				await collectionsViewController?.selectDocumentContainers(nil, isNavigationBranch: false, animated: false)
+				await collectionsViewController?.selectOutlineContainers(nil, isNavigationBranch: false, animated: false)
 			}
 			return
 		}
 
-		if isCollapsed && viewController === documentsViewController && lastMainControllerToAppear == .editor {
-			activityManager.invalidateSelectDocument()
-			documentsViewController?.selectDocument(nil, isNavigationBranch: false, animated: false)
+		if isCollapsed && viewController === listViewController && lastMainControllerToAppear == .editor {
+			activityManager.invalidateSelectOutline()
+			listViewController?.selectOutline(nil, isNavigationBranch: false, animated: false)
 			return
 		}
 	}
@@ -765,9 +760,9 @@ extension MainSplitViewController: UINavigationControllerDelegate {
 
 extension MainSplitViewController: OpenQuicklyViewControllerDelegate {
 	
-	func quicklyOpenDocument(documentID: EntityID) {
+	func quicklyOpenOutline(outlineID: EntityID) {
 		Task {
-			await handleDocument(documentID, isNavigationBranch: true)
+			await handleOutline(outlineID, isNavigationBranch: true)
 		}
 	}
 	
@@ -777,13 +772,13 @@ extension MainSplitViewController: OpenQuicklyViewControllerDelegate {
 
 private extension MainSplitViewController {
 	
-	func handleSelectDocument(_ document: Document, isNavigationBranch: Bool) {
+	func handleSelectOutline(_ outline: Outline, isNavigationBranch: Bool) {
 		// This is done because the restore state navigation used to rely on the fact that
 		// the TimeliniewController used a diffable datasource that didn't complete until after
 		// some navigation had occurred. Changing this assumption broke state restoration
 		// on the iPhone.
 		//
-		// When DocumentsViewController was rewritten without diffable datasources, was when this
+		// When ListViewController was rewritten without diffable datasources, was when this
 		// assumption was broken. Rather than rewrite how we handle navigation (which would
 		// not be easy. CollectionsViewController still uses a diffable datasource), we made it
 		// look like it still works the same way by dispatching to the next run loop to occur.
@@ -791,21 +786,21 @@ private extension MainSplitViewController {
 		// Someday this should be refactored. How the UINavigationControllerDelegate works would
 		// be the main challenge.
 		DispatchQueue.main.async {
-			self.documentsViewController?.selectDocument(document, isNavigationBranch: isNavigationBranch, animated: false)
+			self.listViewController?.selectOutline(outline, isNavigationBranch: isNavigationBranch, animated: false)
 			self.lastMainControllerToAppear = .editor
 			self.validateToolbar()
 		}
 	}
 	
-	func selectDefaultDocumentContainerIfNecessary() async {
+	func selectDefaultOutlineContainerIfNecessary() async {
 		guard collectionsViewController?.selectedAccount == nil else {
 			return
 		}
 
-		await selectDefaultDocumentContainer()
+		await selectDefaultOutlineContainer()
 	}
 	
-	func selectDefaultDocumentContainer() async {
+	func selectDefaultOutlineContainer() async {
 		let accountID = AppDefaults.shared.lastSelectedAccountID
 		
 		let firstActiveAccount = await Outliner.shared.activeAccounts.first
@@ -813,18 +808,17 @@ private extension MainSplitViewController {
 			return
 		}
 		
-		let documentContainer = await account.documentContainers[0]
-		
-		await collectionsViewController?.selectDocumentContainers([documentContainer], isNavigationBranch: true, animated: true)
+		let containers = await account.outlineContainers[0]
+		await collectionsViewController?.selectOutlineContainers([containers], isNavigationBranch: true, animated: true)
 	}
 	
 	func cleanUpNavigationStacks() async {
-		let allDocumentIDs = await Outliner.shared.activeDocuments.map { $0.id }
+		let allOutlineIDs = await Outliner.shared.activeOutlines.map { $0.id }
 		
 		var replacementGoBackwardStack = [Pin]()
 		for pin in goBackwardStack {
-			if let documentID = pin.document?.id {
-				if allDocumentIDs.contains(documentID) {
+			if let outlineID = pin.outline?.id {
+				if allOutlineIDs.contains(outlineID) {
 					replacementGoBackwardStack.append(pin)
 				}
 			} else {
@@ -835,8 +829,8 @@ private extension MainSplitViewController {
 		
 		var replacementGoForwardStack = [Pin]()
 		for pin in goForwardStack {
-			if let documentID = pin.document?.id {
-				if allDocumentIDs.contains(documentID) {
+			if let outlineID = pin.outline?.id {
+				if allOutlineIDs.contains(outlineID) {
 					replacementGoForwardStack.append(pin)
 				}
 			} else {
@@ -845,7 +839,7 @@ private extension MainSplitViewController {
 		}
 		goForwardStack = replacementGoForwardStack
 		
-		if let lastPinDocumentID = lastPin?.document?.id, !allDocumentIDs.contains(lastPinDocumentID) {
+		if let lastPinOutlineID = lastPin?.outline?.id, !allOutlineIDs.contains(lastPinOutlineID) {
 			self.lastPin = nil
 		}
 	}
@@ -866,8 +860,8 @@ private extension MainSplitViewController {
 		lastPin = pin
 		
 		Task {
-			await collectionsViewController?.selectDocumentContainers(pin.containers, isNavigationBranch: false, animated: false)
-			documentsViewController?.selectDocument(pin.document, isNavigationBranch: false, animated: false)
+			await collectionsViewController?.selectOutlineContainers(pin.containers, isNavigationBranch: false, animated: false)
+			listViewController?.selectOutline(pin.outline, isNavigationBranch: false, animated: false)
 		}
 	}
 	
@@ -886,8 +880,8 @@ private extension MainSplitViewController {
 		let pin = goForwardStack.removeFirst()
 		
 		Task {
-			await collectionsViewController?.selectDocumentContainers(pin.containers, isNavigationBranch: false, animated: false)
-			documentsViewController?.selectDocument(pin.document, isNavigationBranch: false, animated: false)
+			await collectionsViewController?.selectOutlineContainers(pin.containers, isNavigationBranch: false, animated: false)
+			listViewController?.selectOutline(pin.outline, isNavigationBranch: false, animated: false)
 		}
 	}
 	
@@ -972,7 +966,7 @@ extension MainSplitViewController: NSToolbarDelegate {
 			item.checkForUnavailable = { _ in
 				return false
 			}
-			item.image = .importDocument.symbolSizedForCatalyst()
+			item.image = .importOutline.symbolSizedForCatalyst()
 			item.label = .importOPMLControlLabel
 			item.toolTip = .importOPMLControlLabel
 			item.isBordered = true
@@ -1015,7 +1009,7 @@ extension MainSplitViewController: NSToolbarDelegate {
 				guard let self else { return true }
 				var backwardItems = [UIAction]()
 				for (index, pin) in self.goBackwardStack.enumerated() {
-					backwardItems.append(UIAction(title: pin.document?.title ?? .noTitleLabel) { [weak self] _ in
+					backwardItems.append(UIAction(title: pin.outline?.title ?? .noTitleLabel) { [weak self] _ in
 						DispatchQueue.main.async {
 							self?.goBackward(to: index)
 						}
@@ -1040,7 +1034,7 @@ extension MainSplitViewController: NSToolbarDelegate {
 				guard let self else { return true }
 				var forwardItems = [UIAction]()
 				for (index, pin) in self.goForwardStack.enumerated() {
-					forwardItems.append(UIAction(title: pin.document?.title ?? .noTitleLabel) { [weak self] _ in
+					forwardItems.append(UIAction(title: pin.outline?.title ?? .noTitleLabel) { [weak self] _ in
 						DispatchQueue.main.async {
 							self?.goForward(to: index)
 						}
@@ -1306,7 +1300,7 @@ extension MainSplitViewController: NSToolbarDelegate {
 			let item = NSSharingServicePickerToolbarItem(itemIdentifier: .share)
 			item.label = .shareControlLabel
 			item.toolTip = .shareControlLabel
-			item.activityItemsConfiguration = DocumentsActivityItemsConfiguration(delegate: self)
+			item.activityItemsConfiguration = OutlinesActivityItemsConfiguration(delegate: self)
 			toolbarItem = item
 		case .getInfo:
 			let item = ValidatingToolbarItem(itemIdentifier: itemIdentifier)

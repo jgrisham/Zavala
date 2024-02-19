@@ -26,8 +26,8 @@ extension Outline: VCKModel {
 			static let updated = "updated"
 			static let tagNames = "tagNames"
 			static let rowOrder = "rowOrder"
-			static let documentLinks = "documentLinks"
-			static let documentBacklinks = "documentBacklinks"
+			static let outlineLinks = "documentLinks"
+			static let outlineBacklinks = "documentBacklinks"
 			static let hasAltLinks = "hasAltLinks"
 			static let disambiguator = "disambiguator"
 		}
@@ -154,7 +154,7 @@ extension Outline: VCKModel {
 		
 		if !updatedRowIDs.isEmpty || !update.deleteRowRecordIDs.isEmpty  {
 			rowsFile?.markAsDirty()
-			documentDidChangeBySync()
+			outlineDidChangeBySync()
 		}
 		
 		guard isBeingUsed else { return }
@@ -238,8 +238,8 @@ extension Outline: VCKModel {
 
 		let updatedRowIDs = applyRowOrder(record)
 		await applyTags(record, account)
-		applyDocumentLinks(record)
-		applyDocumentBacklinks(record)
+		applyOutlineLinks(record)
+		applyOutlineBacklinks(record)
         
         let serverHasAltLinks = record[Outline.CloudKitRecord.Fields.hasAltLinks] as? Bool
         hasAltLinks = merge(client: hasAltLinks, ancestor: ancestorHasAltLinks, server: serverHasAltLinks)
@@ -275,11 +275,11 @@ extension Outline: VCKModel {
 		}
         serverTagIDs = errorTags.map({ $0.id })
         
-        let errorDocumentLinks = record[Outline.CloudKitRecord.Fields.documentLinks] as? [String] ?? [String]()
-        serverDocumentLinks = errorDocumentLinks.compactMap { EntityID(description: $0) }
+        let errorOutlineLinks = record[Outline.CloudKitRecord.Fields.outlineLinks] as? [String] ?? [String]()
+        serverOutlineLinks = errorOutlineLinks.compactMap { EntityID(description: $0) }
 
-        let errorDocumentBacklinks = record[Outline.CloudKitRecord.Fields.documentBacklinks] as? [String] ?? [String]()
-        serverDocumentBacklinks = errorDocumentBacklinks.compactMap { EntityID(description: $0) }
+        let errorOutlineBacklinks = record[Outline.CloudKitRecord.Fields.outlineBacklinks] as? [String] ?? [String]()
+        serverOutlineBacklinks = errorOutlineBacklinks.compactMap { EntityID(description: $0) }
         
         hasAltLinks = record[Outline.CloudKitRecord.Fields.hasAltLinks] as? Bool
 
@@ -338,12 +338,12 @@ extension Outline: VCKModel {
             record[Outline.CloudKitRecord.Fields.tagNames] = recordTags.map { $0.name }
         }
 
-        if let recordDocumentLinks = merge(client: documentLinks, ancestor: ancestorDocumentLinks, server: serverDocumentLinks) {
-            record[Outline.CloudKitRecord.Fields.documentLinks] = recordDocumentLinks.map { $0.description }
+        if let recordOutlineLinks = merge(client: outlineLinks, ancestor: ancestorOutlineLinks, server: serverOutlineLinks) {
+            record[Outline.CloudKitRecord.Fields.outlineLinks] = recordOutlineLinks.map { $0.description }
         }
 
-        if let recordDocumentBacklinks = merge(client: documentBacklinks, ancestor: ancestorDocumentBacklinks, server: serverDocumentBacklinks) {
-            record[Outline.CloudKitRecord.Fields.documentBacklinks] = recordDocumentBacklinks.map { $0.description }
+        if let recordOutlineBacklinks = merge(client: outlineBacklinks, ancestor: ancestorOutlineBacklinks, server: serverOutlineBacklinks) {
+            record[Outline.CloudKitRecord.Fields.outlineBacklinks] = recordOutlineBacklinks.map { $0.description }
         }
 
         let recordHasAltLinks = merge(client: hasAltLinks, ancestor: ancestorHasAltLinks, server: serverHasAltLinks)
@@ -391,11 +391,11 @@ extension Outline: VCKModel {
         ancestorTagIDs = nil
         serverTagIDs = nil
 
-        ancestorDocumentLinks = nil
-        serverDocumentLinks = nil
+        ancestorOutlineLinks = nil
+        serverOutlineLinks = nil
 
-        ancestorDocumentBacklinks = nil
-        serverDocumentBacklinks = nil
+        ancestorOutlineBacklinks = nil
+        serverOutlineBacklinks = nil
 
         ancestorHasAltLinks = nil
         serverHasAltLinks = nil
@@ -486,23 +486,23 @@ private extension Outline {
 		outlineElementsDidChange(changes)
 	}
 	
-	func applyDocumentLinks(_ record: CKRecord) {
-		if let serverDocumentLinkDescs = record[Outline.CloudKitRecord.Fields.documentLinks] as? [String] {
-			let serverDocumentLinks = serverDocumentLinkDescs.compactMap { EntityID(description: $0) }
-			documentLinks = merge(client: documentLinks, ancestor: ancestorDocumentLinks, server: serverDocumentLinks)
+	func applyOutlineLinks(_ record: CKRecord) {
+		if let serverOutlineLinkDescs = record[Outline.CloudKitRecord.Fields.outlineLinks] as? [String] {
+			let serverOutlineLinks = serverOutlineLinkDescs.compactMap { EntityID(description: $0) }
+			outlineLinks = merge(client: outlineLinks, ancestor: ancestorOutlineLinks, server: serverOutlineLinks)
 		} else {
-			documentLinks = [EntityID]()
+			outlineLinks = [EntityID]()
 		}
 	}
 	
-	func applyDocumentBacklinks(_ record: CKRecord) {
-		if let serverDocumentBacklinkDescs = record[Outline.CloudKitRecord.Fields.documentBacklinks] as? [String] {
-			let serverDocumentBacklinks = serverDocumentBacklinkDescs.isEmpty ? nil : serverDocumentBacklinkDescs.compactMap { EntityID(description: $0) }
+	func applyOutlineBacklinks(_ record: CKRecord) {
+		if let serverOutlineBacklinkDescs = record[Outline.CloudKitRecord.Fields.outlineBacklinks] as? [String] {
+			let serverOutlineBacklinks = serverOutlineBacklinkDescs.isEmpty ? nil : serverOutlineBacklinkDescs.compactMap { EntityID(description: $0) }
 			
-			if let mergedDocumentBackLinks = merge(client: documentBacklinks, ancestor: ancestorDocumentBacklinks, server: serverDocumentBacklinks) {
-				let documentBacklinksDiff = mergedDocumentBackLinks.difference(from: documentBacklinks ?? [])
+			if let mergedOutlineBackLinks = merge(client: outlineBacklinks, ancestor: ancestorOutlineBacklinks, server: serverOutlineBacklinks) {
+				let outlineBacklinksDiff = mergedOutlineBackLinks.difference(from: outlineBacklinks ?? [])
 				
-				for change in documentBacklinksDiff {
+				for change in outlineBacklinksDiff {
 					switch change {
 					case .insert(_, let documentBacklink, _):
 						createBacklink(documentBacklink, updateCloudKit: false)
@@ -512,12 +512,12 @@ private extension Outline {
 				}
 			}
 		} else {
-			documentBacklinks = [EntityID]()
+			outlineBacklinks = [EntityID]()
 		}
 	}
 
-	func documentDidChangeBySync() {
-		NotificationCenter.default.post(name: .DocumentDidChangeBySync, object: Document.outline(self), userInfo: nil)
+	func outlineDidChangeBySync() {
+		NotificationCenter.default.post(name: .OutlineDidChangeBySync, object: self, userInfo: nil)
 	}
 
 }

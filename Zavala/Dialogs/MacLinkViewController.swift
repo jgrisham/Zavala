@@ -52,16 +52,16 @@ class MacLinkViewController: UIViewController {
 		textTextField.maxResultsListHeight = 80
 		
 		textTextField.itemSelectionHandler = { [weak self] (filteredResults: [SearchTextFieldItem], index: Int) in
-			guard let self, let documentID = filteredResults[index].associatedObject as? EntityID else {
+			guard let self, let outlineID = filteredResults[index].associatedObject as? EntityID else {
 				return
 			}
 			self.textTextField.text = filteredResults[index].title
-			self.linkTextField.text = documentID.url?.absoluteString ?? ""
+			self.linkTextField.text = outlineID.url?.absoluteString ?? ""
 			self.updateUI()
 		}
 		
 		Task {
-			let searchItems = await Outliner.shared.activeDocuments.map { SearchTextFieldItem(title: $0.title ?? "", associatedObject: $0.id) }
+			let searchItems = await Outliner.shared.activeOutlines.map { SearchTextFieldItem(title: $0.title ?? "", associatedObject: $0.id) }
 			textTextField.filterItems(searchItems)
 		}
 		

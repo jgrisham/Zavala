@@ -1,7 +1,4 @@
 //
-//  DocumentContainer.swift
-//  
-//
 //  Created by Maurice Parker on 11/9/20.
 //
 
@@ -11,7 +8,7 @@ import UIKit
 import Foundation
 #endif
 
-public protocol DocumentContainer: DocumentProvider {
+public protocol OutlineContainer: OutlineProvider {
 	var id: EntityID { get }
 	var name: String? { get }
 	#if canImport(UIKit)
@@ -21,7 +18,7 @@ public protocol DocumentContainer: DocumentProvider {
 	var account: Account? { get }
 }
 
-public extension Array where Element == DocumentContainer {
+public extension Array where Element == OutlineContainer {
     
     var uniqueAccount: Account? {
         var account: Account? = nil
@@ -37,7 +34,7 @@ public extension Array where Element == DocumentContainer {
     }
     
     var tags: [Tag] {
-        return self.compactMap { ($0 as? TagDocuments)?.tag }
+        return self.compactMap { ($0 as? TagOutlines)?.tag }
     }
 
     var title: String {

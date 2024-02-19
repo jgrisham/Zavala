@@ -37,8 +37,7 @@ protocol EditorDelegate: AnyObject {
 	func zoomImage(_: EditorViewController, image: UIImage, transitioningDelegate: UIViewControllerTransitioningDelegate)
 }
 
-@MainActor
-class EditorViewController: UIViewController, DocumentsActivityItemsConfigurationDelegate, MainControllerIdentifiable {
+class EditorViewController: UIViewController, OutlinesActivityItemsConfigurationDelegate, MainControllerIdentifiable {
 
 	private static let searchBarHeight: CGFloat = 44
 	
@@ -65,9 +64,9 @@ class EditorViewController: UIViewController, DocumentsActivityItemsConfiguratio
 		return keyCommands
 	}
 	
-	var selectedDocuments: [Document] {
+	var selectedOutlines: [Outline] {
 		guard let outline else { return []	}
-		return [Document.outline(outline)]
+		return [outline]
 	}
 	
 	var mainControllerIdentifer: MainControllerIdentifier { return .editor }
@@ -430,7 +429,7 @@ class EditorViewController: UIViewController, DocumentsActivityItemsConfiguratio
 	
 	private var headerFooterSections: IndexSet {
 		var sections = [Outline.Section.title.rawValue, Outline.Section.tags.rawValue]
-		if !(outline?.documentBacklinks?.isEmpty ?? true) {
+		if !(outline?.outlineBacklinks?.isEmpty ?? true) {
 			sections.append(Outline.Section.backlinks.rawValue)
 		}
 		return IndexSet(sections)
@@ -512,7 +511,7 @@ class EditorViewController: UIViewController, DocumentsActivityItemsConfiguratio
 		restoreOutlineCursorPosition()
 		
 		NotificationCenter.default.addObserver(self, selector: #selector(outlineFontCacheDidRebuild(_:)), name: .OutlineFontCacheDidRebuild, object: nil)
-		NotificationCenter.default.addObserver(self, selector: #selector(documentTitleDidChange(_:)), name: .DocumentTitleDidChange, object: nil)
+		NotificationCenter.default.addObserver(self, selector: #selector(outlineTitleDidChange(_:)), name: .OutlineTitleDidChange, object: nil)
 		NotificationCenter.default.addObserver(self, selector: #selector(outlineElementsDidChange(_:)), name: .OutlineElementsDidChange, object: nil)
 		NotificationCenter.default.addObserver(self, selector: #selector(outlineSearchWillBegin(_:)), name: .OutlineSearchWillBegin, object: nil)
 		NotificationCenter.default.addObserver(self, selector: #selector(outlineSearchResultDidChange(_:)), name: .OutlineSearchResultDidChange, object: nil)
@@ -714,9 +713,8 @@ class EditorViewController: UIViewController, DocumentsActivityItemsConfiguratio
 		}
 	}
 	
-	@objc func documentTitleDidChange(_ note: Notification) {
-		guard let document = note.object as? Document,
-			  let updatedOutline = document.outline,
+	@objc func outlineTitleDidChange(_ note: Notification) {
+		guard let updatedOutline = note.object as? Outline,
 			  updatedOutline == outline,
 			  currentTitle != outline?.title else { return }
 		
@@ -962,7 +960,7 @@ class EditorViewController: UIViewController, DocumentsActivityItemsConfiguratio
 		
 		var backwardItems = [UIAction]()
 		for (index, pin) in delegate.editorViewControllerGoBackwardStack.enumerated() {
-			backwardItems.append(UIAction(title: pin.document?.title ?? .noTitleLabel) { [weak self] _ in
+			backwardItems.append(UIAction(title: pin.outline?.title ?? .noTitleLabel) { [weak self] _ in
 				guard let self else { return }
 				DispatchQueue.main.async {
 					delegate.goBackward(self, to: index)
@@ -973,7 +971,7 @@ class EditorViewController: UIViewController, DocumentsActivityItemsConfiguratio
 
 		var forwardItems = [UIAction]()
 		for (index, pin) in delegate.editorViewControllerGoForwardStack.enumerated() {
-			forwardItems.append(UIAction(title: pin.document?.title ?? .noTitleLabel) { [weak self] _ in
+			forwardItems.append(UIAction(title: pin.outline?.title ?? .noTitleLabel) { [weak self] _ in
 				guard let self else { return }
 				DispatchQueue.main.async {
 					delegate.goForward(self, to: index)
@@ -1341,7 +1339,7 @@ class EditorViewController: UIViewController, DocumentsActivityItemsConfiguratio
 	}
 	
 	@objc func share(_ sender: Any? = nil) {
-		let controller = UIActivityViewController(activityItemsConfiguration: DocumentsActivityItemsConfiguration(delegate: self))
+		let controller = UIActivityViewController(activityItemsConfiguration: OutlinesActivityItemsConfiguration(delegate: self))
 		if let sendingView = sender as? UIView {
 			controller.popoverPresentationController?.sourceView = sendingView
 		} else {
@@ -1561,7 +1559,7 @@ extension EditorViewController: UICollectionViewDelegate, UICollectionViewDataSo
 		if isSearching {
 			return 1
 		} else {
-			if outline?.documentBacklinks?.isEmpty ?? true {
+			if outline?.outlineBacklinks?.isEmpty ?? true {
 				return 3
 			} else {
 				return 4
@@ -3410,12 +3408,12 @@ private extension EditorViewController {
 
 	func updateSpotlightIndex() {
 		if let outline {
-			DocumentIndexer.updateIndex(forDocument: .outline(outline))
+			OutlineIndexer.updateIndex(for: outline)
 		}
 	}
 	
 	func generateBacklinkVerbaige(outline: Outline) -> NSAttributedString? {
-		guard let backlinks = outline.documentBacklinks, !backlinks.isEmpty else {
+		guard let backlinks = outline.outlineBacklinks, !backlinks.isEmpty else {
 			return nil
 		}
 		
@@ -3439,6 +3437,7 @@ private extension EditorViewController {
 		return result
 	}
 	
+	#warning("Uncomment this code and fix it")
 	func generateBacklink(id: EntityID) -> NSAttributedString {
 //		if let title = Outliner.shared.findDocument(id)?.title, !title.isEmpty, let url = id.url {
 //			let result = NSMutableAttributedString(string: title)

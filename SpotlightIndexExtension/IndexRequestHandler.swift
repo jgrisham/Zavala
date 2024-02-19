@@ -21,10 +21,10 @@ class IndexRequestHandler: CSIndexExtensionRequestHandler {
 			await self.resume()
 
 			await withTaskGroup(of: Void.self) { taskGroup in
-				for document in await Outliner.shared.documents {
+				for outline in await Outliner.shared.outlines {
 					autoreleasepool {
 						taskGroup.addTask {
-							let searchableItem = await DocumentIndexer.makeSearchableItem(forDocument: document)
+							let searchableItem = await OutlineIndexer.makeSearchableItem(forOutline: outline)
 							await withCheckedContinuation { continuation in
 								searchableIndex.indexSearchableItems([searchableItem]) { _ in
 									continuation.resume()
@@ -49,10 +49,10 @@ class IndexRequestHandler: CSIndexExtensionRequestHandler {
 
 			await withTaskGroup(of: Void.self) { taskGroup in
 				for description in identifiers {
-					if let entityID = EntityID(description: description), let document = await Outliner.shared.findDocument(entityID) {
+					if let entityID = EntityID(description: description), let outline = await Outliner.shared.findOutline(entityID) {
 						autoreleasepool {
 							taskGroup.addTask {
-								let searchableItem = await DocumentIndexer.makeSearchableItem(forDocument: document)
+								let searchableItem = await OutlineIndexer.makeSearchableItem(forOutline: outline)
 								await withCheckedContinuation { continuation in
 									searchableIndex.indexSearchableItems([searchableItem]) { _ in
 										continuation.resume()

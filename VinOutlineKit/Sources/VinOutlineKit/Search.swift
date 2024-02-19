@@ -12,7 +12,7 @@ import Foundation
 #endif
 import CoreSpotlight
 
-public final class Search: Identifiable, DocumentContainer {
+public final class Search: Identifiable, OutlineContainer {
 	
 	public var id: EntityID
 	public var name: String? = VinOutlineKitStringAssets.search
@@ -30,7 +30,7 @@ public final class Search: Identifiable, DocumentContainer {
 	
 	private var searchQuery: CSSearchQuery?
 
-	public var documents: [Document] {
+	public var outlines: [Outline] {
 		get async throws {
 			searchQuery?.cancel()
 			
@@ -52,15 +52,15 @@ public final class Search: Identifiable, DocumentContainer {
 					if let error {
 						continuation.resume(throwing: error)
 					} else {
-						let documentIDs = foundItems.compactMap { EntityID(description: $0.uniqueIdentifier) }
+						let outlineIDs = foundItems.compactMap { EntityID(description: $0.uniqueIdentifier) }
 						Task {
-							var documents = [Document]()
-							for documentID in documentIDs {
-								if let document = await Outliner.shared.findDocument(documentID) {
-									documents.append(document)
+							var outlines = [Outline]()
+							for outlineID in outlineIDs {
+								if let outline = await Outliner.shared.findOutline(outlineID) {
+									outlines.append(outline)
 								}
 							}
-							continuation.resume(returning: documents)
+							continuation.resume(returning: outlines)
 						}
 					}
 				}

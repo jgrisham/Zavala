@@ -9,43 +9,43 @@ import Foundation
 
 public enum EntityID: CustomStringConvertible, Hashable, Equatable, Codable {
 	case account(Int)
-	case document(Int, String) // Account, Document
-	case row(Int, String, String) // Account, Document, Row
-	case image(Int, String, String, String) // Account, Document, Row, Image
-	case allDocuments(Int) // Account
-	case recentDocuments(Int) // Account
-	case tagDocuments(Int, String) // Account, Tag
+	case outline(Int, String) // Account, Outline
+	case row(Int, String, String) // Account, Outline, Row
+	case image(Int, String, String, String) // Account, Outline, Row, Image
+	case allOutlines(Int) // Account
+	case recentOutlines(Int) // Account
+	case tagOutlines(Int, String) // Account, Tag
 	case search(String) // Search String
 
 	public var accountID: Int {
 		switch self {
 		case .account(let accountID):
 			return accountID
-		case .document(let accountID, _):
+		case .outline(let accountID, _):
 			return accountID
 		case .row(let accountID, _, _):
 			return accountID
 		case .image(let accountID, _, _, _):
 			return accountID
-		case .allDocuments(let accountID):
+		case .allOutlines(let accountID):
 			return accountID
-		case .recentDocuments(let accountID):
+		case .recentOutlines(let accountID):
 			return accountID
-		case .tagDocuments(let accountID, _):
+		case .tagOutlines(let accountID, _):
 			return accountID
 		default:
 			fatalError()
 		}
 	}
 
-	public var documentUUID: String {
+	public var outlineUUID: String {
 		switch self {
-		case .document(_, let documentID):
-			return documentID
-		case .row(_, let documentID, _):
-			return documentID
-		case .image(_, let documentID, _, _):
-			return documentID
+		case .outline(_, let outlineID):
+			return outlineID
+		case .row(_, let outlineID, _):
+			return outlineID
+		case .image(_, let outlineID, _, _):
+			return outlineID
 		default:
 			fatalError()
 		}
@@ -75,20 +75,20 @@ public enum EntityID: CustomStringConvertible, Hashable, Equatable, Codable {
 		switch self {
 		case .account(let id):
 			return "account:\(id)"
-		case .document(let accountID, let documentID):
-			return "document:\(accountID)_\(documentID)"
-		case .row(let accountID, let documentID, let rowID):
-			return "row:\(accountID)_\(documentID)_\(rowID)"
-		case .image(let accountID, let documentID, let rowID, let imageID):
-			return "image:\(accountID)_\(documentID)_\(rowID)_\(imageID)"
+		case .outline(let accountID, let outlineID):
+			return "document:\(accountID)_\(outlineID)"
+		case .row(let accountID, let outlineID, let rowID):
+			return "row:\(accountID)_\(outlineID)_\(rowID)"
+		case .image(let accountID, let outlineID, let rowID, let imageID):
+			return "image:\(accountID)_\(outlineID)_\(rowID)_\(imageID)"
 		case .search(let searchText):
 			return "search:\(searchText)"
-		case .allDocuments(let id):
-			return "allDocuments:\(id)"
-		case .recentDocuments(let id):
-			return "recentDocuments:\(id)"
-		case .tagDocuments(let accountID, let tagID):
-			return "tagDocuments:\(accountID)_\(tagID)"
+		case .allOutlines(let id):
+			return "allOutlines:\(id)"
+		case .recentOutlines(let id):
+			return "recentOutlines:\(id)"
+		case .tagOutlines(let accountID, let tagID):
+			return "tagOutlines:\(accountID)_\(tagID)"
 		}
 	}
 	
@@ -99,24 +99,24 @@ public enum EntityID: CustomStringConvertible, Hashable, Equatable, Codable {
 				"type": "account",
 				"accountID": accountID
 			]
-		case .document(let accountID, let documentID):
+		case .outline(let accountID, let outlineID):
 			return [
 				"type": "document",
 				"accountID": accountID,
-				"documentID": documentID
+				"documentID": outlineID
 			]
-		case .row(let accountID, let documentID, let rowID):
+		case .row(let accountID, let outlineID, let rowID):
 			return [
 				"type": "row",
 				"accountID": accountID,
-				"documentID": documentID,
+				"documentID": outlineID,
 				"rowID": rowID
 			]
-		case .image(let accountID, let documentID, let rowID, let imageID):
+		case .image(let accountID, let outlineID, let rowID, let imageID):
 			return [
 				"type": "image",
 				"accountID": accountID,
-				"documentID": documentID,
+				"documentID": outlineID,
 				"rowID": rowID,
 				"imageID": imageID
 			]
@@ -125,19 +125,19 @@ public enum EntityID: CustomStringConvertible, Hashable, Equatable, Codable {
 				"type": "search",
 				"searchText": searchText
 			]
-		case .allDocuments(let accountID):
+		case .allOutlines(let accountID):
 			return [
-				"type": "allDocuments",
+				"type": "allOutlines",
 				"accountID": accountID
 			]
-		case .recentDocuments(let accountID):
+		case .recentOutlines(let accountID):
 			return [
-				"type": "recentDocuments",
+				"type": "recentOutlines",
 				"accountID": accountID
 			]
-		case .tagDocuments(let accountID, let tagID):
+		case .tagOutlines(let accountID, let tagID):
 			return [
-				"type": "tagDocuments",
+				"type": "tagOutlines",
 				"accountID": accountID,
 				"tagID": tagID
 			]
@@ -146,14 +146,14 @@ public enum EntityID: CustomStringConvertible, Hashable, Equatable, Codable {
 
 	public var url: URL? {
 		switch self {
-		case .document(let acct, let documentUUID):
+		case .outline(let acct, let outlineUUID):
 			var urlComponents = URLComponents()
 			urlComponents.scheme = "zavala"
 			urlComponents.host = "document"
 			
 			var queryItems = [URLQueryItem]()
 			queryItems.append(URLQueryItem(name: "accountID", value: String(acct)))
-			queryItems.append(URLQueryItem(name: "documentUUID", value: String(documentUUID)))
+			queryItems.append(URLQueryItem(name: "documentUUID", value: String(outlineUUID)))
 			urlComponents.queryItems = queryItems
 			
 			return urlComponents.url!
@@ -173,9 +173,9 @@ public enum EntityID: CustomStringConvertible, Hashable, Equatable, Codable {
 	
 	public var isSystemCollection: Bool {
 		switch self {
-		case .allDocuments(_):
+		case .allOutlines(_):
 			return true
-		case .recentDocuments(_):
+		case .recentOutlines(_):
 			return true
 		default:
 			return false
@@ -184,7 +184,7 @@ public enum EntityID: CustomStringConvertible, Hashable, Equatable, Codable {
 	
 	public var isDocument: Bool {
 		switch self {
-		case .document(_, _):
+		case .outline(_, _):
 			return true
 		default:
 			return false
@@ -212,7 +212,7 @@ public enum EntityID: CustomStringConvertible, Hashable, Equatable, Codable {
 			let idString = description.suffix(from: description.index(description.startIndex, offsetBy: 9))
 			let ids = idString.split(separator: "_")
 			if let accountID = Int(ids[0]) {
-				self = .document(accountID, String(ids[1]))
+				self = .outline(accountID, String(ids[1]))
 				return
 			}
 		} else if description.starts(with: "row:") {
@@ -233,23 +233,23 @@ public enum EntityID: CustomStringConvertible, Hashable, Equatable, Codable {
 			let searchText = description.suffix(from: description.index(description.startIndex, offsetBy: 7))
 			self = .search(String(searchText))
 			return
-		} else if description.starts(with: "allDocuments:") {
+		} else if description.starts(with: "allOutlines:") {
 			let idString = description.suffix(from: description.index(description.startIndex, offsetBy: 13))
 			if let accountID = Int(idString) {
-				self = .allDocuments(accountID)
+				self = .allOutlines(accountID)
 				return
 			}
-		} else if description.starts(with: "recentDocuments:") {
+		} else if description.starts(with: "recentOutlines:") {
 			let idString = description.suffix(from: description.index(description.startIndex, offsetBy: 16))
 			if let accountID = Int(idString) {
-				self = .recentDocuments(accountID)
+				self = .recentOutlines(accountID)
 				return
 			}
-		} else if description.starts(with: "tagDocuments:") {
+		} else if description.starts(with: "tagOutlines:") {
 			let idString = description.suffix(from: description.index(description.startIndex, offsetBy: 13))
 			let ids = idString.split(separator: "_")
 			if let accountID = Int(ids[0]) {
-				self = .tagDocuments(accountID, String(ids[1]))
+				self = .tagOutlines(accountID, String(ids[1]))
 				return
 			}
 		}
@@ -266,32 +266,32 @@ public enum EntityID: CustomStringConvertible, Hashable, Equatable, Codable {
 			self = .account(accountID)
 		case "document":
 			let accountID = try container.decode(Int.self, forKey: .accountID)
-			let documentID = try container.decode(String.self, forKey: .documentID)
-			self = .document(accountID, documentID)
+			let outlineID = try container.decode(String.self, forKey: .documentID)
+			self = .outline(accountID, outlineID)
 		case "row":
 			let accountID = try container.decode(Int.self, forKey: .accountID)
-			let documentID = try container.decode(String.self, forKey: .documentID)
+			let outlineID = try container.decode(String.self, forKey: .documentID)
 			let rowID = try container.decode(String.self, forKey: .rowID)
-			self = .row(accountID, documentID, rowID)
+			self = .row(accountID, outlineID, rowID)
 		case "image":
 			let accountID = try container.decode(Int.self, forKey: .accountID)
-			let documentID = try container.decode(String.self, forKey: .documentID)
+			let outlineID = try container.decode(String.self, forKey: .documentID)
 			let rowID = try container.decode(String.self, forKey: .rowID)
 			let imageID = try container.decode(String.self, forKey: .imageID)
-			self = .image(accountID, documentID, rowID, imageID)
+			self = .image(accountID, outlineID, rowID, imageID)
 		case "search":
 			let searchText = try container.decode(String.self, forKey: .searchText)
 			self = .search(searchText)
-		case "allDocuments":
+		case "allOutlines":
 			let accountID = try container.decode(Int.self, forKey: .accountID)
-			self = .allDocuments(accountID)
-		case "recentDocuments":
+			self = .allOutlines(accountID)
+		case "recentOutlines":
 			let accountID = try container.decode(Int.self, forKey: .accountID)
-			self = .recentDocuments(accountID)
-		case "tagDocuments":
+			self = .recentOutlines(accountID)
+		case "tagOutlines":
 			let accountID = try container.decode(Int.self, forKey: .accountID)
 			let tagID = try container.decode(String.self, forKey: .tagID)
-			self = .tagDocuments(accountID, tagID)
+			self = .tagOutlines(accountID, tagID)
 		default:
 			fatalError()
 		}
@@ -306,32 +306,32 @@ public enum EntityID: CustomStringConvertible, Hashable, Equatable, Codable {
 			self = .account(accountID)
 		case "document":
 			guard let accountID = userInfo["accountID"] as? Int else { return nil }
-			guard let documentID = userInfo["documentID"] as? String else { return nil }
-			self = .document(accountID, documentID)
+			guard let outlineID = userInfo["documentID"] as? String else { return nil }
+			self = .outline(accountID, outlineID)
 		case "row":
 			guard let accountID = userInfo["accountID"] as? Int else { return nil }
-			guard let documentID = userInfo["documentID"] as? String else { return nil }
+			guard let outlineID = userInfo["documentID"] as? String else { return nil }
 			guard let rowID = userInfo["rowID"] as? String else { return nil }
-			self = .row(accountID, documentID, rowID)
+			self = .row(accountID, outlineID, rowID)
 		case "image":
 			guard let accountID = userInfo["accountID"] as? Int else { return nil }
-			guard let documentID = userInfo["documentID"] as? String else { return nil }
+			guard let outlineID = userInfo["documentID"] as? String else { return nil }
 			guard let rowID = userInfo["rowID"] as? String else { return nil }
 			guard let imageID = userInfo["imageID"] as? String else { return nil }
-			self = .image(accountID, documentID, rowID, imageID)
+			self = .image(accountID, outlineID, rowID, imageID)
 		case "search":
 			guard let searchText = userInfo["searchText"] as? String else { return nil }
 			self = .search(searchText)
-		case "allDocuments":
+		case "allOutlines":
 			guard let accountID = userInfo["accountID"] as? Int else { return nil }
-			self = .allDocuments(accountID)
-		case "recentDocuments":
+			self = .allOutlines(accountID)
+		case "recentOutlines":
 			guard let accountID = userInfo["accountID"] as? Int else { return nil }
-			self = .recentDocuments(accountID)
-		case "tagDocuments":
+			self = .recentOutlines(accountID)
+		case "tagOutlines":
 			guard let accountID = userInfo["accountID"] as? Int else { return nil }
 			guard let tagID = userInfo["tagID"] as? String else { return nil }
-			self = .tagDocuments(accountID, tagID)
+			self = .tagOutlines(accountID, tagID)
 		default:
 			return nil
 		}
@@ -341,10 +341,10 @@ public enum EntityID: CustomStringConvertible, Hashable, Equatable, Codable {
 		guard let urlComponents = URLComponents(url: url, resolvingAgainstBaseURL: false),
 			  let accountIDString = urlComponents.queryItems?.first(where: { $0.name == "accountID" })?.value,
 			  let accountID = Int(accountIDString),
-			  let documentUUID = urlComponents.queryItems?.first(where: { $0.name == "documentUUID" })?.value else {
+			  let outlineUUID = urlComponents.queryItems?.first(where: { $0.name == "documentUUID" })?.value else {
 			return nil
 		}
-		self = .document(accountID, documentUUID)
+		self = .outline(accountID, outlineUUID)
 	}
 
 	public func encode(to encoder: Encoder) throws {
@@ -354,32 +354,32 @@ public enum EntityID: CustomStringConvertible, Hashable, Equatable, Codable {
 		case .account(let accountID):
 			try container.encode("account", forKey: .type)
 			try container.encode(accountID, forKey: .accountID)
-		case .document(let accountID, let documentID):
+		case .outline(let accountID, let outlineID):
 			try container.encode("document", forKey: .type)
 			try container.encode(accountID, forKey: .accountID)
-			try container.encode(documentID, forKey: .documentID)
-		case .row(let accountID, let documentID, let rowID):
+			try container.encode(outlineID, forKey: .documentID)
+		case .row(let accountID, let outlineID, let rowID):
 			try container.encode("row", forKey: .type)
 			try container.encode(accountID, forKey: .accountID)
-			try container.encode(documentID, forKey: .documentID)
+			try container.encode(outlineID, forKey: .documentID)
 			try container.encode(rowID, forKey: .rowID)
-		case .image(let accountID, let documentID, let rowID, let imageID):
+		case .image(let accountID, let outlineID, let rowID, let imageID):
 			try container.encode("image", forKey: .type)
 			try container.encode(accountID, forKey: .accountID)
-			try container.encode(documentID, forKey: .documentID)
+			try container.encode(outlineID, forKey: .documentID)
 			try container.encode(rowID, forKey: .rowID)
 			try container.encode(imageID, forKey: .imageID)
 		case .search(let searchText):
 			try container.encode("search", forKey: .type)
 			try container.encode(searchText, forKey: .searchText)
-		case .allDocuments(let accountID):
-			try container.encode("allDocuments", forKey: .type)
+		case .allOutlines(let accountID):
+			try container.encode("allOutlines", forKey: .type)
 			try container.encode(accountID, forKey: .accountID)
-		case .recentDocuments(let accountID):
-			try container.encode("recentDocuments", forKey: .type)
+		case .recentOutlines(let accountID):
+			try container.encode("recentOutlines", forKey: .type)
 			try container.encode(accountID, forKey: .accountID)
-		case .tagDocuments(let accountID, let tagID):
-			try container.encode("tagDocuments", forKey: .type)
+		case .tagOutlines(let accountID, let tagID):
+			try container.encode("tagOutlines", forKey: .type)
 			try container.encode(accountID, forKey: .accountID)
 			try container.encode(tagID, forKey: .tagID)
 		}

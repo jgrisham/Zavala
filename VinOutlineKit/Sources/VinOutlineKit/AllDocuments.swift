@@ -1,7 +1,4 @@
 //
-//  AccountDocuments.swift
-//  
-//
 //  Created by Maurice Parker on 1/27/21.
 //
 
@@ -10,7 +7,7 @@ import UIKit
 #else
 import Foundation
 #endif
-public final class AllDocuments: Identifiable, DocumentContainer {
+public final class AllOutlines: Identifiable, OutlineContainer {
 
 	public var id: EntityID
 	public var name: String? = VinOutlineKitStringAssets.all
@@ -23,16 +20,16 @@ public final class AllDocuments: Identifiable, DocumentContainer {
 //		return account?.documents?.count
 	}
 
-	public var documents: [Document] {
+	public var outlines: [Outline] {
 		get async {
-			return await account?.documents ?? []
+			return await account?.outlines ?? []
 		}
 	}
 
 	public weak var account: Account?
 	
 	public init(account: Account) {
-		self.id = .allDocuments(account.id.accountID)
+		self.id = .allOutlines(account.id.accountID)
 		self.account = account
 	}
 	

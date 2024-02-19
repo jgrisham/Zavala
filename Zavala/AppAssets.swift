@@ -39,7 +39,6 @@ extension UIImage {
 
 	static var delete = UIImage(systemName: "trash")!
 	static var disclosure = UIImage(systemName: "chevron.down")!.applyingSymbolConfiguration(.init(pointSize: 12, weight: .medium))!
-	static var documentLink = UIImage(named: "DocumentLink")!.applyingSymbolConfiguration(.init(pointSize: 24, weight: .medium))!
 	static var duplicate = UIImage(systemName: "plus.square.on.square")!
 
 	static var ellipsis = UIImage(systemName: "ellipsis.circle")!
@@ -59,7 +58,7 @@ extension UIImage {
 	static var goBackward = UIImage(systemName: "chevron.left")!
 	static var goForward = UIImage(systemName: "chevron.right")!
 
-	static var importDocument = UIImage(systemName: "square.and.arrow.down")!
+	static var importOutline = UIImage(systemName: "square.and.arrow.down")!
 	static var italic = UIImage(systemName: "italic")!
 
 	static var hideKeyboard = UIImage(systemName: "keyboard.chevron.compact.down")!
@@ -81,6 +80,7 @@ extension UIImage {
 	static var noteFont = UIImage(systemName: "textformat.size.smaller")!
 
 	static var outline = UIImage(named: "Outline")!
+	static var outlineLink = UIImage(named: "OutlineLink")!.applyingSymbolConfiguration(.init(pointSize: 24, weight: .medium))!
 
 	static var paste = UIImage(systemName: "doc.on.clipboard")!
 	#if targetEnvironment(macCatalyst)
@@ -175,8 +175,8 @@ extension String {
 	static var completeAccessibilityLabel = String(localized: "Complete", comment: "Accessibility Label: Complete")
 	static var completeControlLabel = String(localized: "Complete", comment: "Control Label: Complete")
 	static var copyControlLabel = String(localized: "Copy", comment: "Control Label: Copy")
-	static var copyDocumentLinkControlLabel = String(localized: "Copy Document Link", comment: "Control Label: Copy Document Link")
-	static var copyDocumentLinksControlLabel = String(localized: "Copy Document Links", comment: "Control Label: Copy Document Links")
+	static var copyOutlineLinkControlLabel = String(localized: "Copy Outline Link", comment: "Control Label: Copy Outline Link")
+	static var copyOutlineLinksControlLabel = String(localized: "Copy Outline Links", comment: "Control Label: Copy Outline Links")
 	static var correctSpellingAutomaticallyControlLabel = String(localized: "Correct Spelling Automatically", comment: "Control Label: Correct Spelling Automatically")
 	static var corruptedOutlineTitle = String(localized: "Corrupted Outline", comment: "Alert Title: Corrupted Outline")
 	static var corruptedOutlineMessage = String(localized: "This outline appears to be corrupted. Would you like to fix it?", comment: "Alert Message: Corrupted Outline")
@@ -200,7 +200,6 @@ extension String {
 	static var deleteTagMessage = String(localized: "No Outlines associated with this tag will be deleted.", comment: "Alert Message: delete tag")
 	static var deleteTagsMessage = String(localized: "No Outlines associated with these tags will be deleted.", comment: "Alert Message: delete tags")
 	static var disableEditorAnimationsControlLabel = String(localized: "Disable Editor Animations", comment: "Control Label: Disable Editor Animations")
-	static var documentFindEllipsisControlLabel = String(localized: "Document Find…", comment: "Control Label: Document Find…")
 	static var doneControlLabel = String(localized: "Done", comment: "Control Label: Done")
 	static var duplicateControlLabel = String(localized: "Duplicate", comment: "Control Label: Duplicate")
 	
@@ -292,6 +291,7 @@ extension String {
 	static var opmlOwnerFieldNote = String(localized: "This information is included in OPML documents to attribute ownership.", comment: "Note: OPML Ownership.")
 	static var orangeControlLabel = String(localized: "Orange", comment: "Control Label: Orange")
 	static var ownerControlLabel = String(localized: "Owner", comment: "Control Label: Owner")
+	static var outlineFindEllipsisControlLabel = String(localized: "Outline Find…", comment: "Control Label: Outline Find…")
 
 	static var pasteControlLabel = String(localized: "Paste", comment: "Control Label: Paste")
 	static var preferencesEllipsisControlLabel = String(localized: "Preferences…", comment: "Control Label: Preferences…")
@@ -314,7 +314,7 @@ extension String {
 	static var releaseNotesControlLabel = String(localized: "Release Notes", comment: "Control Label: Release Notes")
 	static var removeControlLabel = String(localized: "Remove", comment: "Control Label: Remove")
 	static var removeICloudAccountTitle = String(localized: "Remove iCloud Account", comment: "Alert Title: title for removing an iCloud Account")
-	static var removeICloudAccountMessage = String(localized: "Are you sure you want to remove the iCloud Account? All documents in the iCloud Account will be removed from this computer.",
+	static var removeICloudAccountMessage = String(localized: "Are you sure you want to remove the iCloud Account? All outlines in the iCloud Account will be removed from this computer.",
 												   comment: "Alert Message: message for removing an iCloud Account")
 	static var referenceLabel = String(localized: "Reference: ", comment: "Label: reference label for backlinks")
 	static var referencesLabel = String(localized: "References: ", comment: "Label: references label for backlinks")
@@ -403,16 +403,16 @@ extension String {
 		return String(localized: "Are you sure you want to delete \(outlineCount) outlines?", comment: "Confirmation: delete outlines?")
 	}
 	
-	static func documents(count: Int) -> String {
-		return String(localized: "\(count) documents", comment: "Title: number of documents")
+	static func outlines(count: Int) -> String {
+		return String(localized: "\(count) outlines", comment: "Title: number of outlines")
 	}
 	
-	static func seeDocumentsInPrompt(documentContainerTitle: String) -> String {
-		return String(localized: "See documents in “\(documentContainerTitle)”", comment: "Prompt: see documents in document container")
+	static func seeOutlinesInPrompt(outlineContainerTitle: String) -> String {
+		return String(localized: "See outlines in “\(outlineContainerTitle)”", comment: "Prompt: see outlines in outline container")
 	}
 	
-	static func editDocumentPrompt(documentTitle: String) -> String {
-		return String(localized: "Edit document “\(documentTitle)”", comment: "Prompt: edit document")
+	static func editOutlinePrompt(outlineTitle: String) -> String {
+		return String(localized: "Edit outline “\(outlineTitle)”", comment: "Prompt: edit outline")
 	}
 	
 	static func topicLevelLabel(level: Int) -> String {

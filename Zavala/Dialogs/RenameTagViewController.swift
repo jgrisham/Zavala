@@ -10,7 +10,7 @@ import VinOutlineKit
 
 class RenameTagViewController: UITableViewController {
 
-	var tagDocuments: TagDocuments?
+	var tagOutlines: TagOutlines?
 	
 	@IBOutlet weak var renameBarButtonItem: UIBarButtonItem!
 	@IBOutlet weak var tagNameTextField: UITextField!
@@ -25,7 +25,7 @@ class RenameTagViewController: UITableViewController {
 
 	override func viewDidAppear(_ animated: Bool) {
 		super.viewDidAppear(animated)
-		tagNameTextField.text = tagDocuments?.tag?.name
+		tagNameTextField.text = tagOutlines?.tag?.name
 		tagNameTextField.becomeFirstResponder()
 		updateUI()
 	}
@@ -35,8 +35,8 @@ class RenameTagViewController: UITableViewController {
 	}
 	
 	@IBAction func submit(_ sender: Any) {
-		guard let tagName = tagNameTextField.text, let tag = tagDocuments?.tag else { return }
-		tagDocuments?.account?.renameTag(tag, to: tagName)
+		guard let tagName = tagNameTextField.text, let tag = tagOutlines?.tag else { return }
+		tagOutlines?.account?.renameTag(tag, to: tagName)
 		dismiss(animated: true)
 	}
 	

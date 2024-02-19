@@ -16,6 +16,13 @@ import OrderedCollections
 import VinUtility
 
 public extension Notification.Name {
+	static let OutlineDidChangeBySync = Notification.Name(rawValue: "OutlineDidChangeBySync")
+	static let OutlineTitleDidChange = Notification.Name(rawValue: "OutlineTitleDidChange")
+	static let OutlineUpdatedDidChange = Notification.Name(rawValue: "OutlineUpdatedDidChange")
+	static let OutlineMetaDataDidChange = Notification.Name(rawValue: "OutlineMetaDataDidChange")
+	static let OutlineDidDelete = Notification.Name(rawValue: "OutlineDidDelete")
+	static let OutlineSharingDidChange = Notification.Name(rawValue: "OutlineSharingDidChange")
+
 	static let OutlineTagsDidChange = Notification.Name(rawValue: "OutlineTagsDidChange")
 	static let OutlineTextPreferencesDidChange = Notification.Name(rawValue: "OutlineTextPreferencesDidChange")
 	static let OutlineElementsDidChange = Notification.Name(rawValue: "OutlineElementsDidChange")
@@ -129,7 +136,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	
 	public var cloudKitMetaData: Data? {
 		didSet {
-			documentMetaDataDidChange()
+			outlineMetaDataDidChange()
 		}
 	}
 	
@@ -137,7 +144,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 
 	public var id: EntityID {
 		didSet {
-			documentMetaDataDidChange()
+			outlineMetaDataDidChange()
 		}
 	}
 
@@ -231,7 +238,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		}
 		didSet {
 			if created != oldValue {
-				documentMetaDataDidChange()
+				outlineMetaDataDidChange()
 			}
 		}
 	}
@@ -246,8 +253,8 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		}
 		didSet {
 			if updated != oldValue {
-				documentUpdatedDidChange()
-				documentMetaDataDidChange()
+				outlineUpdatedDidChange()
+				outlineMetaDataDidChange()
 			}
 		}
 	}
@@ -268,13 +275,13 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	
 	public var verticleScrollState: Int? {
 		didSet {
-			documentMetaDataDidChange()
+			outlineMetaDataDidChange()
 		}
 	}
 
 	public var isFilterOn: Bool? {
 		didSet {
-			documentMetaDataDidChange()
+			outlineMetaDataDidChange()
 		}
 	}
 	
@@ -284,7 +291,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 
 	public var isCompletedFiltered: Bool? {
 		didSet {
-			documentMetaDataDidChange()
+			outlineMetaDataDidChange()
 		}
 	}
 	
@@ -294,17 +301,17 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 
 	public var isNotesFiltered: Bool? {
 		didSet {
-			documentMetaDataDidChange()
+			outlineMetaDataDidChange()
 		}
 	}
 	
-	var ancestorDocumentLinks: [EntityID]?
-	var serverDocumentLinks: [EntityID]?
-	public internal(set) var documentLinks: [EntityID]?
+	var ancestorOutlineLinks: [EntityID]?
+	var serverOutlineLinks: [EntityID]?
+	public internal(set) var outlineLinks: [EntityID]?
 	
-	var ancestorDocumentBacklinks: [EntityID]?
-	var serverDocumentBacklinks: [EntityID]?
-	public internal(set) var documentBacklinks: [EntityID]?
+	var ancestorOutlineBacklinks: [EntityID]?
+	var serverOutlineBacklinks: [EntityID]?
+	public internal(set) var outlineBacklinks: [EntityID]?
 	
 	var ancestorHasAltLinks: Bool?
 	var serverHasAltLinks: Bool?
@@ -316,28 +323,28 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		}
 		didSet {
 			if hasAltLinks != oldValue {
-				documentMetaDataDidChange()
+				outlineMetaDataDidChange()
 			}
 		}
 	}
 	
 	public var cloudKitZoneName: String? {
 		didSet {
-			documentMetaDataDidChange()
+			outlineMetaDataDidChange()
 		}
 	}
 
 	public var cloudKitZoneOwner: String? {
 		didSet {
-			documentMetaDataDidChange()
+			outlineMetaDataDidChange()
 		}
 	}
 
 	public var cloudKitShareRecordName: String? {
 		didSet {
 			if cloudKitShareRecordName != oldValue {
-				documentSharingDidChange()
-				documentMetaDataDidChange()
+				outlineSharingDidChange()
+				outlineMetaDataDidChange()
 			}
 		}
 	}
@@ -345,8 +352,8 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	public var cloudKitShareRecordData: Data? {
 		didSet {
 			if cloudKitShareRecordData != oldValue {
-				documentSharingDidChange()
-				documentMetaDataDidChange()
+				outlineSharingDidChange()
+				outlineMetaDataDidChange()
 			}
 		}
 	}
@@ -375,7 +382,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		return (title == nil || title?.isEmpty ?? true) && (rowOrder == nil || rowOrder?.isEmpty ?? true)
 	}
 	
-	public var iCollaborating: Bool {
+	public var isCollaborating: Bool {
 		return cloudKitShareRecord != nil
 	}
 	
@@ -459,14 +466,14 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		}
 		set {
 			if let coordinates = newValue {
-				selectionRowID = .row(id.accountID, id.documentUUID, coordinates.row.id)
+				selectionRowID = .row(id.accountID, id.outlineUUID, coordinates.row.id)
 			} else {
 				selectionRowID = nil
 			}
 			selectionIsInNotes = newValue?.isInNotes
 			selectionLocation = newValue?.selection.location
 			selectionLength = newValue?.selection.length
-			documentMetaDataDidChange()
+			outlineMetaDataDidChange()
 		}
 	}
 	
@@ -564,10 +571,10 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		case selectionLength
 		case ancestorTagIDs
 		case tagIDs = "tagIDS"
-		case ancestorDocumentLinks
-		case documentLinks
-		case ancestorDocumentBacklinks
-		case documentBacklinks
+		case ancestorOutlineLinks = "ancestorDocumentLinks"
+		case outlineLinks = "documentLinks"
+		case ancestorOutlineBacklinks = "ancestorDocumentBacklinks"
+		case outlineBacklinks = "documentBacklinks"
 		case ancestorHasAltLinks
 		case hasAltLinks
 		case cloudKitZoneName
@@ -640,7 +647,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 
 	init(account: Account, parentID: EntityID, title: String?) async {
 		self.account = account
-		self.id = .document(parentID.accountID, UUID().uuidString)
+		self.id = .outline(parentID.accountID, UUID().uuidString)
 		self.title = title
 		self.created = Date()
 		self.updated = Date()
@@ -657,9 +664,8 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	}
 
 	public func reassignAccount(_ accountID: Int) {
-		self.id = .document(accountID, id.documentUUID)
+		self.id = .outline(accountID, id.outlineUUID)
 	}
-	
 	public func prepareForViewing() {
 		rebuildTransientData()
 	}
@@ -1048,7 +1054,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	public func update(title: String?) {
 		self.title = title
 		updated = Date()
-		documentTitleDidChange()
+		outlineTitleDidChange()
 		requestCloudKitUpdate(for: id)
 	}
 	
@@ -1108,17 +1114,17 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		requestCloudKitUpdate(for: id)
 	}
 	
-	func deleteAllBacklinks() {
-		guard let documentBacklinks else { return }
+	public func deleteAllBacklinks() {
+		guard let outlineBacklinks else { return }
 		
-		for documentBacklink in documentBacklinks {
-			deleteBacklink(documentBacklink)
+		for outlineBacklink in outlineBacklinks {
+			deleteBacklink(outlineBacklink)
 		}
 	}
 	
 	public func toggleFilterOn() -> OutlineElementChanges {
 		isFilterOn = !(isFilterOn ?? false)
-		documentMetaDataDidChange()
+		outlineMetaDataDidChange()
 		var changes = rebuildShadowTable()
 
 		if let reloads = shadowTable?.filter({ !$0.isNoteEmpty }).compactMap({ $0.shadowTableIndex }) {
@@ -1131,13 +1137,13 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	
 	public func toggleCompletedFilter() -> OutlineElementChanges {
 		isCompletedFiltered = !(isCompletedFiltered ?? true)
-		documentMetaDataDidChange()
+		outlineMetaDataDidChange()
 		return rebuildShadowTable()
 	}
 	
 	public func toggleNotesFilter() -> OutlineElementChanges {
 		isNotesFiltered = !(isNotesFiltered ?? true)
-		documentMetaDataDidChange()
+		outlineMetaDataDidChange()
 		
 		if let reloads = shadowTable?.filter({ !$0.isNoteEmpty }).compactMap({ $0.shadowTableIndex }) {
 			var changes = OutlineElementChanges(section: adjustedRowsSection, reloads: Set(reloads))
@@ -2445,13 +2451,13 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	}
 	
 	public func delete() async {
-		for link in documentLinks ?? [EntityID]() {
-			if let outline = await Outliner.shared.findDocument(link)?.outline {
+		for link in outlineLinks ?? [EntityID]() {
+			if let outline = await Outliner.shared.findOutline(link)?.outline {
 				outline.deleteBacklink(id)
 			}
 		}
 		
-		documentLinks = nil
+		outlineLinks = nil
 		
 		if rowsFile == nil {
 			rowsFile = await RowsFile(outline: self)
@@ -2471,7 +2477,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	public func duplicate() async -> Outline {
 		guard let account else { fatalError("Account should always be available.") }
 
-		let outline = await Outline(account: account, id: .document(id.accountID, UUID().uuidString))
+		let outline = await Outline(account: account, id: .outline(id.accountID, UUID().uuidString))
 
 		outline.title = title
 		outline.ownerName = ownerName
@@ -2481,10 +2487,10 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		outline.isCompletedFiltered = isCompletedFiltered
 		outline.isNotesFiltered = isNotesFiltered
 		outline.tagIDs = tagIDs
-		outline.documentLinks = documentLinks
+		outline.outlineLinks = outlineLinks
 		
-		for linkedDocumentID in outline.documentLinks ?? [EntityID]() {
-			if let linkedOutline = await Outliner.shared.findDocument(linkedDocumentID)?.outline {
+		for linkedOutlineID in outline.outlineLinks ?? [EntityID]() {
+			if let linkedOutline = await Outliner.shared.findOutline(linkedOutlineID)?.outline {
 				linkedOutline.createBacklink(outline.id)
 			}
 		}
@@ -2530,16 +2536,16 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	}
 	
 	func createBacklink(_ entityID: EntityID, updateCloudKit: Bool = true) {
-		if isCloudKit && ancestorDocumentBacklinks == nil {
-			ancestorDocumentBacklinks = documentBacklinks
+		if isCloudKit && ancestorOutlineBacklinks == nil {
+			ancestorOutlineBacklinks = outlineBacklinks
 		}
 
-		if documentBacklinks == nil {
-			documentBacklinks = [EntityID]()
+		if outlineBacklinks == nil {
+			outlineBacklinks = [EntityID]()
 		}
 				
-		documentBacklinks?.append(entityID)
-		documentMetaDataDidChange()
+		outlineBacklinks?.append(entityID)
+		outlineMetaDataDidChange()
 		
 		if updateCloudKit {
 			requestCloudKitUpdate(for: id)
@@ -2547,7 +2553,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 
 		guard isBeingUsed else { return }
 
-		if documentBacklinks?.count ?? 0 == 1 {
+		if outlineBacklinks?.count ?? 0 == 1 {
 			outlineAddedBacklinks()
 		} else {
 			if isSearching == .notSearching {
@@ -2557,12 +2563,12 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	}
 
 	func deleteBacklink(_ entityID: EntityID, updateCloudKit: Bool = true) {
-		if isCloudKit && ancestorDocumentBacklinks == nil {
-			ancestorDocumentBacklinks = documentBacklinks
+		if isCloudKit && ancestorOutlineBacklinks == nil {
+			ancestorOutlineBacklinks = outlineBacklinks
 		}
 
-		documentBacklinks?.removeFirst(object: entityID)
-		documentMetaDataDidChange()
+		outlineBacklinks?.removeFirst(object: entityID)
+		outlineMetaDataDidChange()
 		
 		if updateCloudKit {
 			requestCloudKitUpdate(for: id)
@@ -2570,7 +2576,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 
 		guard isBeingUsed else { return }
 		
-		if documentBacklinks?.count ?? 0 == 0 {
+		if outlineBacklinks?.count ?? 0 == 0 {
 			outlineRemovedBacklinks()
 		} else {
 			if isSearching == .notSearching {
@@ -2580,22 +2586,22 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	}
 
 	public func updateAllLinkRelationships() async {
-		var newDocumentLinks = [EntityID]()
+		var newOutlineLinks = [EntityID]()
 		
 		func linkVisitor(_ visited: Row) {
 			if let topic = visited.topic {
-				newDocumentLinks.append(contentsOf: extractLinkToIDs(topic))
+				newOutlineLinks.append(contentsOf: extractLinkToIDs(topic))
 			}
 			if let note = visited.note {
-				newDocumentLinks.append(contentsOf: extractLinkToIDs(note))
+				newOutlineLinks.append(contentsOf: extractLinkToIDs(note))
 			}
 			visited.rows.forEach { $0.visit(visitor: linkVisitor) }
 		}
 
 		rows.forEach { $0.visit(visitor: linkVisitor(_:)) }
 		
-		let currentDocumentLinks = documentLinks ?? [EntityID]()
-		let diff = newDocumentLinks.difference(from: currentDocumentLinks)
+		let currentOutlineLinks = outlineLinks ?? [EntityID]()
+		let diff = newOutlineLinks.difference(from: currentOutlineLinks)
 		await processLinkDiff(diff)
 	}
 		
@@ -2662,7 +2668,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	
 
 	func outlineDidDelete() {
-		NotificationCenter.default.post(name: .DocumentDidDelete, object: Document.outline(self), userInfo: nil)
+		NotificationCenter.default.post(name: .OutlineDidDelete, object: self, userInfo: nil)
 	}
 	
 	func outlineElementsDidChange(_ changes: OutlineElementChanges) {
@@ -2716,20 +2722,20 @@ extension Outline: CustomDebugStringConvertible {
 
 private extension Outline {
 	
-	func documentTitleDidChange() {
-		NotificationCenter.default.post(name: .DocumentTitleDidChange, object: Document.outline(self), userInfo: nil)
+	func outlineTitleDidChange() {
+		NotificationCenter.default.post(name: .OutlineTitleDidChange, object: self, userInfo: nil)
 	}
 
-	func documentUpdatedDidChange() {
-		NotificationCenter.default.post(name: .DocumentUpdatedDidChange, object: Document.outline(self), userInfo: nil)
+	func outlineUpdatedDidChange() {
+		NotificationCenter.default.post(name: .OutlineUpdatedDidChange, object: self, userInfo: nil)
 	}
 
-	func documentMetaDataDidChange() {
-		NotificationCenter.default.post(name: .DocumentMetaDataDidChange, object: Document.outline(self), userInfo: nil)
+	func outlineMetaDataDidChange() {
+		NotificationCenter.default.post(name: .OutlineMetaDataDidChange, object: self, userInfo: nil)
 	}
 
-	func documentSharingDidChange() {
-		NotificationCenter.default.post(name: .DocumentSharingDidChange, object: Document.outline(self), userInfo: nil)
+	func outlineSharingDidChange() {
+		NotificationCenter.default.post(name: .OutlineSharingDidChange, object: self, userInfo: nil)
 	}
 
 	func outlineContentDidChange() {
@@ -2739,7 +2745,7 @@ private extension Outline {
 	}
 	
 	func outlineViewPropertyDidChange() {
-		documentMetaDataDidChange()
+		outlineMetaDataDidChange()
 		rowsFile?.markAsDirty()
 	}
 	
@@ -3206,33 +3212,33 @@ private extension Outline {
 	}
 	
 	func createLinkRelationship(_ entityID: EntityID) async {
-		guard let outline = await Outliner.shared.findDocument(entityID)?.outline else { return }
+		guard let outline = await Outliner.shared.findOutline(entityID)?.outline else { return }
 		
-		if isCloudKit && ancestorDocumentLinks == nil {
-			ancestorDocumentLinks = documentLinks
+		if isCloudKit && ancestorOutlineLinks == nil {
+			ancestorOutlineLinks = outlineLinks
 		}
 
 		outline.createBacklink(id)
-		if documentLinks == nil {
-			documentLinks = [EntityID]()
+		if outlineLinks == nil {
+			outlineLinks = [EntityID]()
 		}
-		documentLinks?.append(entityID)
+		outlineLinks?.append(entityID)
 
-		documentMetaDataDidChange()
+		outlineMetaDataDidChange()
 		requestCloudKitUpdate(for: id)
 	}
 
 	func deleteLinkRelationship(_ entityID: EntityID) async {
-		guard let outline = await Outliner.shared.findDocument(entityID)?.outline else { return }
+		guard let outline = await Outliner.shared.findOutline(entityID)?.outline else { return }
 
-		if isCloudKit && ancestorDocumentLinks == nil {
-			ancestorDocumentLinks = documentLinks
+		if isCloudKit && ancestorOutlineLinks == nil {
+			ancestorOutlineLinks = outlineLinks
 		}
 
 		outline.deleteBacklink(id)
-		documentLinks?.removeFirst(object: entityID)
+		outlineLinks?.removeFirst(object: entityID)
 
-		documentMetaDataDidChange()
+		outlineMetaDataDidChange()
 		requestCloudKitUpdate(for: id)
 	}
 
@@ -3328,6 +3334,14 @@ private extension Outline {
 			attrString.append(printTitle)
 		}
 		#endif
+	}
+	
+}
+
+public extension Array where Element == Outline {
+	
+	var title: String {
+		ListFormatter.localizedString(byJoining: self.compactMap({ $0.title }).sorted())
 	}
 	
 }

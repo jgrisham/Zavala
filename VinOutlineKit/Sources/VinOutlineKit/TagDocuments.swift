@@ -11,7 +11,7 @@ import UIKit
 import Foundation
 #endif
 
-public final class TagDocuments: Identifiable, DocumentContainer {
+public final class TagOutlines: Identifiable, OutlineContainer {
 
 	public var id: EntityID
 	public var name: String?
@@ -33,15 +33,15 @@ public final class TagDocuments: Identifiable, DocumentContainer {
 	public weak var account: Account?
 	public weak var tag: Tag?
 	
-	public var documents: [Document] {
+	public var outlines: [Outline] {
 		get async {
-			guard let tag, let documents = await account?.documents else { return [] }
-			return documents.filter { $0.hasTag(tag) }
+			guard let tag, let outlines = await account?.outlines else { return [] }
+			return outlines.filter { $0.hasTag(tag) }
 		}
 	}
 
 	public init(account: Account, tag: Tag) {
-		self.id = .tagDocuments(account.id.accountID, tag.id)
+		self.id = .tagOutlines(account.id.accountID, tag.id)
 		self.account = account
 		self.tag = tag
 		self.name = tag.name

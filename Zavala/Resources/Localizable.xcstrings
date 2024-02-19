@@ -15,8 +15,8 @@
         }
       }
     },
-    "%lld documents" : {
-      "comment" : "Title: number of documents"
+    "%lld outlines" : {
+      "comment" : "Title: number of outlines"
     },
     "About Zavala" : {
       "comment" : "Control Label: About Zavala"
@@ -87,7 +87,7 @@
     "Are you sure you want to delete the completed rows?" : {
       "comment" : "Alert Message: Delete Completed Rows"
     },
-    "Are you sure you want to remove the iCloud Account? All documents in the iCloud Account will be removed from this computer." : {
+    "Are you sure you want to remove the iCloud Account? All outlines in the iCloud Account will be removed from this computer." : {
       "comment" : "Alert Message: message for removing an iCloud Account"
     },
     "Are you sure you want to restore the defaults? All your font customizations will be lost." : {
@@ -159,11 +159,11 @@
     "Copy" : {
       "comment" : "Control Label: Copy"
     },
-    "Copy Document Link" : {
-      "comment" : "Control Label: Copy Document Link"
+    "Copy Outline Link" : {
+      "comment" : "Control Label: Copy Outline Link"
     },
-    "Copy Document Links" : {
-      "comment" : "Control Label: Copy Document Links"
+    "Copy Outline Links" : {
+      "comment" : "Control Label: Copy Outline Links"
     },
     "Copyright © Vincode, Inc. 2020-%@" : {
       "comment" : "About Box copyright information"
@@ -213,17 +213,14 @@
     "Disable Editor Animations" : {
       "comment" : "Control Label: Disable Editor Animations"
     },
-    "Document Find…" : {
-      "comment" : "Control Label: Document Find…"
-    },
     "Done" : {
       "comment" : "Control Label: Done"
     },
     "Duplicate" : {
       "comment" : "Control Label: Duplicate"
     },
-    "Edit document “%@”" : {
-      "comment" : "Prompt: edit document"
+    "Edit outline “%@”" : {
+      "comment" : "Prompt: edit outline"
     },
     "Editor Max Width" : {
       "comment" : "Control Label: Editor Max Width"
@@ -459,6 +456,9 @@
     "Outline Defaults" : {
       "comment" : "Control Label: Outline Defaults"
     },
+    "Outline Find…" : {
+      "comment" : "Control Label: Outline Find…"
+    },
     "Outline Owner" : {
       "comment" : "Control Label: Outline Owner"
     },
@@ -561,8 +561,8 @@
     "Secondary Text" : {
       "comment" : "Control Label: Secondary Text"
     },
-    "See documents in “%@”" : {
-      "comment" : "Prompt: see documents in document container"
+    "See outlines in “%@”" : {
+      "comment" : "Prompt: see outlines in outline container"
     },
     "Select" : {
       "comment" : "Control Label: Select"

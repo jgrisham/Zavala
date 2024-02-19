@@ -10,7 +10,7 @@ import VinOutlineKit
 
 class MacRenameTagViewController: MacFormViewController {
 	
-	var tagDocuments: TagDocuments?
+	var tagOutlines: TagOutlines?
 	
 	@IBOutlet weak var tagNameTextField: UITextField!
 	@IBOutlet weak var renameButton: UIButton!
@@ -19,7 +19,7 @@ class MacRenameTagViewController: MacFormViewController {
 		super.viewDidLoad()
 		
 		tagNameTextField.delegate = self
-		tagNameTextField.text = tagDocuments?.name
+		tagNameTextField.text = tagOutlines?.name
 		
 		renameButton.role = .primary
 		NotificationCenter.default.addObserver(self, selector: #selector(textDidChange(_:)), name: UITextField.textDidChangeNotification, object: tagNameTextField)
@@ -61,8 +61,8 @@ private extension MacRenameTagViewController {
 	}
 	
 	func submitAndDismiss() {
-		guard let tagName = tagNameTextField.text, let tag = tagDocuments?.tag else { return }
-		tagDocuments?.account?.renameTag(tag, to: tagName)
+		guard let tagName = tagNameTextField.text, let tag = tagOutlines?.tag else { return }
+		tagOutlines?.account?.renameTag(tag, to: tagName)
 		dismiss(animated: true)
 	}
 

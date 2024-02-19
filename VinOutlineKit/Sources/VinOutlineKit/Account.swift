@@ -17,7 +17,7 @@ import VinCloudKit
 public extension Notification.Name {
 	static let AccountDidReload = Notification.Name(rawValue: "AccountDidReload")
 	static let AccountMetadataDidChange = Notification.Name(rawValue: "AccountMetadataDidChange")
-	static let AccountDocumentsDidChange = Notification.Name(rawValue: "AccountDocumentsDidChange")
+	static let AccountOutlinesDidChange = Notification.Name(rawValue: "AccountOutlinesDidChange")
 	static let AccountTagsDidChange = Notification.Name(rawValue: "AccountTagsDidChange")
 	static let ActiveAccountsDidChange = Notification.Name(rawValue: "ActiveAccountsDidChange")
 }
@@ -53,28 +53,19 @@ public actor Account: Identifiable, Equatable {
 	public var isActive: Bool
 	
 	public private(set) var tags: [Tag]?
-	public private(set) var documents: [Document]?
+	public private(set) var outlines: [Outline]?
 
 	public private(set) var sharedDatabaseChangeToken: Data?
 	public private(set) var zoneChangeTokens: [VCKChangeTokenKey: Data]?
-
-	enum CodingKeys: String, CodingKey {
-		case type = "type"
-		case isActive = "isActive"
-		case tags = "tags"
-		case documents = "documents"
-		case sharedDatabaseChangeToken = "sharedDatabaseChangeToken"
-		case zoneChangeTokens = "zoneChangeTokens"
-	}
 	
-	public var documentContainers: [DocumentContainer] {
-		var containers = [DocumentContainer]()
-		containers.append(AllDocuments(account: self))
+	public var outlineContainers: [OutlineContainer] {
+		var containers = [OutlineContainer]()
+		containers.append(AllOutlines(account: self))
 
-		for tagDocuments in tags?
+		for tagOutlines in tags?
 			.sorted(by: { $0.name.caseInsensitiveCompare($1.name) == .orderedAscending })
-			.compactMap({ TagDocuments(account: self, tag: $0) }) ?? [TagDocuments]() {
-			containers.append(tagDocuments)
+			.compactMap({ TagOutlines(account: self, tag: $0) }) ?? [TagOutlines]() {
+			containers.append(tagOutlines)
 		}
 		
 		return containers
@@ -96,13 +87,13 @@ public actor Account: Identifiable, Equatable {
 	
 	private let operationQueue = OperationQueue()
 
-	private var documentsDictionaryNeedUpdate = true
-	private var _idToDocumentsDictionary = [String: Document]()
-	private var idToDocumentsDictionary: [String: Document] {
-		if documentsDictionaryNeedUpdate {
-			rebuildDocumentsDictionary()
+	private var outlinesDictionaryNeedUpdate = true
+	private var _idToOutlinesDictionary = [String: Outline]()
+	private var idToOutlinesDictionary: [String: Outline] {
+		if outlinesDictionaryNeedUpdate {
+			rebuildOutlinesDictionary()
 		}
-		return _idToDocumentsDictionary
+		return _idToOutlinesDictionary
 	}
 
 	private var tagsDictionaryNeedUpdate = true
@@ -117,7 +108,7 @@ public actor Account: Identifiable, Equatable {
 	init(accountType: AccountType) {
 		self.type = accountType
 		self.isActive = true
-		self.documents = [Document]()
+		self.outlines = [Outline]()
 	}
 	
 	init(accountCodable: AccountCodable) {
@@ -125,13 +116,17 @@ public actor Account: Identifiable, Equatable {
 		self.isActive = accountCodable.isActive
 		self.tags = accountCodable.tags
 		
-		var documents = [Document]()
-		for documentCodable in accountCodable.documents ?? [] {
-			if let outline = documentCodable.outline {
-				documents.append(.outline(outline))
+		if let outlines = accountCodable.outlines {
+			self.outlines = outlines
+		} else {
+			var outlines = [Outline]()
+			for documentCodable in accountCodable.documents ?? [] {
+				if let outline = documentCodable.outline {
+					outlines.append(outline)
+				}
 			}
+			self.outlines = outlines
 		}
-		self.documents = documents
 		
 		self.sharedDatabaseChangeToken = accountCodable.sharedDatabaseChangeToken
 		self.zoneChangeTokens = accountCodable.zoneChangeTokens
@@ -140,8 +135,8 @@ public actor Account: Identifiable, Equatable {
 	func initializeCloudKit(firstTime: Bool, errorHandler: ErrorHandler) async {
 		cloudKitManager = await CloudKitManager(account: self, errorHandler: errorHandler)
 		
-		for document in documents ?? [] {
-			cloudKitManager?.addSyncRecordIfNeeded(document: document)
+		for outline in outlines ?? [] {
+			cloudKitManager?.addSyncRecordIfNeeded(outline: outline)
 		}
 		
 		if firstTime {
@@ -156,9 +151,9 @@ public actor Account: Identifiable, Equatable {
 		await cloudKitManager?.userDidAcceptCloudKitShareWith(shareMetadata)
 	}
 
-	public func generateCKShare(for document: Document) async throws -> CKShare {
+	public func generateCKShare(for outline: Outline) async throws -> CKShare {
 		guard let cloudKitManager else { fatalError() }
-		return try await cloudKitManager.generateCKShare(for: document)
+		return try await cloudKitManager.generateCKShare(for: outline)
 	}
 	
 	public func activate() {
@@ -188,7 +183,7 @@ public actor Account: Identifiable, Equatable {
 		accountMetadataDidChange()
 	}
 	
-	public func importOPML(_ url: URL, tags: [Tag]?) async throws -> Document {
+	public func importOPML(_ url: URL, tags: [Tag]?) async throws -> Outline {
 		guard url.startAccessingSecurityScopedResource() else { throw AccountError.securityScopeError }
 		defer {
 			url.stopAccessingSecurityScopedResource()
@@ -207,7 +202,7 @@ public actor Account: Identifiable, Equatable {
 	}
 
 	@discardableResult
-	public func importOPML(_ opmlData: Data, tags: [Tag]?, images: [String:  Data]? = nil) async throws -> Document {
+	public func importOPML(_ opmlData: Data, tags: [Tag]?, images: [String:  Data]? = nil) async throws -> Outline {
 		let opmlString = try convertOPMLAttributeNewlines(opmlData)
 		
 		guard let opmlNode = try? VinXML.XMLDocument(xml: opmlString, caseSensitive: false)?.root else {
@@ -227,9 +222,8 @@ public actor Account: Identifiable, Equatable {
 		}
 		
 		let outline = await Outline(account: self, parentID: id, title: title)
-		let document = Document.outline(outline)
-		documents?.append(document)
-		accountDocumentsDidChange()
+		outlines?.append(outline)
+		accountOutlinesDidChange()
 
 		if let created = headNode?["dateCreated"]?.first?.content {
 			outline.created = Date.dateFromRFC822(rfc822String: created)
@@ -281,9 +275,9 @@ public actor Account: Identifiable, Equatable {
 		
 		outline.zoneID = cloudKitManager?.outlineZone.zoneID
 		
-		disambiguate(document: document)
+		disambiguate(outline: outline)
 		
-		saveToCloudKit(document)
+		saveToCloudKit(outline)
 		
 		await outline.updateAllLinkRelationships()
 		await fixAltLinks(excluding: outline)
@@ -291,27 +285,27 @@ public actor Account: Identifiable, Equatable {
 		await outline.forceSave()
 		await outline.unloadRows()
 
-		return document
+		return outline
 	}
 	
-	public func disambiguate(document: Document) {
-		guard let documents else { return }
+	public func disambiguate(outline: Outline) {
+		guard let outlines else { return }
 		
-		if let lastCommon = documents.filter({ $0.title == document.title && $0.id != document.id }).sorted(by: { $0.disambiguator ?? 0 < $1.disambiguator ?? 0 }).last {
-			document.update(disambiguator: (lastCommon.disambiguator ?? 1) + 1)
+		if let lastCommon = outlines.filter({ $0.title == outlines.title && $0.id != outline.id }).sorted(by: { $0.disambiguator ?? 0 < $1.disambiguator ?? 0 }).last {
+			outline.update(disambiguator: (lastCommon.disambiguator ?? 1) + 1)
 		}
 	}
 	
-	public func createOutline(title: String? = nil, tags: [Tag]? = nil) async -> Document {
+	public func createOutline(title: String? = nil, tags: [Tag]? = nil) async -> Outline {
 		let outline = await Outline(account: self, parentID: id, title: title)
-		if documents == nil {
-			documents = [Document]()
+		if outlines == nil {
+			outlines = [Outline]()
 		}
 		
 		outline.zoneID = cloudKitManager?.outlineZone.zoneID
-		let document = Document.outline(outline)
-		documents!.append(document)
-		accountDocumentsDidChange()
+
+		outlines!.append(outline)
+		accountOutlinesDidChange()
 
 		if let tags {
             for tag in tags {
@@ -319,22 +313,21 @@ public actor Account: Identifiable, Equatable {
             }
 		}
 		
-		disambiguate(document: document)
+		disambiguate(outline: outline)
 		
-		saveToCloudKit(document)
+		saveToCloudKit(outline)
 		
-		return document
+		return outline
 	}
 	
 	func apply(_ update: CloudKitOutlineUpdate) async {
 		guard !update.isDelete else {
-			guard let document = findDocument(documentUUID: update.documentID.documentUUID) else { return }
-			await deleteDocument(document, updateCloudKit: false)
+			guard let outline = findOutline(outlineUUID: update.outlineID.outlineUUID) else { return }
+			await deleteOutline(outline, updateCloudKit: false)
 			return
 		}
 		
-		if let document = findDocument(documentUUID: update.documentID.documentUUID) {
-			let outline = document.outline!
+		if let outline = findOutline(outlineUUID: update.outlineID.outlineUUID) {
 			await outline.load()
 			await outline.apply(update)
 			await outline.forceSave()
@@ -343,62 +336,61 @@ public actor Account: Identifiable, Equatable {
 			guard update.saveOutlineRecord != nil else {
 				return
 			}
-			let outline = await Outline(account: self, id: update.documentID)
+			let outline = await Outline(account: self, id: update.outlineID)
 			outline.zoneID = update.zoneID
 
 			await outline.apply(update)
 			await outline.forceSave()
 			await outline.unload()
 			
-			if documents == nil {
-				documents = [Document]()
+			if outlines == nil {
+				outlines = [Outline]()
 			}
-			let document = Document.outline(outline)
-			documents!.append(document)
-			accountDocumentsDidChange()
+
+			outlines!.append(outline)
+			accountOutlinesDidChange()
 		}
 	}
 	
-	public func createDocument(_ document: Document) async {
-		if documents == nil {
-			documents = [Document]()
+	public func createOutline(_ outline: Outline) async {
+		if outlines == nil {
+			outlines = [Outline]()
 		}
 		
-		for tag in await document.tags ?? [Tag]() {
+		for tag in await outline.tags {
 			createTag(tag)
 		}
 		
-		var mutableDocument = document
-		mutableDocument.zoneID = cloudKitManager?.outlineZone.zoneID
+		outline.zoneID = cloudKitManager?.outlineZone.zoneID
 			
-		documents!.append(mutableDocument)
-		accountDocumentsDidChange()
-		saveToCloudKit(mutableDocument)
+		outlines!.append(outline)
+		accountOutlinesDidChange()
+		saveToCloudKit(outline)
 	}
 
-	public func deleteDocument(_ document: Document) async {
-		await deleteDocument(document, updateCloudKit: true)
+	public func deleteOutline(_ outline: Outline) async {
+		await deleteOutline(outline, updateCloudKit: true)
 	}
 	
-	public func findDocumentContainer(_ entityID: EntityID) -> DocumentContainer? {
+	public func findOutlineContainer(_ entityID: EntityID) -> OutlineContainer? {
 		switch entityID {
-		case .allDocuments:
-			return AllDocuments(account: self)
-		case .recentDocuments:
+		case .allOutlines:
+			return AllOutlines(account: self)
+		case .recentOutlines:
 			return nil
-		case .tagDocuments(_, let tagID):
+		case .tagOutlines(_, let tagID):
 			guard let tag = findTag(tagID: tagID) else { return nil }
-			return TagDocuments(account: self, tag: tag)
+			return TagOutlines(account: self, tag: tag)
 		default:
 			fatalError()
 		}
 	}
 
-	public func findDocument(_ entityID: EntityID) -> Document? {
-		return findDocument(documentUUID: entityID.documentUUID)
+	public func findOutline(_ entityID: EntityID) -> Outline? {
+		return findOutline(outlineUUID: entityID.outlineUUID)
 	}
 	
-	public func findDocument(filename: String) -> Document? {
+	public func findOutline(filename: String) -> Outline? {
 		var title = filename
 		var disambiguator: Int? = nil
 		
@@ -416,8 +408,8 @@ public actor Account: Identifiable, Equatable {
 
 		title = title.replacingOccurrences(of: "_", with: " ")
 		
-		return documents?.filter({ document in
-			return document.title == title && document.disambiguator == disambiguator
+		return outlines?.filter({ outline in
+			return outline.title == title && outline.disambiguator == disambiguator
 		}).first
 	}
 	
@@ -453,9 +445,9 @@ public actor Account: Identifiable, Equatable {
 		tags?.sort(by: { $0.name < $1.name })
 		accountTagsDidChange()
 
-		for doc in documents ?? [Document]() {
-			if doc.hasTag(tag) {
-				doc.requestCloudKitUpdateForSelf()
+		for outline in outlines ?? [Outline]() {
+			if outline.hasTag(tag) {
+				outline.requestCloudKitUpdateForSelf()
 			}
 		}
 	}
@@ -468,8 +460,8 @@ public actor Account: Identifiable, Equatable {
 	}
 
 	public func deleteTag(_ tag: Tag) {
-		for doc in documents ?? [Document]() {
-			if doc.hasTag(tag) {
+		for outline in outlines ?? [Outline]() {
+			if outline.hasTag(tag) {
 				return
 			}
 		}
@@ -479,8 +471,8 @@ public actor Account: Identifiable, Equatable {
 	}
 	
 	public func forceDeleteTag(_ tag: Tag) {
-		for doc in documents ?? [Document]() {
-			doc.deleteTag(tag)
+		for outline in outlines ?? [Outline]() {
+			outline.deleteTag(tag)
 		}
 		
 		tags?.removeFirst(object: tag)
@@ -491,18 +483,18 @@ public actor Account: Identifiable, Equatable {
 		return tags?.first(where: { $0.name == name })
 	}
 
-	func findDocument(documentUUID: String) -> Document? {
-		return idToDocumentsDictionary[documentUUID]
+	func findOutline(outlineUUID: String) -> Outline? {
+		return idToOutlinesDictionary[outlineUUID]
 	}
 
-	func findDocument(shareRecordID: CKRecord.ID) -> Document? {
-		return documents?.first(where: { $0.shareRecordID == shareRecordID })
+	func findOutline(shareRecordID: CKRecord.ID) -> Outline? {
+		return outlines?.first(where: { $0.shareRecordID == shareRecordID })
 	}
 	
-	func deleteAllDocuments(with zoneID: CKRecordZone.ID) async {
-		for doc in documents ?? [Document]() {
-			if doc.zoneID == zoneID {
-				await deleteDocument(doc, updateCloudKit: false)
+	func deleteAllOutlines(with zoneID: CKRecordZone.ID) async {
+		for outline in outlines ?? [Outline]() {
+			if outline.zoneID == zoneID {
+				await deleteOutline(outline, updateCloudKit: false)
 			}
 		}
 	}
@@ -522,7 +514,7 @@ public actor Account: Identifiable, Equatable {
 	}
 	
 	func fixAltLinks(excluding: Outline) async {
-		for outline in documents?.compactMap({ $0.outline }) ?? [Outline]() {
+		for outline in outlines?.compactMap({ $0.outline }) ?? [Outline]() {
 			if outline != excluding {
 				await outline.fixAltLinks()
 			}
@@ -547,9 +539,9 @@ private extension Account {
 		NotificationCenter.default.post(name: .AccountMetadataDidChange, object: self, userInfo: nil)
 	}
 	
-	func accountDocumentsDidChange() {
-		documentsDictionaryNeedUpdate = true
-		NotificationCenter.default.post(name: .AccountDocumentsDidChange, object: self, userInfo: nil)
+	func accountOutlinesDidChange() {
+		outlinesDictionaryNeedUpdate = true
+		NotificationCenter.default.post(name: .AccountOutlinesDidChange, object: self, userInfo: nil)
 	}
 	
 	func accountTagsDidChange() {
@@ -561,15 +553,15 @@ private extension Account {
 		NotificationCenter.default.post(name: .ActiveAccountsDidChange, object: self, userInfo: nil)
 	}
 	
-	func rebuildDocumentsDictionary() {
-		var idDictionary = [String: Document]()
+	func rebuildOutlinesDictionary() {
+		var idDictionary = [String: Outline]()
 		
-		for doc in documents ?? [Document]() {
-			idDictionary[doc.id.documentUUID] = doc
+		for outline in outlines ?? [Outline]() {
+			idDictionary[outline.id.outlineUUID] = outline
 		}
 		
-		_idToDocumentsDictionary = idDictionary
-		documentsDictionaryNeedUpdate = false
+		_idToOutlinesDictionary = idDictionary
+		outlinesDictionaryNeedUpdate = false
 	}
 
 	func rebuildTagsDictionary() {
@@ -583,32 +575,37 @@ private extension Account {
 		tagsDictionaryNeedUpdate = false
 	}
 	
-	func deleteDocument(_ document: Document, updateCloudKit: Bool) async {
-		documents?.removeAll(where: { $0.id == document.id})
-		accountDocumentsDidChange()
+	func deleteOutline(_ outline: Outline, updateCloudKit: Bool) async {
+		outlines?.removeAll(where: { $0.id == outline.id})
+		accountOutlinesDidChange()
 		
 		if updateCloudKit {
-			deleteFromCloudKit(document)
+			deleteFromCloudKit(outline)
 		}
 
-		for tag in await document.tags ?? [Tag]() {
+		for tag in await outline.tags {
 			deleteTag(tag)
 		}
 
-		await document.delete()
+		await outline.delete()
 	}
 	
-	func saveToCloudKit(_ document: Document) {
-		guard let cloudKitManager, let zoneID = document.zoneID else { return }
+	func saveToCloudKit(_ outline: Outline) {
+		guard let cloudKitManager, let zoneID = outline.zoneID else { return }
 		
 		var requests = Set<CloudKitActionRequest>()
-		requests.insert(CloudKitActionRequest(zoneID: zoneID, id: document.id))
+		requests.insert(CloudKitActionRequest(zoneID: zoneID, id: outline.id))
 		
-		switch document {
-		case .outline(let outline):
-			if let rows = outline.keyedRows?.values {
-				for row in rows {
-					requests.insert(CloudKitActionRequest(zoneID: zoneID, id: row.entityID))
+		if let rows = outline.keyedRows?.values {
+			for row in rows {
+				requests.insert(CloudKitActionRequest(zoneID: zoneID, id: row.entityID))
+			}
+		}
+		
+		if let rowImages = outline.images?.values {
+			for rowImage in rowImages {
+				for image in rowImage {
+					requests.insert(CloudKitActionRequest(zoneID: zoneID, id: image.id))
 				}
 			}
 		}
@@ -616,10 +613,10 @@ private extension Account {
 		cloudKitManager.addRequests(requests)
 	}
 	
-	func deleteFromCloudKit(_ document: Document) {
-		guard let cloudKitManager, let zoneID = document.zoneID else { return }
+	func deleteFromCloudKit(_ outline: Outline) {
+		guard let cloudKitManager, let zoneID = outline.zoneID else { return }
 		var requests = Set<CloudKitActionRequest>()
-		requests.insert(CloudKitActionRequest(zoneID: zoneID, id: document.id))
+		requests.insert(CloudKitActionRequest(zoneID: zoneID, id: outline.id))
 		cloudKitManager.addRequests(requests)
 	}
 	

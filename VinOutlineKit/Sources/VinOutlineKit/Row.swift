@@ -101,7 +101,7 @@ public final class Row: NSObject, NSCopying, RowContainer, Codable, Identifiable
 	public weak var outline: Outline? {
 		didSet {
 			if let outline {
-				_entityID = .row(outline.id.accountID, outline.id.documentUUID, id)
+				_entityID = .row(outline.id.accountID, outline.id.outlineUUID, id)
 			}
 		}
 	}
@@ -354,7 +354,7 @@ public final class Row: NSObject, NSCopying, RowContainer, Codable, Identifiable
 		self.isComplete = false
 		self.id = UUID().uuidString
 		self.outline = outline
-		self._entityID = .row(outline.id.accountID, outline.id.documentUUID, id)
+		self._entityID = .row(outline.id.accountID, outline.id.outlineUUID, id)
 		self.isExpanded = true
 		self.rowOrder = OrderedSet<String>()
 		super.init()
@@ -373,7 +373,7 @@ public final class Row: NSObject, NSCopying, RowContainer, Codable, Identifiable
 		self.isComplete = false
 		self.id = UUID().uuidString
 		self.outline = outline
-		self._entityID = .row(outline.id.accountID, outline.id.documentUUID, id)
+		self._entityID = .row(outline.id.accountID, outline.id.outlineUUID, id)
 		self.isExpanded = true
 		self.rowOrder = OrderedSet<String>()
 		super.init()
@@ -482,7 +482,7 @@ public final class Row: NSObject, NSCopying, RowContainer, Codable, Identifiable
 		row.isExpanded = isExpanded
 		row.isComplete = isComplete
 		row.rowOrder = rowOrder
-		row.images = images?.map { $0.duplicate(outline: newOutline, accountID: newOutline.id.accountID, documentUUID: newOutline.id.documentUUID, rowUUID: row.id) }
+		row.images = images?.map { $0.duplicate(outline: newOutline, accountID: newOutline.id.accountID, outlineUUID: newOutline.id.outlineUUID, rowUUID: row.id) }
 		
 		return row
 	}
@@ -519,7 +519,7 @@ public final class Row: NSObject, NSCopying, RowContainer, Codable, Identifiable
 					
 					let imageUUID = String(strippedString[captureRange])
 					if let data = images?[imageUUID] {
-						let imageID = EntityID.image(entityID.accountID, entityID.documentUUID, entityID.rowUUID, imageUUID)
+						let imageID = EntityID.image(entityID.accountID, entityID.outlineUUID, entityID.rowUUID, imageUUID)
 						matchedImages.append(Image(outline: outline!, id: imageID, isInNotes: isInNotes, offset: offset, data: data))
 					}
 				}
@@ -763,7 +763,7 @@ private extension Row {
 		#if canImport(UIKit)
 		mutableAttrString.enumerateAttribute(.attachment, in: .init(location: 0, length: mutableAttrString.length), options: []) { (value, range, _) in
 			if let imageTextAttachment = value as? ImageTextAttachment, let imageUUID = imageTextAttachment.imageUUID, let pngData = imageTextAttachment.image?.pngData() {
-				let entityID = EntityID.image(outline.id.accountID, outline.id.documentUUID, id, imageUUID)
+				let entityID = EntityID.image(outline.id.accountID, outline.id.outlineUUID, id, imageUUID)
 				
 				if let image = findImage(id: entityID) {
 					image.offset = range.location
@@ -834,7 +834,7 @@ private extension Row {
 			result.replaceCharacters(in: NSRange(location: offset, length: wholeString.utf16.count), with: "")
 
 			let imageUUID = String(strippedString[captureRange])
-			let imageID = EntityID.image(entityID.accountID, entityID.documentUUID, entityID.rowUUID, imageUUID)
+			let imageID = EntityID.image(entityID.accountID, entityID.outlineUUID, entityID.rowUUID, imageUUID)
 			if let image = findImage(id: imageID) {
 				insertImageAttachment(attrString: result, image: image, offset: offset)
 			}
@@ -870,8 +870,8 @@ private extension Row {
 				guard let url = value as? URL, url.scheme == nil, let outline = self?.outline else { return }
 				
 				taskGroup.addTask {
-					if let documentURL = await outline.account?.findDocument(filename: url.path)?.id.url {
-						return (documentURL, range)
+					if let outlineURL = await outline.account?.findOutline(filename: url.path)?.id.url {
+						return (outlineURL, range)
 					} else {
 						return nil
 					}

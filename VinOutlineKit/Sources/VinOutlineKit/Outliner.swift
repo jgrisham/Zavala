@@ -52,31 +52,31 @@ public actor Outliner {
 		}
 	}
 	
-	public var documents: [Document] {
+	public var outlines: [Outline] {
 		get async {
-			var result = [Document]()
+			var result = [Outline]()
 			for account in await accounts {
-				result.append(contentsOf: await account.documents ?? [])
+				result.append(contentsOf: await account.outlines ?? [])
 			}
 			return result
 		}
 	}
 	
-	public var activeDocuments: [Document] {
+	public var activeOutlines: [Outline] {
 		get async {
-			var result = [Document]()
+			var result = [Outline]()
 			for account in await activeAccounts {
-				result.append(contentsOf: await account.documents ?? [])
+				result.append(contentsOf: await account.outlines ?? [])
 			}
 			return result
 		}
 	}
 	
-	public var documentContainers: [DocumentContainer] {
+	public var outlineContainers: [OutlineContainer] {
 		get async {
-			var result = [DocumentContainer]()
+			var result = [OutlineContainer]()
 			for account in await accounts {
-				result.append(contentsOf: await account.documentContainers)
+				result.append(contentsOf: await account.outlineContainers)
 			}
 			return result
 		}
@@ -159,29 +159,18 @@ public actor Outliner {
 				}
 
 				group.addTask { [weak self] in
-					for await note in NotificationCenter.default.notifications(named: .AccountDocumentsDidChange) {
+					for await note in NotificationCenter.default.notifications(named: .AccountOutlinesDidChange) {
 						let account = note.object as! Account
 						await self?.markAsDirty(account)
 					}
 				}
 
 				group.addTask { [weak self] in
-					for await note in NotificationCenter.default.notifications(named: .DocumentTitleDidChange) {
-						guard let document = note.object as? Document, let account = document.account else { return }
+					for await note in NotificationCenter.default.notifications(named: .OutlineTitleDidChange) {
+						guard let outline = note.object as? Outline, let account = outline.account else { return }
 						await self?.markAsDirty(account)
-
-						if let outline = document.outline {
-							await account.fixAltLinks(excluding: outline)
-						}
-
-						await account.disambiguate(document: document)					}
-				}
-
-				group.addTask { [weak self] in
-					for await note in NotificationCenter.default.notifications(named: .AccountDocumentsDidChange) {
-						guard let account = (note.object as? Document)?.account else { return }
-						await self?.markAsDirty(account)
-					}
+						await account.fixAltLinks(excluding: outline)
+						await account.disambiguate(outline: outline)					}
 				}
 
 			}
@@ -216,8 +205,8 @@ public actor Outliner {
 		await accountsDictionarySemaphore.wait()
 		defer { accountsDictionarySemaphore.signal() }
 
-		// Send out all the document delete events for this account to clean up the search index
-		await cloudKitAccount.documents?.forEach { $0.documentDidDelete() }
+		// Send out all the outline delete events for this account to clean up the search index
+		await cloudKitAccount.outlines?.forEach { $0.outlineDidDelete() }
 		
 		accountFiles[AccountType.cloudKit.rawValue]?.suspend()
 		
@@ -240,33 +229,33 @@ public actor Outliner {
 		return await account.isActive ? account : nil
 	}
 	
-	public func findDocumentContainer(_ entityID: EntityID) async -> DocumentContainer? {
+	public func findOutlineContainer(_ entityID: EntityID) async -> OutlineContainer? {
 		switch entityID {
 		case .search(let searchText):
 			return Search(searchText: searchText)
-		case .allDocuments(let accountID), .recentDocuments(let accountID), .tagDocuments(let accountID, _):
-			return await findAccount(accountID: accountID)?.findDocumentContainer(entityID)
+		case .allOutlines(let accountID), .recentOutlines(let accountID), .tagOutlines(let accountID, _):
+			return await findAccount(accountID: accountID)?.findOutlineContainer(entityID)
 		default:
 			return nil
 		}
 	}
 	
-	public func findDocumentContainers(_ entityIDs: [EntityID]) async -> [DocumentContainer] {
-		var containers = [DocumentContainer]()
+	public func findOutlineContainers(_ entityIDs: [EntityID]) async -> [OutlineContainer] {
+		var containers = [OutlineContainer]()
 		for entityID in entityIDs {
-			if let container = await findDocumentContainer(entityID) {
+			if let container = await findOutlineContainer(entityID) {
 				containers.append(container)
 			}
 		}
 		return containers
 	}
 	
-	public func findDocument(_ entityID: EntityID) async -> Document? {
+	public func findOutline(_ entityID: EntityID) async -> Outline? {
 		switch entityID {
-		case .document(let accountID, let documentUUID):
-			return await findAccount(accountID: accountID)?.findDocument(documentUUID: documentUUID)
-		case .row(let accountID, let documentUUID, _):
-			return await findAccount(accountID: accountID)?.findDocument(documentUUID: documentUUID)
+		case .outline(let accountID, let outlineUUID):
+			return await findAccount(accountID: accountID)?.findOutline(outlineUUID: outlineUUID)
+		case .row(let accountID, let outlineUUID, _):
+			return await findAccount(accountID: accountID)?.findOutline(outlineUUID: outlineUUID)
 		default:
 			return nil
 		}
@@ -282,7 +271,7 @@ public actor Outliner {
 	
 	public func resume() async {
 		accountFiles.values.forEach { $0.resume() }
-		await activeDocuments.forEach { $0.resume() }
+		await activeOutlines.forEach { $0.resume() }
 		Task {
 			await cloudKitAccount?.cloudKitManager?.resume()
 		}
@@ -294,9 +283,9 @@ public actor Outliner {
 			accountFile.suspend()
 		}
 
-		for document in await activeDocuments {
-			await document.save()
-			document.suspend()
+		for outline in await activeOutlines {
+			await outline.save()
+			outline.suspend()
 		}
 
 		await cloudKitAccount?.cloudKitManager?.suspend()

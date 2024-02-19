@@ -22,9 +22,8 @@ public extension Outliner {
 		let initialLoad = _accountsDictionary[accountType.rawValue] == nil
 		_accountsDictionary[accountType.rawValue] = account
 		
-		for document in await account.documents ?? [] {
-			var mutableDocument = document
-			mutableDocument.account = account
+		for outline in await account.outlines ?? [] {
+			outline.account = account
 		}
 		
 		if !initialLoad {
@@ -59,7 +58,8 @@ struct AccountCodable: Codable {
 	
 	var tags: [Tag]?
 	var documents: [DocumentCodable]?
-
+	var outlines: [Outline]?
+	
 	var sharedDatabaseChangeToken: Data?
 	var zoneChangeTokens: [VCKChangeTokenKey: Data]?
 
@@ -68,6 +68,7 @@ struct AccountCodable: Codable {
 		case isActive = "isActive"
 		case tags = "tags"
 		case documents = "documents"
+		case outlines = "outlines"
 		case sharedDatabaseChangeToken = "sharedDatabaseChangeToken"
 		case zoneChangeTokens = "zoneChangeTokens"
 	}
@@ -77,14 +78,8 @@ struct AccountCodable: Codable {
 		self.isActive = await account.isActive
 		self.tags = await account.tags
 		
-		var documentCodables = [DocumentCodable]()
-		for document in await account.documents ?? [] {
-			if let outline = document.outline {
-				documentCodables.append(.outline(outline))
-			}
-		}
+		self.outlines = await account.outlines
 		
-		self.documents = documentCodables
 		self.sharedDatabaseChangeToken = await account.sharedDatabaseChangeToken
 		self.zoneChangeTokens = await account.zoneChangeTokens
 	}
