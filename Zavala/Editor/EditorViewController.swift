@@ -810,7 +810,7 @@ class EditorViewController: UIViewController, OutlinesActivityItemsConfiguration
 	
 	@objc func sceneWillDeactivate(_ note: Notification) {
 		Task {
-			await currentTextView?.saveText()
+			await saveCurrentText()
 		}
 		
 		// If we don't update the last know coordinates, then when the container
@@ -821,7 +821,7 @@ class EditorViewController: UIViewController, OutlinesActivityItemsConfiguration
 	
 	@objc func didEnterBackground(_ note: Notification) {
 		Task {
-			await currentTextView?.saveText()
+			await saveCurrentText()
 		}
 	}
 	
@@ -1186,13 +1186,13 @@ class EditorViewController: UIViewController, OutlinesActivityItemsConfiguration
 	
 	func printDoc() async {
 		guard let outline else { return }
-		await currentTextView?.saveText()
+		await saveCurrentText()
 		delegate?.printDoc(self, outline: outline)
 	}
 	
 	func printList() async {
 		guard let outline else { return }
-		await currentTextView?.saveText()
+		await saveCurrentText()
 		delegate?.printList(self, outline: outline)
 	}
 	
@@ -3466,7 +3466,13 @@ private extension EditorViewController {
 	func saveCurrentText() async {
 		if let textView = UIResponder.currentFirstResponder as? EditorRowTextView, let row = textView.row {
 			let isInNotes = textView is EditorRowNoteTextView
+
+			let saveTextChangesBackgroundTaskID = UIApplication.shared.beginBackgroundTask { }
+
 			await textChanged(row: row, rowStrings: textView.rowStrings, isInNotes: isInNotes, selection: textView.selectedRange)
+			await outline?.save()
+			
+			UIApplication.shared.endBackgroundTask(saveTextChangesBackgroundTaskID)
 		}
 	}
 	

@@ -315,10 +315,10 @@ private extension CloudKitManager {
 			}
 			
 			self.isSyncing = false
-			self.sendChangesBackgroundTaskID = UIBackgroundTaskIdentifier.invalid
 			
 			Task { @MainActor in
 				UIApplication.shared.endBackgroundTask(self.sendChangesBackgroundTaskID)
+				self.sendChangesBackgroundTaskID = UIBackgroundTaskIdentifier.invalid
 			}
 		}
 		
