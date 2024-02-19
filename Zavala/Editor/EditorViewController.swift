@@ -3467,12 +3467,12 @@ private extension EditorViewController {
 		if let textView = UIResponder.currentFirstResponder as? EditorRowTextView, let row = textView.row {
 			let isInNotes = textView is EditorRowNoteTextView
 
-			let saveTextChangesBackgroundTaskID = UIApplication.shared.beginBackgroundTask { }
+			let backgroundTaskID = UIApplication.shared.beginBackgroundTask { }
 
 			await textChanged(row: row, rowStrings: textView.rowStrings, isInNotes: isInNotes, selection: textView.selectedRange)
 			await outline?.save()
 			
-			UIApplication.shared.endBackgroundTask(saveTextChangesBackgroundTaskID)
+			UIApplication.shared.endBackgroundTask(backgroundTaskID)
 		}
 	}
 	

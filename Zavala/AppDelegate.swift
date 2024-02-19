@@ -1063,8 +1063,12 @@ private extension AppDelegate {
 	
 	@objc private func didEnterBackground() {
 		Task {
+			let backgroundTaskID = UIApplication.shared.beginBackgroundTask { }
+			
 			await Outliner.shared.suspend()
 			AppDefaults.shared.outlineHistory = history.map { $0.userInfo }
+			
+			UIApplication.shared.endBackgroundTask(backgroundTaskID)
 		}
 	}
 	
