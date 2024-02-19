@@ -166,6 +166,13 @@ public actor Outliner {
 				}
 
 				group.addTask { [weak self] in
+					for await note in NotificationCenter.default.notifications(named: .OutlineMetaDataDidChange) {
+						guard let outline = note.object as? Outline, let account = outline.account else { return }
+						await self?.markAsDirty(account)
+					}
+				}
+
+				group.addTask { [weak self] in
 					for await note in NotificationCenter.default.notifications(named: .OutlineTitleDidChange) {
 						guard let outline = note.object as? Outline, let account = outline.account else { return }
 						await self?.markAsDirty(account)
