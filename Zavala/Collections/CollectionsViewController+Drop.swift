@@ -76,7 +76,7 @@ extension CollectionsViewController: UICollectionViewDropDelegate {
 				await outline.load()
 				
 				var tagNames = [String]()
-				for tag in await outline.tags ?? [Tag]() {
+				for tag in await outline.tags {
 					outline.deleteTag(tag)
 					await outline.account?.deleteTag(tag)
 					tagNames.append(tag.name)
