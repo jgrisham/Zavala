@@ -157,7 +157,7 @@ extension Outline: VCKModel {
 			outlineDidChangeBySync()
 		}
 		
-		guard isBeingUsed else { return }
+		guard isBeingViewed else { return }
 
 		var reloadRows = [Row]()
 		
@@ -185,6 +185,12 @@ extension Outline: VCKModel {
 	public func apply(_ record: CKRecord) async -> [String] {
 		guard let account else { return [] }
 		
+		if let shareReference = record.share {
+			cloudKitShareRecordName = shareReference.recordID.recordName
+		} else {
+			cloudKitShareRecordName = nil
+		}
+
 		if let metaData = cloudKitMetaData,
 		   let recordChangeTag = CKRecord(metaData)?.recordChangeTag,
 		   record.recordChangeTag == recordChangeTag {
@@ -193,18 +199,12 @@ extension Outline: VCKModel {
 
 		cloudKitMetaData = record.metadata
 		
-		if let shareReference = record.share {
-			cloudKitShareRecordName = shareReference.recordID.recordName
-		} else {
-			cloudKitShareRecordName = nil
-		}
-
         let serverTitle = record[Outline.CloudKitRecord.Fields.title] as? String
         let newTitle = merge(client: title, ancestor: ancestorTitle, server: serverTitle)
 
 		if title != newTitle {
 			title = newTitle
-			if isBeingUsed {
+			if isBeingViewed {
 				outlineElementsDidChange(OutlineElementChanges(section: .title, reloads: Set([0])))
 			}
 		}
@@ -444,7 +444,7 @@ private extension Outline {
 			}
 			let mergedTagIDs = mergeTags.map({ $0.id })
 			
-			if isBeingUsed && isSearching == .notSearching {
+			if isBeingViewed && isSearching == .notSearching {
 				updateTagUI(mergedTagIDs, tagIDs ?? [])
 			}
 			

@@ -6,6 +6,7 @@
 //
 
 import UIKit
+import OSLog
 import Intents
 import VinOutlineKit
 
@@ -131,7 +132,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 											 input: "\n",
 											 modifierFlags: [.command])
 	
-	let createRowNotesCommand = UIKeyCommand(title: .addNoteLevelControlLabel,
+	let createRowNotesCommand = UIKeyCommand(title: .addNoteControlLabel,
 											 action: #selector(createRowNotesCommand(_:)),
 											 input: "-",
 											 modifierFlags: [.control])
@@ -140,6 +141,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 											 action: #selector(deleteRowNotesCommand(_:)),
 											 input: "-",
 											 modifierFlags: [.control, .shift])
+	
+	let deleteCurrentRowsCommand = UIKeyCommand(title: .deleteRowControlLabel,
+											 action: #selector(deleteCurrentRowsCommand(_:)),
+											 input: UIKeyCommand.inputDelete,
+												modifierFlags: [.shift, .command])
 	
 	let splitRowCommand = UIKeyCommand(title: .splitRowControlLabel,
 									   action: #selector(splitRowCommand(_:)),
@@ -280,6 +286,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 	
 	private var history = [Pin]()
 	private var outlineIndexer: OutlineIndexer?
+	private var logger = Logger(subsystem: Bundle.main.bundleIdentifier!, category: "Zavala")
 	
 #if targetEnvironment(macCatalyst)
 	var appKitPlugin: AppKitPlugin?
@@ -562,6 +569,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 	
 	@objc func deleteRowNotesCommand(_ sender: Any?) {
 		mainCoordinator?.deleteRowNotes()
+	}
+	
+	@objc func deleteCurrentRowsCommand(_ sender: Any?) {
+		mainCoordinator?.deleteCurrentRows()
 	}
 	
 	@objc func splitRowCommand(_ sender: Any?) {
@@ -970,8 +981,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 		builder.insertChild(focusMenu, atStartOfMenu: .view)
 		
 		// Outline Menu
-		let completeMenu = UIMenu(title: "", options: .displayInline, children: [toggleCompleteRowsCommand, deleteCompletedRowsCommand, createRowNotesCommand, deleteRowNotesCommand])
-		let moveRowMenu = UIMenu(title: "", options: .displayInline, children: [moveRowsLeftCommand, moveRowsRightCommand, moveRowsUpCommand, moveRowsDownCommand])
 		let mainOutlineMenu = UIMenu(title: "",
 									 options: .displayInline,
 									 children: [insertRowCommand,
@@ -979,8 +988,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 												createRowInsideCommand,
 												createRowOutsideCommand,
 												duplicateRowsCommand,
-												splitRowCommand])
-		let outlineMenu = UIMenu(title: .outlineControlLabel, children: [mainOutlineMenu, moveRowMenu, completeMenu])
+												splitRowCommand,
+												deleteCurrentRowsCommand])
+		let moveRowMenu = UIMenu(title: "", options: .displayInline, children: [moveRowsLeftCommand, moveRowsRightCommand, moveRowsUpCommand, moveRowsDownCommand])
+		let completeMenu = UIMenu(title: "", options: .displayInline, children: [toggleCompleteRowsCommand, deleteCompletedRowsCommand])
+		let noteMenu = UIMenu(title: "", options: .displayInline, children: [createRowNotesCommand, deleteRowNotesCommand])
+
+		let outlineMenu = UIMenu(title: .outlineControlLabel, children: [mainOutlineMenu, moveRowMenu, completeMenu, noteMenu])
 		builder.insertSibling(outlineMenu, afterMenu: .view)
 		
 		// History Menu
@@ -1062,12 +1076,14 @@ private extension AppDelegate {
 	}
 	
 	@objc private func didEnterBackground() {
+		let backgroundTaskID = UIApplication.shared.beginBackgroundTask { [weak self] in
+			self?.logger.info("CloudKit sync processing terminated for running too long.")
+		}
+
 		Task {
-			let backgroundTaskID = UIApplication.shared.beginBackgroundTask { }
-			
+			await Outliner.shared.sync()
 			await Outliner.shared.suspend()
 			AppDefaults.shared.outlineHistory = history.map { $0.userInfo }
-			
 			UIApplication.shared.endBackgroundTask(backgroundTaskID)
 		}
 	}

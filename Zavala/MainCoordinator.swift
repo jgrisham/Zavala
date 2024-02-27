@@ -317,6 +317,12 @@ extension MainCoordinator {
 		}
 	}
 	
+	func deleteCurrentRows() {
+		Task {
+			await editorViewController?.deleteCurrentRows()
+		}
+	}
+	
 	func deleteCompletedRows() {
 		Task {
 			editorViewController?.deleteCompletedRows()

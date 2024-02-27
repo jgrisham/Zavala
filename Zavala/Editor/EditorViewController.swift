@@ -902,7 +902,7 @@ class EditorViewController: UIViewController, OutlinesActivityItemsConfiguration
 		
 		// After this point as long as we don't have this Outline open in other
 		// windows, no more collection view updates should happen for it.
-		outline?.decrementBeingUsedCount()
+		outline?.decrementBeingViewedCount()
 		
 		// End the search collection view updates early
 		isSearching = false // Necessary to prevent crashing while switching outlines during a find session
@@ -925,7 +925,7 @@ class EditorViewController: UIViewController, OutlinesActivityItemsConfiguration
 
 		// Outline was assigned above in apply, so start force unwrapping
 		await outline!.load()
-		outline!.incrementBeingUsedCount()
+		outline!.incrementBeingViewedCount()
 		checkForCorruptOutline()
 		outline!.prepareForViewing()
 		

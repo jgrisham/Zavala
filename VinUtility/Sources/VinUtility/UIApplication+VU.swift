@@ -9,7 +9,11 @@ import UIKit
 public extension UIApplication {
 	
 	var foregroundActiveScene: UIWindowScene? {
-		connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene
+		// This code doesn't work. As of iOS 15 there is only one way to get the correct scene.
+		// You have to use the deprecated property.
+		return UIApplication.shared.keyWindow?.windowScene
+		// This code does not work.
+		// connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene
 	}
 	
 }

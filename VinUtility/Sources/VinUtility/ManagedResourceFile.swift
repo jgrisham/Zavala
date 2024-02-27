@@ -88,6 +88,7 @@ open class ManagedResourceFile: NSObject, NSFilePresenter {
 	}
 
 	public func delete() {
+		suspend()
 		deleteFile()
 	}
 

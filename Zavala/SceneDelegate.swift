@@ -54,6 +54,11 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
 		Task {
 			await mainSplitViewController.startUp()
+			
+			if let shareMetadata = connectionOptions.cloudKitShareMetadata {
+				await acceptShare(shareMetadata)
+				return
+			}
 
 			if let userActivity = connectionOptions.userActivities.first ?? session.stateRestorationActivity {
 				await mainSplitViewController.handle(userActivity, isNavigationBranch: true)
@@ -113,7 +118,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 	
 	func windowScene(_ windowScene: UIWindowScene, userDidAcceptCloudKitShareWith shareMetadata: CKShare.Metadata) {
 		Task {
-			await Outliner.shared.cloudKitAccount?.userDidAcceptCloudKitShareWith(shareMetadata)
+			await acceptShare(shareMetadata)
 		}
 	}
 	
@@ -134,4 +139,11 @@ private extension SceneDelegate {
 		updateUserInterfaceStyle()
 	}
 
+	func acceptShare(_ shareMetadata: CKShare.Metadata) async {
+		await Outliner.shared.cloudKitAccount?.userDidAcceptCloudKitShareWith(shareMetadata)
+		if let outlineID = await Outliner.shared.cloudKitAccount?.findOutline(shareRecordID: shareMetadata.share.recordID)?.id {
+			await mainSplitViewController.handleOutline(outlineID, isNavigationBranch: true)
+		}
+	}
+	
 }

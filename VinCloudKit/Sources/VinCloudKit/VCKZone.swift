@@ -264,6 +264,11 @@ public extension VCKZone {
 						}
 					case .unknownItem:
 						// The record was deleted by another device or user, so don't try to update it.
+//						if let model = modelsToSave.first(where: { $0.cloudKitRecordID == recordID }) {
+//							if let topicData = model.buildRecord()["topicData"] as? Data, let topic = topicData.toAttributedString() {
+//								print("******* \(topic.string)")
+//							}
+//						}
 						break
 					case .serverRecordChanged:
 						// Merge the model and try to save it again
@@ -275,7 +280,8 @@ public extension VCKZone {
 						if let errorDescription = ckError.errorDescription {
 							self.logger.error("Unhandled per record error:  \(errorDescription, privacy: .public).")
 						}
-						break
+						perRecordError = error
+						op.cancel()
 					}
 				}
 			}
@@ -292,7 +298,6 @@ public extension VCKZone {
 						op.cancel()
 					default:
 						deletesToRetry.append(recordID)
-
 					}
 				}
 			}
@@ -309,17 +314,7 @@ public extension VCKZone {
 
 					let refinedResult = VCKResult.refine(error)
 					switch refinedResult {
-					case .zoneNotFound:
-						Task {
-							do {
-								try await self.createRecordZone()
-								let result = try await self.modify(modelsToSave: modelsToSend, recordIDsToDelete: deletesToSend, strategy: strategy)
-								continuation.resume(returning: result)
-							} catch {
-								continuation.resume(throwing: error)
-							}
-						}
-					case .userDeletedZone:
+					case .zoneNotFound, .userDeletedZone:
 						continuation.resume(throwing: error)
 					case .retry(let timeToWait):
 						self.logger.error("\(self.zoneID.zoneName, privacy: .public) zone modify retry in \(timeToWait, privacy: .public) seconds.")
@@ -487,17 +482,7 @@ public extension VCKZone {
 				
 				func handleError(_ error: Error) {
 					switch VCKResult.refine(error) {
-					case .zoneNotFound:
-						Task {
-							do {
-								try await self.createRecordZone()
-								try await self.fetchChangesInZone(incremental: incremental)
-								continuation.resume()
-							} catch {
-								continuation.resume(throwing: error)
-							}
-						}
-					case .userDeletedZone:
+					case .zoneNotFound, .userDeletedZone:
 						continuation.resume(throwing: error)
 					case .retry(let timeToWait):
 						self.logger.error("\(self.zoneID.zoneName, privacy: .public) zone fetch changes retry in \(timeToWait, privacy: .public) seconds.")

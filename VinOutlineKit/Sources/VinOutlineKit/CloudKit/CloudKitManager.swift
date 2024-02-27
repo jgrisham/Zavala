@@ -46,10 +46,6 @@ public class CloudKitManager {
 	private weak var errorHandler: ErrorHandler?
 	private weak var account: Account?
 
-	#if canImport(UIKit)
-	private var sendChangesBackgroundTaskID = UIBackgroundTaskIdentifier.invalid
-	#endif
-
 	private var debouncer = Debouncer(duration: 5)
 	private var zones = [CKRecordZone.ID: CloudKitOutlineZone]()
 	private let requestsSemaphore = AsyncSemaphore(value: 1)
@@ -131,6 +127,9 @@ public class CloudKitManager {
 				guard let self, self.isNetworkAvailable else { return }
 				Task {
 					do {
+						await self.requestsSemaphore.wait()
+						defer { self.requestsSemaphore.signal() }
+
 						try await self.sendChanges(userInitiated: false)
 						try await self.fetchAllChanges(userInitiated: false)
 					} catch {
@@ -233,7 +232,8 @@ public class CloudKitManager {
 	}
 	
 	func suspend() async {
-		debouncer.executeNow()
+		debouncer.cancel()
+		await sync()
 	}
 	
 	func accountDidDelete(account: Account) async {
@@ -308,25 +308,6 @@ private extension CloudKitManager {
 			return
 		}
 		
-#if canImport(UIKit)
-		let completeProcessing = { [weak self] in
-			guard let self else {
-				return
-			}
-			
-			self.isSyncing = false
-			
-			Task { @MainActor in
-				UIApplication.shared.endBackgroundTask(self.sendChangesBackgroundTaskID)
-				self.sendChangesBackgroundTaskID = UIBackgroundTaskIdentifier.invalid
-			}
-		}
-		
-		self.sendChangesBackgroundTaskID = UIApplication.shared.beginBackgroundTask { [weak self] in
-			self?.logger.info("CloudKit sync processing terminated for running too long.")
-		}
-#endif
-		
 		logger.info("Sending \(requests.count) requests.")
 		
 		let (loadedOutlines, modifications) = await loadOutlinesAndStageModifications(requests: requests)
@@ -358,9 +339,18 @@ private extension CloudKitManager {
 						leftOverRequests.subtract(deletedEntityIDs.map { CloudKitActionRequest(zoneID: zoneID, id: $0) })
 					}
 				} catch {
-					if let ckError = error as? CKError, ckError.code == .userDeletedZone {
-						await account?.deleteAllOutlines(with: zoneID)
-						throw VCKError.userDeletedZone
+					if let ckError = error as? CKError {
+						switch ckError.code {
+						case .zoneNotFound:
+							await account?.deleteAllOutlines(with: zoneID)
+							// We remove everything so that we get any child row requests as well. We probably could be more surgical here.
+							leftOverRequests.removeAll()
+						case .userDeletedZone:
+							await account?.deleteAllOutlines(with: zoneID)
+							throw VCKError.userDeletedZone
+						default:
+							throw error
+						}
 					} else {
 						throw error
 					}
@@ -382,8 +372,8 @@ private extension CloudKitManager {
 				save.clearSyncData()
 			}
 		}
-		
-		completeProcessing()
+
+		self.isSyncing = false
 	}
 	
 	func fetchAllChanges(userInitiated: Bool) async throws {
@@ -397,8 +387,11 @@ private extension CloudKitManager {
 			let op = CKFetchDatabaseChangesOperation(previousServerChangeToken: changeToken)
 			op.qualityOfService = CloudKitOutlineZone.qualityOfService
 			
-			op.recordZoneWithIDWasDeletedBlock = { zoneID in
-				zoneIDs.insert(zoneID)
+			op.recordZoneWithIDWasDeletedBlock = { [weak self] zoneID in
+				guard let self else { return }
+				Task {
+					await self.account?.deleteAllOutlines(with: zoneID)
+				}
 			}
 			
 			op.recordZoneWithIDChangedBlock = { zoneID in
@@ -432,6 +425,7 @@ private extension CloudKitManager {
 						continuation.resume()
 					}
 				case .failure(let error):
+					self.isSyncing = false
 					continuation.resume(throwing: error)
 				}
 			}
@@ -448,9 +442,16 @@ private extension CloudKitManager {
 		do {
 			try await zone.fetchChangesInZone(incremental: false)
 		} catch {
-			if let ckError = error as? CKError, ckError.code == .userDeletedZone {
-				await account?.deleteAllOutlines(with: zoneID)
-				throw VCKError.userDeletedZone
+			if let ckError = error as? CKError {
+				switch ckError.code {
+				case .zoneNotFound:
+					await account?.deleteAllOutlines(with: zoneID)
+				case .userDeletedZone:
+					await account?.deleteAllOutlines(with: zoneID)
+					throw VCKError.userDeletedZone
+				default:
+					throw error
+				}
 			} else {
 				throw error
 			}

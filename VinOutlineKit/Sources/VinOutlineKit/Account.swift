@@ -283,7 +283,7 @@ public actor Account: Identifiable, Equatable {
 		await fixAltLinks(excluding: outline)
 		
 		await outline.forceSave()
-		await outline.unloadRows()
+		await outline.unload()
 
 		return outline
 	}
@@ -390,6 +390,10 @@ public actor Account: Identifiable, Equatable {
 		return findOutline(outlineUUID: entityID.outlineUUID)
 	}
 	
+	public func findOutline(shareRecordID: CKRecord.ID) -> Outline? {
+		return outlines?.first(where: { $0.shareRecordID == shareRecordID })
+	}
+	
 	public func findOutline(filename: String) -> Outline? {
 		var title = filename
 		var disambiguator: Int? = nil
@@ -487,10 +491,6 @@ public actor Account: Identifiable, Equatable {
 		return idToOutlinesDictionary[outlineUUID]
 	}
 
-	func findOutline(shareRecordID: CKRecord.ID) -> Outline? {
-		return outlines?.first(where: { $0.shareRecordID == shareRecordID })
-	}
-	
 	func deleteAllOutlines(with zoneID: CKRecordZone.ID) async {
 		for outline in outlines ?? [Outline]() {
 			if outline.zoneID == zoneID {
@@ -606,6 +606,13 @@ private extension Account {
 			for rowImage in rowImages {
 				for image in rowImage {
 					requests.insert(CloudKitActionRequest(zoneID: zoneID, id: image.id))
+				}
+			}
+			if let rowImages = outline.images?.values {
+				for images in rowImages {
+					for image in images {
+						requests.insert(CloudKitActionRequest(zoneID: zoneID, id: image.id))
+					}
 				}
 			}
 		}

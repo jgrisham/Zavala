@@ -29,6 +29,7 @@ class CloudKitOutlineZoneDelegate: VCKZoneDelegate {
 	
 	func cloudKitDidModify(changed: [CKRecord], deleted: [CloudKitRecordKey]) async throws {
 		var updates = [EntityID: CloudKitOutlineUpdate]()
+		var shareUpdates = [(CKRecord.ID, CKShare?)]()
 
 		func update(for outlineID: EntityID, zoneID: CKRecordZone.ID) -> CloudKitOutlineUpdate {
 			if let update = updates[outlineID] {
@@ -42,11 +43,7 @@ class CloudKitOutlineZoneDelegate: VCKZoneDelegate {
 
 		for deletedRecordKey in deleted {
 			if deletedRecordKey.recordType == CKRecord.SystemType.share {
-				if let outline = await Outliner.shared.cloudKitAccount?.findOutline(shareRecordID: deletedRecordKey.recordID) {
-					Task { @MainActor in
-						outline.cloudKitShareRecord = nil
-					}
-				}
+				shareUpdates.append((deletedRecordKey.recordID, nil))
 			} else {
 				guard let entityID = EntityID(description: deletedRecordKey.recordID.recordName) else { continue }
 				switch entityID {
@@ -66,11 +63,7 @@ class CloudKitOutlineZoneDelegate: VCKZoneDelegate {
 
 		for changedRecord in changed {
 			if let shareRecord = changedRecord as? CKShare {
-				if let outline = await Outliner.shared.cloudKitAccount?.findOutline(shareRecordID: shareRecord.recordID) {
-					Task { @MainActor in
-						outline.cloudKitShareRecord = shareRecord
-					}
-				}
+				shareUpdates.append((shareRecord.recordID, shareRecord))
 			} else {
 				guard let entityID = EntityID(description: changedRecord.recordID.recordName) else { continue }
 				switch entityID {
@@ -88,9 +81,21 @@ class CloudKitOutlineZoneDelegate: VCKZoneDelegate {
 			}
 		}
 		
-		for update in updates.values {
-			Task { @MainActor in
+		let updatesToSend = updates
+		let shareUpdatesToSend = shareUpdates
+		
+		Task { @MainActor in
+			for update in updatesToSend.values {
 				await account?.apply(update)
+			}
+			
+			// Even though we handle the delete share records here, they don't usually work. That's
+			// because the share record id is removed from the outline by the time we get here. No worries.
+			// The outline will remove the share record data itself when its recordID gets removed.
+			for (shareRecordID, shareRecord) in shareUpdatesToSend {
+				if let outline = await account?.findOutline(shareRecordID: shareRecordID)?.outline {
+					outline.cloudKitShareRecord = shareRecord
+				}
 			}
 		}
 		
