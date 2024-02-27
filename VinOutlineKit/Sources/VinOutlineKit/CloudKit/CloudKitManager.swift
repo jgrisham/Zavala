@@ -360,18 +360,18 @@ private extension CloudKitManager {
 			return leftOverRequests
 		}
 		
+		for mods in modifications.values {
+			for save in mods.0 {
+				save.clearSyncData()
+			}
+		}
+
 		for loadedOutline in loadedOutlines {
 			await loadedOutline.unload()
 		}
 		
 		self.logger.info("Saving \(leftOverRequests.count) requests.")
 		CloudKitActionRequest.save(requests: leftOverRequests)
-		
-		for mods in modifications.values {
-			for save in mods.0 {
-				save.clearSyncData()
-			}
-		}
 
 		self.isSyncing = false
 	}
