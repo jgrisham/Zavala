@@ -46,13 +46,15 @@ class EditorViewController: UIViewController, OutlinesActivityItemsConfiguration
 	override var keyCommands: [UIKeyCommand]? {
 		var keyCommands = [UIKeyCommand]()
 		
-		let shiftTab = UIKeyCommand(input: "\t", modifierFlags: [.shift], action: #selector(moveCurrentRowsLeft))
-		shiftTab.wantsPriorityOverSystemBehavior = true
-		keyCommands.append(shiftTab)
-		
-		let tab = UIKeyCommand(action: #selector(moveCurrentRowsRight), input: "\t")
-		tab.wantsPriorityOverSystemBehavior = true
-		keyCommands.append(tab)
+		if !isEditingNotes {
+			let shiftTab = UIKeyCommand(input: "\t", modifierFlags: [.shift], action: #selector(moveCurrentRowsLeft))
+			shiftTab.wantsPriorityOverSystemBehavior = true
+			keyCommands.append(shiftTab)
+			
+			let tab = UIKeyCommand(action: #selector(moveCurrentRowsRight), input: "\t")
+			tab.wantsPriorityOverSystemBehavior = true
+			keyCommands.append(tab)
+		}
 		
 		// We need to have this here in addition to the AppDelegate, since iOS won't pick it up for some reason
 		if !isToggleRowCompleteUnavailable {
@@ -309,6 +311,14 @@ class EditorViewController: UIViewController, OutlinesActivityItemsConfiguration
 	
 	var isInEditMode: Bool {
 		if let responder = UIResponder.currentFirstResponder, responder is UITextField || responder is UITextView {
+			return true
+		} else {
+			return false
+		}
+	}
+	
+	var isEditingNotes: Bool {
+		if let responder = UIResponder.currentFirstResponder, responder is EditorRowNoteTextView {
 			return true
 		} else {
 			return false
@@ -1091,16 +1101,6 @@ class EditorViewController: UIViewController, OutlinesActivityItemsConfiguration
 		await createRowOutside(afterRows: rows)
 	}
 	
-	func moveRowsLeft() async {
-		guard let rows = currentRows else { return }
-		await moveRowsLeft(rows)
-	}
-	
-	func moveRowsRight() async {
-		guard let rows = currentRows else { return }
-		await moveRowsRight(rows)
-	}
-	
 	func createRowNotes() async {
 		guard let rows = currentRows else { return }
 		await createRowNotes(rows)
@@ -1818,18 +1818,6 @@ extension EditorViewController: EditorRowViewCellDelegate {
 		Task {
 			let afterRows = afterRow == nil ? nil : [afterRow!]
 			await createRow(afterRows: afterRows, rowStrings: rowStrings)
-		}
-	}
-	
-	func editorRowMoveRowLeft(_ row: Row, rowStrings: RowStrings) {
-		Task {
-			await moveRowsLeft([row], rowStrings: rowStrings)
-		}
-	}
-	
-	func editorRowMoveRowRight(_ row: Row, rowStrings: RowStrings) {
-		Task {
-			await moveRowsRight([row], rowStrings: rowStrings)
 		}
 	}
 	

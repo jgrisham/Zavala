@@ -219,15 +219,11 @@ extension MainCoordinator {
 	}
 	
 	func moveRowsLeft() {
-		Task {
-			await editorViewController?.moveRowsLeft()
-		}
+		editorViewController?.moveCurrentRowsLeft()
 	}
 	
 	func moveRowsRight() {
-		Task {
-			await editorViewController?.moveRowsRight()
-		}
+		editorViewController?.moveCurrentRowsRight()
 	}
 	
 	func toggleCompleteRows() {
