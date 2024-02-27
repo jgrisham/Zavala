@@ -176,11 +176,11 @@ class MainSplitViewController: UISplitViewController, MainCoordinator {
 
 		await cleanUpNavigationStacks()
 		
-		if let collectionsWidth = userInfo[UserInfoKeys.collectionsWidth] as? CGFloat {
+		if let collectionsWidth = userInfo[UserInfoKeys.collectionsWidth] as? CGFloat, collectionsWidth != 0 {
 			preferredPrimaryColumnWidth = collectionsWidth
 		}
 		
-		if let listWidth = userInfo[UserInfoKeys.listWidth] as? CGFloat {
+		if let listWidth = userInfo[UserInfoKeys.listWidth] as? CGFloat, listWidth != 0 {
 			preferredSupplementaryColumnWidth = listWidth
 		}
 
