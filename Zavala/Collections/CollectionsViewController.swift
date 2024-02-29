@@ -7,7 +7,8 @@
 
 import UIKit
 import UniformTypeIdentifiers
-import Combine
+import AsyncAlgorithms
+import Semaphore
 import VinOutlineKit
 import VinUtility
 
@@ -48,12 +49,13 @@ class CollectionsViewController: UICollectionViewController, MainControllerIdent
         }
 	}
 
+	var outlineContainersDictionary = [EntityID: OutlineContainer]()
+
 	var dataSource: UICollectionViewDiffableDataSource<CollectionsSection, CollectionsItem>!
 	
-	var outlineContainersDictionary = [EntityID: OutlineContainer]()
-	
-	private var applyChangeDebouncer = Debouncer(duration: 0.5)
-	private var reloadVisibleDebouncer = Debouncer(duration: 0.5)
+	private var dataSourceSemaphore = AsyncSemaphore(value: 1)
+	private var applyChangeChannel = AsyncChannel<() -> Void>()
+	private var reloadVisibleChannel = AsyncChannel<() -> Void>()
 
 	private var addButton: UIButton!
 	private var importButton: UIButton!
@@ -98,6 +100,23 @@ class CollectionsViewController: UICollectionViewController, MainControllerIdent
 		NotificationCenter.default.addObserver(self, selector: #selector(cloudKitSyncWillBegin(_:)), name: .CloudKitSyncWillBegin, object: nil)
 		NotificationCenter.default.addObserver(self, selector: #selector(cloudKitSyncDidComplete(_:)), name: .CloudKitSyncDidComplete, object: nil)
 		NotificationCenter.default.addObserver(self, selector: #selector(accountOutlinesDidChange(_:)), name: .AccountOutlinesDidChange, object: nil)
+		
+		// Using a semaphore here to make sure these two debouncers don't overlap when doing a lot of fast hits like when doing an account restore
+		Task {
+			for await applyChange in applyChangeChannel.debounce(for: .seconds(0.5)) {
+				await dataSourceSemaphore.wait()
+				defer { dataSourceSemaphore.signal() }
+				applyChange()
+			}
+		}
+		
+		Task {
+			for await reloadVisible in reloadVisibleChannel.debounce(for: .seconds(0.5)) {
+				await dataSourceSemaphore.wait()
+				defer { dataSourceSemaphore.signal() }
+				reloadVisible()
+			}
+		}
 	}
 	
 	// MARK: API
@@ -513,16 +532,19 @@ private extension CollectionsViewController {
 	}
 	
 	func debounceApplyChangeSnapshot() {
-		applyChangeDebouncer.debounce { [weak self] in
-			Task {
-				await self?.applyChangeSnapshot()
-			}
+		Task {
+			await applyChangeChannel.send({ [weak self] in
+				guard let self else { return }
+				Task {
+					await self.applyChangeSnapshot()
+				}
+			})
 		}
 	}
 	
 	func debounceReloadVisible() {
-		reloadVisibleDebouncer.debounce { [weak self] in
-			self?.reloadVisible()
+		Task {
+			await reloadVisibleChannel.send(reloadVisible)
 		}
 	}
 	

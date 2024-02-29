@@ -5,6 +5,7 @@
 import UIKit
 import UniformTypeIdentifiers
 import CoreSpotlight
+import AsyncAlgorithms
 import Semaphore
 import VinOutlineKit
 import VinUtility
@@ -46,7 +47,7 @@ class ListViewController: UICollectionViewController, MainControllerIdentifiable
 	private var importButton: UIButton!
 
 	private let loadOutlinesSemaphore = AsyncSemaphore(value: 1)
-	private var loadOutlinesDebouncer = Debouncer(duration: 0.5)
+	private var loadOutlinesChannel = AsyncChannel<(() -> Void)>()
 	
 	private var lastClick: TimeInterval = Date().timeIntervalSince1970
 	private var lastIndexPath: IndexPath? = nil
@@ -134,6 +135,12 @@ class ListViewController: UICollectionViewController, MainControllerIdentifiable
 		NotificationCenter.default.addObserver(self, selector: #selector(outlineSharingDidChange(_:)), name: .OutlineSharingDidChange, object: nil)
 		
 		scheduleReconfigureAll()
+		
+		Task {
+			for await loadDocuments in loadOutlinesChannel.debounce(for: .seconds(0.5)) {
+				loadDocuments()
+			}
+		}
 	}
 	
 	override func viewDidAppear(_ animated: Bool) {
@@ -586,10 +593,12 @@ extension ListViewController: UISearchResultsUpdating {
 private extension ListViewController {
 	
 	func debounceLoadOutlines() {
-		loadOutlinesDebouncer.debounce { [weak self] in
-			Task { @MainActor in
-				await self?.loadOutlines(animated: true)
-			}
+		Task {
+			await loadOutlinesChannel.send({ [weak self] in
+				Task {
+					await self?.loadOutlines(animated: true)
+				}
+			})
 		}
 	}
 	

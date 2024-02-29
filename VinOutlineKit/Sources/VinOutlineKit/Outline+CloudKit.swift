@@ -497,7 +497,7 @@ private extension Outline {
 	
 	func applyOutlineBacklinks(_ record: CKRecord) {
 		if let serverOutlineBacklinkDescs = record[Outline.CloudKitRecord.Fields.outlineBacklinks] as? [String] {
-			let serverOutlineBacklinks = serverOutlineBacklinkDescs.isEmpty ? nil : serverOutlineBacklinkDescs.compactMap { EntityID(description: $0) }
+			let serverOutlineBacklinks = serverOutlineBacklinkDescs.compactMap { EntityID(description: $0) }
 			
 			if let mergedOutlineBackLinks = merge(client: outlineBacklinks, ancestor: ancestorOutlineBacklinks, server: serverOutlineBacklinks) {
 				let outlineBacklinksDiff = mergedOutlineBackLinks.difference(from: outlineBacklinks ?? [])

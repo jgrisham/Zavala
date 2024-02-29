@@ -44,14 +44,13 @@ extension CollectionsViewController: UICollectionViewDropDelegate {
 	}
 	
 	func collectionView(_ collectionView: UICollectionView, performDropWith coordinator: UICollectionViewDropCoordinator) {
-		guard let dragItem = coordinator.items.first?.dragItem,
-			  let destinationIndexPath = coordinator.destinationIndexPath,
+		guard let destinationIndexPath = coordinator.destinationIndexPath,
 			  let item = dataSource.itemIdentifier(for: destinationIndexPath),
 			  let entityID = item.entityID,
 			  let container = outlineContainersDictionary[entityID] else { return }
 		
 		// Dragging an OPML file into the Collections View
-		guard let outline = dragItem.localObject as? Outline else {
+		guard coordinator.items.first?.dragItem.localObject != nil else {
 			for dropItem in coordinator.items {
 				let provider = dropItem.dragItem.itemProvider
 				provider.loadDataRepresentation(forTypeIdentifier: DataRepresentation.opml.typeIdentifier) { (opmlData, error) in
@@ -70,45 +69,48 @@ extension CollectionsViewController: UICollectionViewDropDelegate {
 			return
 		}
 
-		// Local copy between accounts
-		guard outline.account == container.account else {
-			Task {
-				await outline.load()
-				
-				var tagNames = [String]()
-				for tag in await outline.tags {
-					outline.deleteTag(tag)
-					await outline.account?.deleteTag(tag)
-					tagNames.append(tag.name)
-				}
-				
-				await outline.account?.deleteOutline(outline)
-				if let containerAccount = container.account {
-					outline.reassignAccount(containerAccount.id.accountID)
-					await containerAccount.createOutline(outline)
-				}
-				
-				for tagName in tagNames {
-					if let tag = await container.account?.createTag(name: tagName) {
+		Task {
+			for dropItem in coordinator.items {
+				if let outline = dropItem.dragItem.localObject as? Outline {
+					guard outline.account != container.account else {
+						guard let tag = (container as? TagOutlines)?.tag else {
+							return
+						}
+						
+						// Adding a tag by dragging a document to it within the same account
 						outline.createTag(tag)
+						return
 					}
+					
+					// Local copy between accounts
+					await outline.load()
+					
+					var tagNames = [String]()
+					for tag in await outline.tags {
+						outline.deleteTag(tag)
+						await outline.account?.deleteTag(tag)
+						tagNames.append(tag.name)
+					}
+					
+					await outline.account?.deleteOutline(outline)
+					if let containerAccount = container.account {
+						outline.reassignAccount(containerAccount.id.accountID)
+						await containerAccount.createOutline(outline)
+					}
+					
+					for tagName in tagNames {
+						if let tag = await container.account?.createTag(name: tagName) {
+							outline.createTag(tag)
+						}
+					}
+					
+					outline.deleteAllBacklinks()
+					
+					await outline.forceSave()
+					await outline.unload()
 				}
-				
-				outline.deleteAllBacklinks()
-				
-				await outline.forceSave()
-				await outline.unload()
 			}
-			return
 		}
-		
-		// Adding a tag by dragging a outline to it
-		guard let tag = (container as? TagOutlines)?.tag else {
-			return
-		}
-		
-		outline.createTag(tag)
 	}
-	
-	
+
 }
