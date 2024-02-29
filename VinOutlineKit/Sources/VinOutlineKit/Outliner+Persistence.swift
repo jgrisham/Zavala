@@ -58,7 +58,6 @@ struct AccountCodable: Codable {
 	
 	var tags: [Tag]?
 	var documents: [DocumentCodable]?
-	var outlines: [Outline]?
 	
 	var sharedDatabaseChangeToken: Data?
 	var zoneChangeTokens: [VCKChangeTokenKey: Data]?
@@ -68,7 +67,6 @@ struct AccountCodable: Codable {
 		case isActive = "isActive"
 		case tags = "tags"
 		case documents = "documents"
-		case outlines = "outlines"
 		case sharedDatabaseChangeToken = "sharedDatabaseChangeToken"
 		case zoneChangeTokens = "zoneChangeTokens"
 	}
@@ -78,7 +76,12 @@ struct AccountCodable: Codable {
 		self.isActive = await account.isActive
 		self.tags = await account.tags
 		
-		self.outlines = await account.outlines
+		var documents = [DocumentCodable]()
+		for outline in await account.outlines ?? [] {
+			documents.append(.outline(outline))
+		}
+		
+		self.documents = documents
 		
 		self.sharedDatabaseChangeToken = await account.sharedDatabaseChangeToken
 		self.zoneChangeTokens = await account.zoneChangeTokens

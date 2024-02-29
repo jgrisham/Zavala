@@ -44,7 +44,7 @@ public struct Pin: Equatable {
 			self.containers = nil
 		}
 		
-		if let userInfo = userInfo["outlineID"] as? [AnyHashable : AnyHashable] {
+		if let userInfo = userInfo["documentID"] as? [AnyHashable : AnyHashable] {
 			if let outlineID = EntityID(userInfo: userInfo) {
 				self.outline = await Outliner.shared.findOutline(outlineID)
 			} else {
@@ -61,7 +61,7 @@ public struct Pin: Equatable {
 			userInfo["containerIDs"] = containerIDs.map { $0.userInfo }
 		}
 		if let outlineID {
-			userInfo["outlineID"] = outlineID.userInfo
+			userInfo["documentID"] = outlineID.userInfo
 		}
 		return userInfo
 	}

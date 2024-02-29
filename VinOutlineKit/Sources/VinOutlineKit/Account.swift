@@ -116,17 +116,13 @@ public actor Account: Identifiable, Equatable {
 		self.isActive = accountCodable.isActive
 		self.tags = accountCodable.tags
 		
-		if let outlines = accountCodable.outlines {
-			self.outlines = outlines
-		} else {
-			var outlines = [Outline]()
-			for documentCodable in accountCodable.documents ?? [] {
-				if let outline = documentCodable.outline {
-					outlines.append(outline)
-				}
+		var outlines = [Outline]()
+		for documentCodable in accountCodable.documents ?? [] {
+			if let outline = documentCodable.outline {
+				outlines.append(outline)
 			}
-			self.outlines = outlines
 		}
+		self.outlines = outlines
 		
 		self.sharedDatabaseChangeToken = accountCodable.sharedDatabaseChangeToken
 		self.zoneChangeTokens = accountCodable.zoneChangeTokens
