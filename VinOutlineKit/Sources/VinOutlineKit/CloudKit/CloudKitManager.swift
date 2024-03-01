@@ -79,10 +79,13 @@ public class CloudKitManager {
 		
 	init(account: Account, errorHandler: ErrorHandler) async {
 		self.account = account
-		self.outlineZone = CloudKitOutlineZone(container: container)
-		outlineZone.delegate = CloudKitOutlineZoneDelegate(account: account, zoneID: self.outlineZone.zoneID)
+		
+		let delegate = CloudKitOutlineZoneDelegate(account: account, zoneID: CloudKitOutlineZone.defaultZoneID)
+		self.outlineZone = CloudKitOutlineZone(container: container, delegate: delegate)
+		
 		self.zones[outlineZone.zoneID] = outlineZone
 		self.errorHandler = errorHandler
+		
 		await migrateSharedDatabaseChangeToken()
 		await outlineZone.migrateChangeToken()
 		
@@ -313,8 +316,9 @@ private extension CloudKitManager {
 			return zone
 		}
 		
-		let zone = CloudKitOutlineZone(container: container, database: container.sharedCloudDatabase, zoneID: zoneID)
-		zone.delegate = CloudKitOutlineZoneDelegate(account: account!, zoneID: zoneID)
+		let delegate = CloudKitOutlineZoneDelegate(account: account!, zoneID: zoneID)
+		let zone = CloudKitOutlineZone(container: container, database: container.sharedCloudDatabase, zoneID: zoneID, delegate: delegate)
+		
 		zones[zoneID] = zone
 		return zone
 	}

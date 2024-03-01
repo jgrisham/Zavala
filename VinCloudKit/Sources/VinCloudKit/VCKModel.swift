@@ -34,7 +34,7 @@ enum VCKMergeScenario {
 	}
 }
 
-public protocol VCKModel {
+public protocol VCKModel: Sendable {
 	
 	var isCloudKit: Bool { get }
 	var cloudKitRecordID: CKRecord.ID { get }

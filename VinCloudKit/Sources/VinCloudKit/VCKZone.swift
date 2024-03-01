@@ -14,7 +14,7 @@ public struct VCKChangeTokenKey: Hashable, Codable {
 	public let ownerName: String
 }
 
-public enum VCKModifyStrategy {
+public enum VCKModifyStrategy: Sendable {
 	case overWriteServerValue
 	case onlyIfServerUnchanged
 	
@@ -28,7 +28,7 @@ public enum VCKModifyStrategy {
 	}
 }
 
-public protocol VCKZoneDelegate: AnyObject {
+public protocol VCKZoneDelegate: Sendable {
 	func store(changeToken: Data?, key: VCKChangeTokenKey) async
 	func findChangeToken(key: VCKChangeTokenKey) async -> Data?
 	func cloudKitDidModify(changed: [CKRecord], deleted: [CloudKitRecordKey]) async throws;
@@ -36,16 +36,16 @@ public protocol VCKZoneDelegate: AnyObject {
 
 public typealias CloudKitRecordKey = (recordType: CKRecord.RecordType, recordID: CKRecord.ID)
 
-public protocol VCKZone: AnyObject {
+public protocol VCKZone: Sendable {
 	
 	static var qualityOfService: QualityOfService { get }
 
 	var logger: Logger { get }
 	var zoneID: CKRecordZone.ID { get }
 
-	var container: CKContainer? { get }
-	var database: CKDatabase? { get }
-	var delegate: VCKZoneDelegate? { get }
+	var container: CKContainer { get }
+	var database: CKDatabase { get }
+	var delegate: VCKZoneDelegate { get }
 
 	/// Generates a new CKRecord.ID using a UUID for the record's name
 	func generateRecordID() -> CKRecord.ID
@@ -78,7 +78,7 @@ public extension VCKZone {
 	
 	private var changeToken: CKServerChangeToken? {
 		get async {
-			guard let tokenData = await delegate!.findChangeToken(key: changeTokenKey) else { return nil }
+			guard let tokenData = await delegate.findChangeToken(key: changeTokenKey) else { return nil }
 			return try? NSKeyedUnarchiver.unarchivedObject(ofClass: CKServerChangeToken.self, from: tokenData)
 		}
 	}
@@ -90,13 +90,13 @@ public extension VCKZone {
 			tokenData = data
 		}
 		
-		await delegate!.store(changeToken: tokenData, key: changeTokenKey)
+		await delegate.store(changeToken: tokenData, key: changeTokenKey)
 	}
 
 	/// Moves the change token to the new key name.  This can eventually be removed.
 	func migrateChangeToken() async {
 		if let tokenData = UserDefaults.standard.object(forKey: oldChangeTokenKey) as? Data {
-			await delegate!.store(changeToken: tokenData, key: changeTokenKey)
+			await delegate.store(changeToken: tokenData, key: changeTokenKey)
 			UserDefaults.standard.removeObject(forKey: oldChangeTokenKey)
 		}
 	}
@@ -110,12 +110,7 @@ public extension VCKZone {
 			let op = CKFetchRecordZonesOperation(recordZoneIDs: [zoneID])
 			op.qualityOfService = Self.qualityOfService
 
-			op.perRecordZoneResultBlock = { [weak self] _, result in
-				guard let self else {
-					continuation.resume(throwing: VCKError.unknown)
-					return
-				}
-
+			op.perRecordZoneResultBlock = { _, result in
 				switch result {
 				case .success(let recordZone):
 					continuation.resume(returning: recordZone)
@@ -148,16 +143,12 @@ public extension VCKZone {
 				}
 			}
 
-			database?.add(op)
+			database.add(op)
 		}
 	}
 	
 	/// Creates the record zone
 	func createRecordZone() async throws {
-		guard let database else {
-			throw VCKError.unknown
-		}
-		
 		try await database.save(CKRecordZone(zoneID: zoneID))
 	}
 
@@ -177,7 +168,7 @@ public extension VCKZone {
 		let recordID = CKRecord.ID(recordName: externalID, zoneID: zoneID)
 		
 		do {
-			return try await database?.record(for: recordID)
+			return try await database.record(for: recordID)
 		} catch {
 			switch VCKResult.refine(error) {
 			case .zoneNotFound:
@@ -198,10 +189,6 @@ public extension VCKZone {
 	/// Save the CKSubscription
 	@discardableResult
 	func save(_ subscription: CKSubscription) async throws -> CKSubscription {
-		guard let database else {
-			throw VCKError.unknown
-		}
-		
 		do {
 			return try await database.save(subscription)
 		} catch {
@@ -302,11 +289,7 @@ public extension VCKZone {
 				}
 			}
 			
-			op.modifyRecordsResultBlock = { [weak self] result in
-				guard let self else {
-					continuation.resume(throwing: VCKError.unknown)
-					return
-				}
+			op.modifyRecordsResultBlock = { result in
 				
 				func handleError(_ error: Error) {
 					let modelsToSend = modelsToSave
@@ -392,7 +375,7 @@ public extension VCKZone {
 				}
 			}
 			
-			database?.add(op)
+			database.add(op)
 		}
 	}
 	
@@ -404,7 +387,7 @@ public extension VCKZone {
 		
 		@Sendable func wasChanged(updated: [CKRecord], deleted: [CloudKitRecordKey], token: CKServerChangeToken?) async throws {
 			logger.debug("Received \(updated.count, privacy: .public) updated records and \(deleted.count, privacy: .public) delete requests.")
-			try await delegate?.cloudKitDidModify(changed: updated, deleted: deleted)
+			try await delegate.cloudKitDidModify(changed: updated, deleted: deleted)
 			await self.storeChangeToken(token)
 		}
 		
@@ -474,11 +457,7 @@ public extension VCKZone {
 				deletedRecordKeys = [CloudKitRecordKey]()
 			}
 			
-			op.fetchRecordZoneChangesResultBlock = { [weak self] result in
-				guard let self else {
-					continuation.resume(throwing: VCKError.unknown)
-					return
-				}
+			op.fetchRecordZoneChangesResultBlock = {  result in
 				
 				func handleError(_ error: Error) {
 					switch VCKResult.refine(error) {
@@ -518,7 +497,7 @@ public extension VCKZone {
 				}
 			}
 			
-			database?.add(op)
+			database.add(op)
 			
 		}
     }

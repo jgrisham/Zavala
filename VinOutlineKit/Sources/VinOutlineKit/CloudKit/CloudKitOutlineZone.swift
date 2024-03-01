@@ -17,25 +17,29 @@ enum CloudKitOutlineZoneError: LocalizedError {
 	}
 }
 
-final class CloudKitOutlineZone: VCKZone {
+actor CloudKitOutlineZone: VCKZone {
 	
-	var logger: Logger = Logger(subsystem: Bundle.main.bundleIdentifier!, category: "VinOutlineKit")
-	var zoneID: CKRecordZone.ID
+	static let defaultZoneID = CKRecordZone.ID(zoneName: "Outline", ownerName: CKCurrentUserDefaultName)
 	
-	weak var container: CKContainer?
-	weak var database: CKDatabase?
-	var delegate: VCKZoneDelegate?
+	let logger: Logger = Logger(subsystem: Bundle.main.bundleIdentifier!, category: "VinOutlineKit")
+	let zoneID: CKRecordZone.ID
 	
-	init(container: CKContainer) {
+	let container: CKContainer
+	let database: CKDatabase
+	let delegate: VCKZoneDelegate
+	
+	init(container: CKContainer, delegate: VCKZoneDelegate) {
 		self.container = container
 		self.database = container.privateCloudDatabase
-		self.zoneID = CKRecordZone.ID(zoneName: "Outline", ownerName: CKCurrentUserDefaultName)
+		self.zoneID = Self.defaultZoneID
+		self.delegate = delegate
 	}
 	
-	init(container: CKContainer, database: CKDatabase, zoneID: CKRecordZone.ID) {
+	init(container: CKContainer, database: CKDatabase, zoneID: CKRecordZone.ID, delegate: VCKZoneDelegate) {
 		self.container = container
 		self.database = database
 		self.zoneID = zoneID
+		self.delegate = delegate
 	}
 	
 	func generateCKShare(for outline: Outline) async throws -> CKShare {

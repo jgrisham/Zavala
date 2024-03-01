@@ -9,7 +9,7 @@ import Foundation
 import CloudKit
 import VinCloudKit
 
-class CloudKitOutlineZoneDelegate: VCKZoneDelegate {
+actor CloudKitOutlineZoneDelegate: VCKZoneDelegate {
 	
 	weak var account: Account?
 	var zoneID: CKRecordZone.ID
