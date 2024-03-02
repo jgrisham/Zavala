@@ -15,13 +15,19 @@ class OutlineIndexer {
 	
 	static func updateIndex(for outline: Outline) {
 		Task {
+			await outline.load()
 			let searchableItem = await makeSearchableItem(forOutline: outline)
+			await outline.unload()
+			
 			try? await CSSearchableIndex.default().indexSearchableItems([searchableItem])
 		}
 	}
 	
 	static func makeSearchableItem(forOutline outline: Outline) async -> CSSearchableItem {
+		await outline.load()
 		let attributeSet = await makeSearchableItemAttributes(forOutline: outline)
+		await outline.unload()
+		
 		let identifier = attributeSet.relatedUniqueIdentifier
 		return CSSearchableItem(uniqueIdentifier: identifier, domainIdentifier: "io.vincode", attributeSet: attributeSet)
 	}
