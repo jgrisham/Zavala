@@ -696,8 +696,8 @@ public final class Row: NSObject, NSCopying, RowContainer, Codable, Identifiable
 		searchResultCoordinates = NSHashTable<SearchResultCoordinates>.weakObjects()
 	}
 	
-	public func visit(visitor: (Row) -> Void) {
-		visitor(self)
+	public func visit(visitor: (Row) async -> Void) async {
+		await visitor(self)
 	}
 	
 	public override func isEqual(_ object: Any?) -> Bool {

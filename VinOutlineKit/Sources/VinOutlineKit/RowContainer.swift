@@ -9,15 +9,15 @@ import Foundation
 import VinXML
 
 public protocol RowContainer {
-	var outline: Outline? { get }
-	var rows: [Row] { get }
-	var rowCount: Int { get }
+	var outline: Outline? { get async }
+	var rows: [Row] { get async }
+	var rowCount: Int { get async }
 
-	func containsRow(_: Row) -> Bool
-	func insertRow(_: Row, at: Int)
-	func removeRow(_: Row)
-	func appendRow(_: Row)
-	func firstIndexOfRow(_: Row) -> Int?
+	func containsRow(_: Row) async -> Bool
+	func insertRow(_: Row, at: Int) async
+	func removeRow(_: Row) async
+	func appendRow(_: Row) async
+	func firstIndexOfRow(_: Row) async -> Int?
 }
 
 public extension RowContainer {
@@ -34,7 +34,7 @@ public extension RowContainer {
 				row.isComplete = true
 			}
 			
-			appendRow(row)
+			await appendRow(row)
 			
 			if let rowNodes = rowNode["outline"] {
 				await row.importRows(outline: outline, rowNodes: rowNodes, images: images)

@@ -18,12 +18,12 @@ class PrintDocVisitor {
 	
 	var previousRowWasParagraph = false
 
-	func visitor(_ visited: Row) {
+	func visitor(_ visited: Row) async {
 		
-		func visitChildren() {
+		func visitChildren() async {
 			indentLevel = indentLevel + 1
-			visited.rows.forEach {
-				$0.visit(visitor: self.visitor)
+			for row in visited.rows {
+				await row.visit(visitor: self.visitor)
 			}
 			indentLevel = indentLevel - 1
 		}
@@ -34,7 +34,7 @@ class PrintDocVisitor {
 				printNote(note)
 				
 				previousRowWasParagraph = true
-				visitChildren()
+				await visitChildren()
 			} else {
 				if previousRowWasParagraph {
 					print.append(NSAttributedString(string: "\n"))
@@ -42,7 +42,7 @@ class PrintDocVisitor {
 				
 				let listVisitor = PrintListVisitor()
 				listVisitor.indentLevel = 1
-				visited.visit(visitor: listVisitor.visitor)
+				await visited.visit(visitor: listVisitor.visitor)
 				print.append(listVisitor.print)
 				
 				previousRowWasParagraph = false
@@ -55,7 +55,7 @@ class PrintDocVisitor {
 				previousRowWasParagraph = false
 			}
 			
-			visitChildren()
+			await visitChildren()
 		}
 		
 	}

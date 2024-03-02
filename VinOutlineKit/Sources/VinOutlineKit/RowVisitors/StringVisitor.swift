@@ -12,7 +12,7 @@ class StringVisitor {
 	var indentLevel = 0
 	var string = String()
 	
-	func visitor(_ visited: Row) {
+	func visitor(_ visited: Row) async {
 		string.append(String(repeating: "\t", count: indentLevel))
 		string.append("\(visited.topic?.string ?? "")")
 		
@@ -21,9 +21,9 @@ class StringVisitor {
 		}
 		
 		indentLevel = indentLevel + 1
-		visited.rows.forEach {
+		for row in visited.rows {
 			string.append("\n")
-			$0.visit(visitor: self.visitor)
+			await row.visit(visitor: self.visitor)
 		}
 		indentLevel = indentLevel - 1
 	}

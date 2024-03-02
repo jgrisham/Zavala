@@ -12,7 +12,7 @@ class MarkdownListVisitor {
 	var indentLevel = 0
 	var markdown = String()
 	
-	func visitor(_ visited: Row) {
+	func visitor(_ visited: Row) async {
 		markdown.append(String(repeating: "\t", count: indentLevel))
 		
 		if visited.isComplete ?? false {
@@ -31,9 +31,9 @@ class MarkdownListVisitor {
 		}
 		
 		indentLevel = indentLevel + 1
-		visited.rows.forEach {
+		for row in visited.rows {
 			markdown.append("\n")
-			$0.visit(visitor: self.visitor)
+			await row.visit(visitor: self.visitor)
 		}
 		indentLevel = indentLevel - 1
 	}

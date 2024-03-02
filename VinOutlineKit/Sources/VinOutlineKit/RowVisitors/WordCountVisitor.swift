@@ -8,7 +8,7 @@ class WordCountVisitor {
 
 	var count = 0
 	
-	func visitor(_ visited: Row) {
+	func visitor(_ visited: Row) async {
 		if let topic = visited.topic?.string {
 			count = count + topic.split(separator: " ", omittingEmptySubsequences: true).count
 		}
@@ -17,9 +17,7 @@ class WordCountVisitor {
 			count = count + note.split(separator: " ", omittingEmptySubsequences: true).count
 		}
 
-		visited.rows.forEach {
-			$0.visit(visitor: self.visitor)
-		}
+		for row in visited.rows { await row.visit(visitor: self.visitor) }
 	}
 	
 }

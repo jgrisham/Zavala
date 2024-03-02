@@ -16,7 +16,7 @@ class PrintListVisitor {
 	var indentLevel = 0
 	var print = NSMutableAttributedString()
 
-	func visitor(_ visited: Row) {
+	func visitor(_ visited: Row) async {
 		#if canImport(UIKit)
 		if let topic = visited.topic {
 			print.append(NSAttributedString(string: "\n"))
@@ -80,8 +80,8 @@ class PrintListVisitor {
 		#endif
 		
 		indentLevel = indentLevel + 1
-		visited.rows.forEach {
-			$0.visit(visitor: self.visitor)
+		for row in visited.rows {
+			await row.visit(visitor: self.visitor)
 		}
 		indentLevel = indentLevel - 1
 	}

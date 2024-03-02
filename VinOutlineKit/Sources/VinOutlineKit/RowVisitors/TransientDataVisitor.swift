@@ -19,7 +19,7 @@ class TransientDataVisitor {
 		self.isSearching = isSearching
 	}
 	
-	func visitor(_ visited: Row) {
+	func visitor(_ visited: Row) async {
 
 		var addingToShadowTableSuspended = false
 		
@@ -47,9 +47,9 @@ class TransientDataVisitor {
 		}
 		
 		// Set all the Headline's children's parent and visit them
-		visited.rows.forEach { row in
+		for row in visited.rows {
 			row.parent = visited
-			row.visit(visitor: visitor)
+			await row.visit(visitor: visitor)
 		}
 
 		if addingToShadowTableSuspended {

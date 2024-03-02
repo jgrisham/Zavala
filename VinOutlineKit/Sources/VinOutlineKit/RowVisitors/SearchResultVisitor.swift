@@ -28,7 +28,7 @@ class SearchResultVisitor {
 		self.isNotesFilterOn = isNotesFilterOn
 	}
 	
-	func visitor(_ visited: Row) {
+	func visitor(_ visited: Row) async {
 		guard !(isCompletedFilterOn && visited.isComplete ?? false), let searchRegEx else {
 			return
 		}
@@ -57,8 +57,8 @@ class SearchResultVisitor {
 			}
 		}
 		
-		visited.rows.forEach { row in
-			row.visit(visitor: visitor)
+		for row in visited.rows {
+			await row.visit(visitor: visitor)
 		}
 	}
 	

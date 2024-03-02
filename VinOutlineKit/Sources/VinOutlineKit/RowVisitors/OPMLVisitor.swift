@@ -13,7 +13,7 @@ class OPMLVisitor {
 	var indentLevel = 0
 	var opml = String()
 	
-	func visitor(_ visited: Row) {
+	func visitor(_ visited: Row) async {
 		let indent = String(repeating: " ", count: (indentLevel + 1) * 2)
 		let escapedText = visited.topicMarkdown(representation: .opml)?.escapingXMLCharacters ?? ""
 		
@@ -31,7 +31,11 @@ class OPMLVisitor {
 		} else {
 			opml.append(">\n")
 			indentLevel = indentLevel + 1
-			visited.rows.forEach { $0.visit(visitor: self.visitor) }
+			
+			for row in visited.rows {
+				await row.visit(visitor: self.visitor)
+			}
+			
 			indentLevel = indentLevel - 1
 			opml.append(indent + "</outline>\n")
 		}

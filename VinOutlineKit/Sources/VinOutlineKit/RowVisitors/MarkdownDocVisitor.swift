@@ -14,12 +14,12 @@ class MarkdownDocVisitor {
 	
 	var previousRowWasParagraph = false
 	
-	func visitor(_ visited: Row) {
+	func visitor(_ visited: Row) async {
 		
-		func visitChildren() {
+		func visitChildren() async {
 			indentLevel = indentLevel + 1
-			visited.rows.forEach {
-				$0.visit(visitor: self.visitor)
+			for row in visited.rows {
+				await row.visit(visitor: self.visitor)
 			}
 			indentLevel = indentLevel - 1
 		}
@@ -32,7 +32,7 @@ class MarkdownDocVisitor {
 				markdown.append("\n\n\(noteMarkdown)")
 				previousRowWasParagraph = true
 				
-				visitChildren()
+				await visitChildren()
 			} else {
 				if previousRowWasParagraph {
 					markdown.append("\n")
@@ -40,7 +40,7 @@ class MarkdownDocVisitor {
 
 				let listVisitor = MarkdownListVisitor()
 				markdown.append("\n")
-				visited.visit(visitor: listVisitor.visitor)
+				await visited.visit(visitor: listVisitor.visitor)
 				markdown.append(listVisitor.markdown)
 				
 				previousRowWasParagraph = false
@@ -53,7 +53,7 @@ class MarkdownDocVisitor {
 				previousRowWasParagraph = false
 			}
 			
-			visitChildren()
+			await visitChildren()
 		}
 		
 	}

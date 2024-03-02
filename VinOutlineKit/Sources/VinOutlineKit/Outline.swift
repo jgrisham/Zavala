@@ -35,7 +35,7 @@ public extension Notification.Name {
 	static let OutlineRemovedBacklinks = Notification.Name(rawValue: "OutlineRemovedBacklinks")
 }
 
-public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Codable {
+public actor Outline: RowContainer, Identifiable, Equatable, Hashable, Codable {
 	
 	public enum Section: Int {
 		case title = 0
@@ -142,11 +142,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	
 	public var isCloudKitMerging: Bool = false
 
-	public var id: EntityID {
-		didSet {
-			outlineMetaDataDidChange()
-		}
-	}
+	public let id: EntityID
 
 	var ancestorTitle: String?
 	var serverTitle: String?
@@ -264,7 +260,9 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 			let wordCountVisitor = WordCountVisitor()
 			
 			await load()
-			rows.forEach { $0.visit(visitor: wordCountVisitor.visitor)	}
+			for row in rows {
+				await row.visit(visitor: wordCountVisitor.visitor)
+			}
 			await unload()
 			
 			return wordCountVisitor.count
@@ -390,21 +388,25 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	private var collapseAllInOutlineUnavailable = true
 	private var collapseAllInOutlineUnavailableNeedsUpdate = true
 	public var isCollapseAllInOutlineUnavailable: Bool {
-		if collapseAllInOutlineUnavailableNeedsUpdate {
-			collapseAllInOutlineUnavailable = isCollapseAllUnavailable(container: self)
-			collapseAllInOutlineUnavailableNeedsUpdate = false
+		get async {
+			if collapseAllInOutlineUnavailableNeedsUpdate {
+				collapseAllInOutlineUnavailable = await isCollapseAllUnavailable(container: self)
+				collapseAllInOutlineUnavailableNeedsUpdate = false
+			}
+			return collapseAllInOutlineUnavailable
 		}
-		return collapseAllInOutlineUnavailable
 	}
 	
 	private var expandAllInOutlineUnavailable = true
 	private var expandAllInOutlineUnavailableNeedsUpdate = true
 	public var isExpandAllInOutlineUnavailable: Bool {
-		if expandAllInOutlineUnavailableNeedsUpdate {
-			expandAllInOutlineUnavailable = isExpandAllUnavailable(container: self)
-			expandAllInOutlineUnavailableNeedsUpdate = false
+		get async {
+			if expandAllInOutlineUnavailableNeedsUpdate {
+				expandAllInOutlineUnavailable = await isExpandAllUnavailable(container: self)
+				expandAllInOutlineUnavailableNeedsUpdate = false
+			}
+			return expandAllInOutlineUnavailable
 		}
-		return expandAllInOutlineUnavailable
 	}
 	
 	public weak var account: Account?
@@ -421,36 +423,25 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	}
 	
 	public var expansionState: String {
-		get {
+		get async {
 			var currentRow = 0
 			var expandedRows = [String]()
 			
-			func expandedRowVisitor(_ visited: Row) {
+			func expandedRowVisitor(_ visited: Row) async {
 				if visited.isCollapsable {
 					expandedRows.append(String(currentRow))
 				}
 				currentRow = currentRow + 1
-				visited.rows.forEach { $0.visit(visitor: expandedRowVisitor) }
+				for row in rows {
+					await row.visit(visitor: expandedRowVisitor)
+				}
 			}
 
-			rows.forEach { $0.visit(visitor: expandedRowVisitor(_:)) }
+			for row in rows {
+				await row.visit(visitor: expandedRowVisitor)
+			}
 			
 			return expandedRows.joined(separator: ",")
-		}
-		set {
-			let expandedRows = newValue.split(separator: ",")
-				.compactMap({ String($0).trimmed() })
-				.compactMap({ Int($0) })
-			
-			var currentRow = 0
-			
-			func expandedRowVisitor(_ visited: Row) {
-				visited.isExpanded = expandedRows.contains(currentRow)
-				currentRow = currentRow + 1
-				visited.rows.forEach { $0.visit(visitor: expandedRowVisitor) }
-			}
-
-			rows.forEach { $0.visit(visitor: expandedRowVisitor(_:)) }
 		}
 	}
 	
@@ -656,7 +647,66 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		rowsFile = await RowsFile(outline: self)
 		imagesFile = await ImagesFile(outline: self)
 	}
-	
+
+	init(account: Account, outline: Outline) async {
+		self.account = account
+		self.id = .outline(account.id.accountID, UUID().uuidString)
+
+		self.title = await outline.title
+		self.ownerName = await outline.ownerName
+		self.ownerEmail = await outline.ownerEmail
+		self.ownerURL = await outline.ownerURL
+		self.isFilterOn = await outline.isFilterOn
+		self.isCompletedFiltered = await outline.isCompletedFiltered
+		self.isNotesFiltered = await outline.isNotesFiltered
+		self.tagIDs = await outline.tagIDs
+		self.outlineLinks = await outline.outlineLinks
+		
+		for linkedOutlineID in self.outlineLinks ?? [EntityID]() {
+			if let linkedOutline = await Outliner.shared.findOutline(linkedOutlineID)?.outline {
+				await linkedOutline.createBacklink(outline.id)
+			}
+		}
+		
+		guard let outlineKeyedRows = await outline.keyedRows else { return }
+
+		var rowIDMap = [String: String]()
+		var newKeyedRows = [String: Row]()
+		for key in outlineKeyedRows.keys {
+			if let row = outlineKeyedRows[key] {
+				let duplicateRow = row.duplicate(newOutline: outline)
+				newKeyedRows[duplicateRow.id] = duplicateRow
+				rowIDMap[row.id] = duplicateRow.id
+			}
+		}
+		
+		var newRowOrder = OrderedSet<String>()
+		for orderKey in rowOrder ?? OrderedSet<String>() {
+			if let newKey = rowIDMap[orderKey] {
+				newRowOrder.append(newKey)
+			}
+		}
+		
+		self.rowOrder = newRowOrder
+		
+		var updatedNewKeyedRows = [String: Row]()
+		for key in newKeyedRows.keys {
+			if let newKeyedRow = newKeyedRows[key] {
+				var updatedRowOrder = OrderedSet<String>()
+				for orderKey in newKeyedRow.rowOrder {
+					if let newKey = rowIDMap[orderKey] {
+						updatedRowOrder.append(newKey)
+					}
+				}
+				newKeyedRow.rowOrder = updatedRowOrder
+				updatedNewKeyedRows[newKeyedRow.id] = newKeyedRow
+			}
+			
+		}
+		
+		self.keyedRows = updatedNewKeyedRows
+	}
+
 	public func incrementBeingViewedCount() {
 		beingViewedCount = beingViewedCount + 1
 	}
@@ -664,25 +714,22 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	public func decrementBeingViewedCount() {
 		beingViewedCount = beingViewedCount - 1
 	}
-
-	public func reassignAccount(_ accountID: Int) {
-		self.id = .outline(accountID, id.outlineUUID)
-	}
-	public func prepareForViewing() {
-		rebuildTransientData()
+	
+	public func prepareForViewing() async {
+		await rebuildTransientData()
 	}
 	
-	public func rowsFileDidLoad() {
+	public func rowsFileDidLoad() async {
 		guard isBeingViewed else { return }
 		
-		var changes = rebuildShadowTable()
+		var changes = await rebuildShadowTable()
 		let reloads = Set(shadowTable!.compactMap { $0.shadowTableIndex })
 		changes.append(OutlineElementChanges(section: adjustedRowsSection, reloads: reloads))
 		
 		outlineElementsDidChange(changes)
 	}
 	
-	public func correctCorruption() {
+	public func correctCorruption() async {
 		guard let rowOrder, let keyedRows else { return }
 		
 		beginCloudKitBatchRequest()
@@ -719,7 +766,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 
 		outlineContentDidChange()
 		endCloudKitBatchRequest()
-		outlineElementsDidChange(rebuildShadowTable())
+		await outlineElementsDidChange(rebuildShadowTable())
 	}
 	
 	public func findRowContainer(entityID: EntityID) -> RowContainer? {
@@ -880,35 +927,43 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		return filename
 	}
 		
-	public func childrenIndexes(forIndex: Int) -> [Int] {
+	public func childrenIndexes(forIndex: Int) async -> [Int] {
 		guard let row = shadowTable?[forIndex] else { return [Int]() }
 		var children = [Int]()
 		
-		func childrenVisitor(_ visited: Row) {
+		func childrenVisitor(_ visited: Row) async {
 			if let index = visited.shadowTableIndex {
 				children.append(index)
 			}
 			if visited.isExpanded {
-				visited.rows.forEach { $0.visit(visitor: childrenVisitor) }
+				for row in visited.rows {
+					await row.visit(visitor: childrenVisitor)
+				}
 			}
 		}
 
 		if row.isExpanded {
-			row.rows.forEach { $0.visit(visitor: childrenVisitor(_:)) }
+			for row in row.rows {
+				await row.visit(visitor: childrenVisitor)
+			}
 		}
 		
 		return children
 	}
 	
-	public func childrenRows(forRow row: Row) -> [Row] {
+	public func childrenRows(forRow row: Row) async -> [Row] {
 		var children = [Row]()
 		
-		func childrenVisitor(_ visited: Row) {
+		func childrenVisitor(_ visited: Row) async {
 			children.append(visited)
-			visited.rows.forEach { $0.visit(visitor: childrenVisitor) }
+			for row in visited.rows {
+				await row.visit(visitor: childrenVisitor)
+			}
 		}
 
-		row.rows.forEach { $0.visit(visitor: childrenVisitor(_:)) }
+		for row in row.rows {
+			await row.visit(visitor: childrenVisitor)
+		}
 		return children
 	}
 	
@@ -919,8 +974,8 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		appendPrintTitle(attrString: print)
 		
 		let visitor = PrintDocVisitor()
-		rows.forEach {
-			$0.visit(visitor: visitor.visitor)
+		for row in rows {
+			await row.visit(visitor: visitor.visitor)
 		}
 		print.append(visitor.print)
 
@@ -934,9 +989,9 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		
 		appendPrintTitle(attrString: print)
 		
-		rows.forEach {
+		for row in rows {
 			let visitor = PrintListVisitor()
-			$0.visit(visitor: visitor.visitor)
+			await row.visit(visitor: visitor.visitor)
 			print.append(visitor.print)
 		}
 
@@ -948,9 +1003,9 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		await load()
 		
 		var textContent = "\(title ?? "")\n\n"
-		rows.forEach {
+		for row in rows {
 			let visitor = StringVisitor()
-			$0.visit(visitor: visitor.visitor)
+			await row.visit(visitor: visitor.visitor)
 			textContent.append(visitor.string)
 			textContent.append("\n")
 		}
@@ -964,8 +1019,8 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		
 		var md = "# \(title ?? "")"
 		let visitor = MarkdownDocVisitor()
-		rows.forEach {
-			$0.visit(visitor: visitor.visitor)
+		for row in rows {
+			await row.visit(visitor: visitor.visitor)
 		}
 		md.append(visitor.markdown)
 
@@ -977,9 +1032,9 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		await load()
 		
 		var md = "# \(title ?? "")\n\n"
-		rows.forEach {
+		for row in rows {
 			let visitor = MarkdownListVisitor()
-			$0.visit(visitor: visitor.visitor)
+			await row.visit(visitor: visitor.visitor)
 			md.append(visitor.markdown)
 			md.append("\n")
 		}
@@ -1015,7 +1070,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 			opml.append("  <ownerID>\(ownerURL.escapingXMLCharacters)</ownerID>\n")
 		}
 		
-		opml.append("  <expansionState>\(expansionState)</expansionState>\n")
+		opml.append("  <expansionState>\(await expansionState)</expansionState>\n")
 		
 		if let verticleScrollState {
 			opml.append("  <vertScrollState>\(verticleScrollState)</vertScrollState>\n")
@@ -1043,9 +1098,9 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		
 		opml.append("</head>\n")
 		opml.append("<body>\n")
-		rows.forEach {
+		for row in rows {
 			let visitor = OPMLVisitor()
-			$0.visit(visitor: visitor.visitor)
+			await row.visit(visitor: visitor.visitor)
 			opml.append(visitor.opml)
 		}
 		opml.append("</body>\n")
@@ -1083,6 +1138,26 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		self.ownerURL = ownerURL
 		updated = Date()
 		requestCloudKitUpdate(for: id)
+	}
+	
+	public func update(expansionState newValue: String) async {
+		let expandedRows = newValue.split(separator: ",")
+			.compactMap({ String($0).trimmed() })
+			.compactMap({ Int($0) })
+		
+		var currentRow = 0
+		
+		func expandedRowVisitor(_ visited: Row) async {
+			visited.isExpanded = expandedRows.contains(currentRow)
+			currentRow = currentRow + 1
+			for row in visited.rows {
+				await row.visit(visitor: expandedRowVisitor)
+			}
+		}
+
+		for row in rows {
+			await row.visit(visitor: expandedRowVisitor)
+		}
 	}
 	
 	public func update(checkSpellingWhileTyping: Bool,
@@ -1126,10 +1201,10 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		}
 	}
 	
-	public func toggleFilterOn() -> OutlineElementChanges {
+	public func toggleFilterOn() async -> OutlineElementChanges {
 		isFilterOn = !(isFilterOn ?? false)
 		outlineMetaDataDidChange()
-		var changes = rebuildShadowTable()
+		var changes = await rebuildShadowTable()
 
 		if let reloads = shadowTable?.filter({ !$0.isNoteEmpty }).compactMap({ $0.shadowTableIndex }) {
 			changes.append(OutlineElementChanges(section: adjustedRowsSection, reloads: Set(reloads)))
@@ -1139,10 +1214,10 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		return changes
 	}
 	
-	public func toggleCompletedFilter() -> OutlineElementChanges {
+	public func toggleCompletedFilter() async -> OutlineElementChanges {
 		isCompletedFiltered = !(isCompletedFiltered ?? true)
 		outlineMetaDataDidChange()
-		return rebuildShadowTable()
+		return await rebuildShadowTable()
 	}
 	
 	public func toggleNotesFilter() -> OutlineElementChanges {
@@ -1167,7 +1242,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		return true
 	}
 	
-	public func search(for searchText: String, options: SearchOptions) {
+	public func search(for searchText: String, options: SearchOptions) async {
 		guard self.searchText != searchText else {
 			return
 		}
@@ -1180,18 +1255,18 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		self.searchText = searchText
 
 		var reloads = searchResultCoordinates.compactMap { $0.row.shadowTableIndex }
-		clearSearchResults()
+		await clearSearchResults()
 
 		if searchText.isEmpty {
 			isSearching = .beginSearch
 		} else {
 			isSearching = .searching
 			let searchVisitor = SearchResultVisitor(searchText: searchText, options: options, isCompletedFilterOn: isCompletedFilterOn, isNotesFilterOn: isNotesFilterOn)
-			rows.forEach { $0.visit(visitor: searchVisitor.visitor(_:))	}
+			for row in rows { await row.visit(visitor: searchVisitor.visitor) }
 			searchResultCoordinates = searchVisitor.searchResultCoordinates
 		}
 				
-		var changes = rebuildShadowTable()
+		var changes = await rebuildShadowTable()
 		reloads.append(contentsOf: searchResultCoordinates.compactMap({ $0.row.shadowTableIndex }))
 		changes.append(OutlineElementChanges(section: .rows, reloads: Set(reloads)))
 		outlineElementsDidChange(changes)
@@ -1251,14 +1326,14 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		changeSearchResult(previousResult)
 	}
 	
-	public func endSearching() {
+	public func endSearching() async {
 		outlineSearchWillEnd()
 		isSearching = .notSearching
 		searchText = ""
 
 		guard isBeingViewed else { return }
 		
-		var changes = rebuildShadowTable()
+		var changes = await rebuildShadowTable()
 
 		// Reload any rows that should be collapsed so that thier disclosure is in the correct position
 		if let reloads = shadowTable?.filter({ !$0.isExpanded }).compactMap({ $0.shadowTableIndex }) {
@@ -1269,21 +1344,22 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		outlineSearchDidEnd()
 	}
 	
-	public func focusIn(_ row: Row) {
+	public func focusIn(_ row: Row) async {
 		self.focusRow = row
 		
-		var changes = rebuildShadowTable()
+		var changes = await rebuildShadowTable()
 
 		var reloads = Set<Int>()
-		func reloadVisitor(_ visited: Row) {
+		func reloadVisitor(_ visited: Row) async {
 			if let index = visited.shadowTableIndex {
 				reloads.insert(index)
 			}
 			if visited.isExpanded {
-				visited.rows.forEach { $0.visit(visitor: reloadVisitor) }
+				for row in visited.rows { await row.visit(visitor: reloadVisitor) }
 			}
 		}
-		reloadVisitor(row)
+		
+		await reloadVisitor(row)
 
 		changes.append(OutlineElementChanges(section: .rows, reloads: Set(reloads)))
 		outlineElementsDidChange(changes)
@@ -1293,22 +1369,22 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		return focusRow == nil
 	}
 	
-	public func focusOut() {
+	public func focusOut() async {
 		guard let reloadRow = self.focusRow else { return }
 		
 		self.focusRow = nil
-		var changes = rebuildShadowTable()
+		var changes = await rebuildShadowTable()
 		
 		var reloads = Set<Int>()
-		func reloadVisitor(_ visited: Row) {
+		func reloadVisitor(_ visited: Row) async {
 			if let index = visited.shadowTableIndex {
 				reloads.insert(index)
 			}
 			if visited.isExpanded {
-				visited.rows.forEach { $0.visit(visitor: reloadVisitor) }
+				for row in visited.rows { await row.visit(visitor: reloadVisitor) }
 			}
 		}
-		reloadVisitor(reloadRow)
+		await reloadVisitor(reloadRow)
 		changes.append(OutlineElementChanges(section: .rows, reloads: Set(reloads)))
 		
 		outlineElementsDidChange(changes)
@@ -1444,17 +1520,17 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		var deletes = Set<Int>()
 		var parentReloads = Set<Int>()
 
-		func deleteVisitor(_ visited: Row) {
+		func deleteVisitor(_ visited: Row) async {
 			if let shadowTableIndex = visited.shadowTableIndex {
 				deletes.insert(shadowTableIndex)
 			}
-			visited.rows.forEach { $0.visit(visitor: deleteVisitor) }
+			for row in visited.rows { await row.visit(visitor: deleteVisitor) }
 		}
 		
 		for row in rows {
-			row.parent?.removeRow(row)
+			await row.parent?.removeRow(row)
 			removeImages(rowID: row.id)
-			row.visit(visitor: deleteVisitor(_:))
+			await row.visit(visitor: deleteVisitor)
 			
 			if let parentRow = row.parent as? Row, await autoCompleteUncomplete(row: parentRow) {
 				if let parentRowIndex = parentRow.shadowTableIndex {
@@ -1532,12 +1608,12 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		resetPreviouslyUsed(rows: [row])
 		
 		guard let parent = beforeRow.parent,
-			  let index = parent.firstIndexOfRow(beforeRow),
+			  let index = await parent.firstIndexOfRow(beforeRow),
 			  let shadowTableIndex = beforeRow.shadowTableIndex else {
 			return
 		}
 		
-		parent.insertRow(row, at: index)
+		await parent.insertRow(row, at: index)
 		row.parent = parent
 		
 		var reloads = Set<Int>()
@@ -1579,8 +1655,8 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 			afterRow?.insertRow(row, at: 0)
 			row.parent = afterRow
 		} else if let afterRow, let parent = afterRow.parent {
-			let insertIndex = parent.firstIndexOfRow(afterRow) ?? -1
-			parent.insertRow(row, at: insertIndex + 1)
+			let insertIndex = await parent.firstIndexOfRow(afterRow) ?? -1
+			await parent.insertRow(row, at: insertIndex + 1)
 			row.parent = afterRow.parent
 		} else if let afterRow {
 			let insertIndex = firstIndexOfRow(afterRow) ?? -1
@@ -1650,16 +1726,20 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 				}
 				row.parent = self
 			} else if let parent = row.parent, parent as? Row == afterRow {
-				parent.insertRow(row, at: 0)
+				await parent.insertRow(row, at: 0)
 			} else if let parent = row.parent, let afterRow {
-				let insertIndex = parent.firstIndexOfRow(afterRow) ?? parent.rowCount - 1
-				parent.insertRow(row, at: insertIndex + 1)
+				if let insertIndex = await parent.firstIndexOfRow(afterRow) {
+					await parent.insertRow(row, at: insertIndex + 1)
+				} else {
+					let insertIndex = await parent.rowCount - 1
+					await parent.insertRow(row, at: insertIndex + 1)
+				}
 			} else if afterRow?.isExpanded ?? true && !(afterRow?.rowCount == 0) {
 				afterRow?.insertRow(row, at: 0)
 				row.parent = afterRow
 			} else if let afterRow, let parent = afterRow.parent {
-				let insertIndex = parent.firstIndexOfRow(afterRow) ?? -1
-				parent.insertRow(row, at: insertIndex + 1)
+				let insertIndex = await parent.firstIndexOfRow(afterRow) ?? -1
+				await parent.insertRow(row, at: insertIndex + 1)
 				row.parent = afterRow.parent
 			} else if let afterRow {
 				let insertIndex = firstIndexOfRow(afterRow) ?? -1
@@ -1684,7 +1764,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 
 		guard isBeingViewed else { return nil }
 
-		var changes = rebuildShadowTable()
+		var changes = await rebuildShadowTable()
 		
 		if let reload = afterRow?.shadowTableIndex {
 			reloads.insert(reload)
@@ -1709,7 +1789,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		var reloads = Set<Int>()
 
 		for row in rows.reversed() {
-			afterRowContainer.insertRow(row, at: 0)
+			await afterRowContainer.insertRow(row, at: 0)
 			row.parent = afterRowContainer
 						
 			if let parentRow = row.parent as? Row, await autoCompleteUncomplete(row: parentRow) {
@@ -1726,7 +1806,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 			
 		guard isBeingViewed else { return }
 
-		var changes = rebuildShadowTable()
+		var changes = await rebuildShadowTable()
 		
 		if let reload = (afterRowContainer as? Row)?.shadowTableIndex {
 			reloads.insert(reload)
@@ -1745,7 +1825,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		var reloads = Set<Int>()
 
 		for row in rows {
-			afterRowContainer.appendRow(row)
+			await afterRowContainer.appendRow(row)
 			row.parent = afterRowContainer
 			
 			if let parentRow = row.parent as? Row, await autoCompleteUncomplete(row: parentRow) {
@@ -1762,7 +1842,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 
 		guard isBeingViewed else { return  }
 
-		var changes = rebuildShadowTable()
+		var changes = await rebuildShadowTable()
 		changes.append(OutlineElementChanges(section: adjustedRowsSection, reloads: reloads))
 		outlineElementsDidChange(changes)
 	}
@@ -1774,9 +1854,9 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 
 		var reloads = Set<Int>()
 
-		if let afterRowParent = afterRow.parent, let afterRowChildIndex = afterRowParent.firstIndexOfRow(afterRow) {
+		if let afterRowParent = afterRow.parent, let afterRowChildIndex = await afterRowParent.firstIndexOfRow(afterRow) {
 			for (i, row) in rows.enumerated() {
-				afterRowParent.insertRow(row, at: afterRowChildIndex + i + 1)
+				await afterRowParent.insertRow(row, at: afterRowChildIndex + i + 1)
 				row.parent = afterRowParent
 
 				if let parentRow = row.parent as? Row, await autoCompleteUncomplete(row: parentRow) {
@@ -1794,7 +1874,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 
 		guard isBeingViewed else { return }
 
-		var changes = rebuildShadowTable()
+		var changes = await rebuildShadowTable()
 		changes.append(OutlineElementChanges(section: adjustedRowsSection, reloads: reloads))
 		outlineElementsDidChange(changes)
 	}
@@ -1814,14 +1894,14 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		
 		guard let afterParentRow = afterRow.parent as? Row,
 			  let afterParentRowParent = afterParentRow.parent,
-			  let index = afterParentRowParent.firstIndexOfRow(afterParentRow) else {
+			  let index = await afterParentRowParent.firstIndexOfRow(afterParentRow) else {
 			return
 		}
 		
 		var reloads = Set<Int>()
 
 		for (i, row) in rows.enumerated() {
-			afterParentRowParent.insertRow(row, at: index + i + 1)
+			await afterParentRowParent.insertRow(row, at: index + i + 1)
 			row.parent = afterParentRowParent
 			
 			if let parentRow = row.parent as? Row, await autoCompleteUncomplete(row: parentRow) {
@@ -1838,13 +1918,13 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 
 		guard isBeingViewed else { return }
 
-		var changes = rebuildShadowTable()
+		var changes = await rebuildShadowTable()
 		changes.append(OutlineElementChanges(section: adjustedRowsSection, reloads: reloads))
 		changes.newCursorIndex = rows.last?.shadowTableIndex
 		outlineElementsDidChange(changes)
 	}
 
-	func duplicateRows(_ rows: [Row]) -> [Row] {
+	func duplicateRows(_ rows: [Row]) async -> [Row]  {
 		beginCloudKitBatchRequest()
 
 		var newRows = [Row]()
@@ -1853,7 +1933,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		let sortedRows = rows.sortedWithDecendentsFiltered().sortedByReverseDisplayOrder()
 		guard let afterRow = sortedRows.first else { return newRows }
 		
-		func duplicatingVisitor(_ visited: Row) {
+		func duplicatingVisitor(_ visited: Row) async {
 			let newRow = visited.duplicate(newOutline: self)
 			newRow.rowOrder = OrderedSet<String>()
 			
@@ -1863,22 +1943,30 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 				newRow.parent = self
 			}
 			
-			let insertIndex = newRow.parent!.firstIndexOfRow(afterRow) ?? newRow.parent!.rowCount - 1
-			newRow.parent!.insertRow(newRow, at: insertIndex + 1)
+			if let insertIndex = await newRow.parent!.firstIndexOfRow(afterRow) {
+				await newRow.parent!.insertRow(newRow, at: insertIndex + 1)
+			} else {
+				let insertIndex = await newRow.parent!.rowCount - 1
+				await newRow.parent!.insertRow(newRow, at: insertIndex + 1)
+			}
 
 			newRows.append(newRow)
 			idDict[visited.id] = newRow
 			
-			visited.rows.forEach { $0.visit(visitor: duplicatingVisitor) }
+			for row in rows {
+				await row.visit(visitor: duplicatingVisitor)
+			}
 		}
 
-		sortedRows.forEach { $0.visit(visitor: duplicatingVisitor(_:)) }
+		for sortedRow in sortedRows {
+			await sortedRow.visit(visitor: duplicatingVisitor)
+		}
 		
 		guard isBeingViewed else { return newRows }
 
 		outlineContentDidChange()
 		endCloudKitBatchRequest()
-		outlineElementsDidChange(rebuildShadowTable())
+		await outlineElementsDidChange(rebuildShadowTable())
 
 		return newRows
 	}
@@ -1921,45 +2009,45 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	}
 	
 	@discardableResult
-	public func expand(rows: [Row]) -> [Row] {
+	public func expand(rows: [Row]) async -> [Row] {
 		let expandableRows = rows.filter { $0.isExpandable }
 		
 		expandAllInOutlineUnavailableNeedsUpdate = true
 		collapseAllInOutlineUnavailableNeedsUpdate = true
 
 		if rowCount == 1, let row = expandableRows.first {
-			expand(row: row)
+			await expand(row: row)
 			return [row]
 		}
 		
-		return expandCollapse(rows: expandableRows, isExpanded: true)
+		return await expandCollapse(rows: expandableRows, isExpanded: true)
 	}
 	
 	@discardableResult
-	public func collapse(rows: [Row]) -> [Row] {
+	public func collapse(rows: [Row]) async -> [Row] {
 		let collapsableRows = rows.filter { $0.isCollapsable }
 
 		expandAllInOutlineUnavailableNeedsUpdate = true
 		collapseAllInOutlineUnavailableNeedsUpdate = true
 		
 		if rowCount == 1, let row = collapsableRows.first {
-			collapse(row: row)
+			await collapse(row: row)
 			return [row]
 		}
 		
-		return expandCollapse(rows: collapsableRows, isExpanded: false)
+		return await expandCollapse(rows: collapsableRows, isExpanded: false)
 	}
 	
-	public func isExpandAllUnavailable(containers: [RowContainer]) -> Bool {
+	public func isExpandAllUnavailable(containers: [RowContainer]) async -> Bool {
 		for container in containers {
-			if !isExpandAllUnavailable(container: container) {
+			if await !isExpandAllUnavailable(container: container) {
 				return false
 			}
 		}
 		return true
 	}
 	
-	func expandAll(containers: [RowContainer]) -> [Row] {
+	func expandAll(containers: [RowContainer]) async -> [Row] {
 		expandAllInOutlineUnavailableNeedsUpdate = true
 		collapseAllInOutlineUnavailableNeedsUpdate = true
 
@@ -1971,15 +2059,15 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 				impacted.append(row)
 			}
 			
-			func expandVisitor(_ visited: Row) {
+			func expandVisitor(_ visited: Row) async {
 				if visited.isExpandable {
 					visited.isExpanded = true
 					impacted.append(visited)
 				}
-				visited.rows.forEach { $0.visit(visitor: expandVisitor) }
+				for row in visited.rows { await row.visit(visitor: expandVisitor) }
 			}
 
-			container.rows.forEach { $0.visit(visitor: expandVisitor(_:)) }
+			for row in await container.rows { await row.visit(visitor: expandVisitor) }
 		}
 
 		outlineViewPropertyDidChange()
@@ -1988,7 +2076,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 			return impacted
 		}
 
-		var changes = rebuildShadowTable()
+		var changes = await rebuildShadowTable()
 		
 		let reloads = Set(impacted.compactMap { $0.shadowTableIndex })
 		changes.append(OutlineElementChanges(section: adjustedRowsSection, reloads: reloads))
@@ -1996,16 +2084,16 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		return impacted
 	}
 
-	public func isCollapseAllUnavailable(containers: [RowContainer]) -> Bool {
+	public func isCollapseAllUnavailable(containers: [RowContainer]) async -> Bool {
 		for container in containers {
-			if !isCollapseAllUnavailable(container: container) {
+			if await !isCollapseAllUnavailable(container: container) {
 				return false
 			}
 		}
 		return true
 	}
 	
-	func collapseAll(containers: [RowContainer]) -> [Row] {
+	func collapseAll(containers: [RowContainer]) async -> [Row] {
 		expandAllInOutlineUnavailableNeedsUpdate = true
 		collapseAllInOutlineUnavailableNeedsUpdate = true
 
@@ -2018,21 +2106,21 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 				impacted.append(row)
 			}
 			
-			func collapseVisitor(_ visited: Row) {
+			func collapseVisitor(_ visited: Row) async {
 				if visited.isCollapsable {
 					visited.isExpanded = false
 					impacted.append(visited)
 				}
-				visited.rows.forEach { $0.visit(visitor: collapseVisitor) }
+				for row in visited.rows { await row.visit(visitor: collapseVisitor) }
 			}
 
 			if let row = container as? Row {
 				reloads.append(row)
 			}
 			
-			container.rows.forEach {
-				reloads.append($0)
-				$0.visit(visitor: collapseVisitor(_:))
+			for row in await container.rows {
+				reloads.append(row)
+				await row.visit(visitor: collapseVisitor(_:))
 			}
 		}
 		
@@ -2042,7 +2130,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 			return impacted
 		}
 
-		var changes = rebuildShadowTable()
+		var changes = await rebuildShadowTable()
 	
 		let reloadIndexes = Set(reloads.compactMap { $0.shadowTableIndex })
 		changes.append(OutlineElementChanges(section: adjustedRowsSection, reloads: reloadIndexes))
@@ -2080,9 +2168,9 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		return impacted
 	}
 	
-	public func isMoveRowsRightUnavailable(rows: [Row]) -> Bool {
+	public func isMoveRowsRightUnavailable(rows: [Row]) async -> Bool {
 		for row in rows {
-			if let rowIndex = row.parent?.firstIndexOfRow(row), rowIndex > 0 {
+			if let rowIndex = await row.parent?.firstIndexOfRow(row), rowIndex > 0 {
 				return false
 			}
 		}
@@ -2106,18 +2194,18 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 
 		for row in sortedRows {
 			guard let container = row.parent,
-				  let rowIndex = container.firstIndexOfRow(row),
+				  let rowIndex = await container.firstIndexOfRow(row),
 				  rowIndex > 0,
-				  let newParentRow = row.parent?.rows[rowIndex - 1] else { continue }
+				  let newParentRow = await row.parent?.rows[rowIndex - 1] else { continue }
 
 			impacted.append(row)
-			expand(row: newParentRow)
+			await expand(row: newParentRow)
 			
 			// Don't grab this until we expand or it won't be correctly recalculated
 			guard let rowShadowTableIndex = row.shadowTableIndex else { continue }
 			
 			row.parent = newParentRow
-			container.removeRow(row)
+			await container.removeRow(row)
 			newParentRow.appendRow(row)
 
 			newParentRow.isExpanded = true
@@ -2141,18 +2229,18 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 			return impacted
 		}
 		
-		func reloadVisitor(_ visited: Row) {
+		func reloadVisitor(_ visited: Row) async {
 			if let index = visited.shadowTableIndex {
 				reloads.insert(index)
 			}
 			if visited.isExpanded {
-				visited.rows.forEach { $0.visit(visitor: reloadVisitor) }
+				for row in visited.rows { await row.visit(visitor: reloadVisitor) }
 			}
 		}
 
 		for row in impacted {
 			if row.isExpanded {
-				row.rows.forEach { $0.visit(visitor: reloadVisitor(_:)) }
+				for row in row.rows { await row.visit(visitor: reloadVisitor(_:)) }
 			}
 		}
 
@@ -2187,7 +2275,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 			guard let oldParent = row.parent as? Row,
 				  let oldRowIndex = oldParent.rows.firstIndex(of: row),
 				  let newParent = oldParent.parent,
-				  let oldParentIndex = newParent.rows.firstIndex(of: oldParent) else { continue }
+				  let oldParentIndex = await newParent.rows.firstIndex(of: oldParent) else { continue }
 			
 			impacted.append(row)
 			
@@ -2197,7 +2285,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 			}
 
 			oldParent.removeRow(row)
-			newParent.insertRow(row, at: oldParentIndex + 1)
+			await newParent.insertRow(row, at: oldParentIndex + 1)
 			
 			row.parent = oldParent.parent
 
@@ -2215,15 +2303,15 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 			return impacted
 		}
 
-		var changes = rebuildShadowTable()
-		reloads.formUnion(reloadsForParentAndChildren(rows: impacted))
+		var changes = await rebuildShadowTable()
+		await reloads.formUnion(reloadsForParentAndChildren(rows: impacted))
 		changes.append(OutlineElementChanges(section: adjustedRowsSection, reloads: reloads))
 		outlineElementsDidChange(changes)
 		
 		return impacted
 	}
 	
-	public func isMoveRowsUpUnavailable(rows: [Row]) -> Bool {
+	public func isMoveRowsUpUnavailable(rows: [Row]) async -> Bool {
 		guard let first = rows.sortedByDisplayOrder().first else { return true }
 		
 		for row in rows {
@@ -2232,7 +2320,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 			}
 		}
 		
-		guard let index = first.parent?.rows.firstIndex(of: first) else { return true }
+		guard let index = await first.parent?.rows.firstIndex(of: first) else { return true }
 		
 		return index == 0
 	}
@@ -2245,9 +2333,9 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		}
 
 		for row in rows.sortedByDisplayOrder() {
-			if let parent = row.parent, let index = parent.firstIndexOfRow(row), index - 1 > -1 {
-				parent.removeRow(row)
-				parent.insertRow(row, at: index - 1)
+			if let parent = row.parent, let index = await parent.firstIndexOfRow(row), index - 1 > -1 {
+				await parent.removeRow(row)
+				await parent.insertRow(row, at: index - 1)
 			}
 		}
 		
@@ -2256,10 +2344,10 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		
 		guard isBeingViewed else { return }
 
-		outlineElementsDidChange(rebuildShadowTable())
+		await outlineElementsDidChange(rebuildShadowTable())
 	}
 	
-	public func isMoveRowsDownUnavailable(rows: [Row]) -> Bool {
+	public func isMoveRowsDownUnavailable(rows: [Row]) async -> Bool {
 		guard let last = rows.sortedByDisplayOrder().last else { return true }
 		
 		for row in rows {
@@ -2268,9 +2356,9 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 			}
 		}
 		
-		guard let index = last.parent?.rows.firstIndex(of: last) else { return true }
+		guard let index = await last.parent?.rows.firstIndex(of: last) else { return true }
 		
-		return index == (last.parent?.rowCount ?? -1) - 1
+		return await index == (last.parent?.rowCount ?? -1) - 1
 	}
 
 	func moveRowsDown(_ rows: [Row], rowStrings: RowStrings?) async {
@@ -2281,9 +2369,9 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		}
 
 		for row in rows.sortedByReverseDisplayOrder() {
-			if let parent = row.parent, let index = parent.firstIndexOfRow(row), index + 1 < parent.rowCount {
-				parent.removeRow(row)
-				parent.insertRow(row, at: index + 1)
+			if let parent = row.parent, let index = await parent.firstIndexOfRow(row), await index + 1 < parent.rowCount {
+				await parent.removeRow(row)
+				await parent.insertRow(row, at: index + 1)
 			}
 		}
 		
@@ -2292,7 +2380,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		
 		guard isBeingViewed else { return }
 
-		outlineElementsDidChange(rebuildShadowTable())
+		await outlineElementsDidChange(rebuildShadowTable())
 	}
 	
 	public func moveRowsInsideAtStart(_ rows: [Row], afterRowContainer: RowContainer) async {
@@ -2306,7 +2394,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	public func moveRowsInsideAtEnd(_ rows: [Row], afterRowContainer: RowContainer) async {
 		var rowMoves = [RowMove]()
 		for (index, row) in rows.enumerated() {
-			rowMoves.append(RowMove(row: row, toParent: afterRowContainer, toChildIndex: index + afterRowContainer.rowCount))
+			await rowMoves.append(RowMove(row: row, toParent: afterRowContainer, toChildIndex: index + afterRowContainer.rowCount))
 		}
 		await moveRows(rowMoves)
 	}
@@ -2314,7 +2402,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	public func moveRowsOutside(_ rows: [Row], afterRow: Row) async {
 		guard let afterRowParent = afterRow.parent as? Row,
 			  let afterRowGrandParent = afterRowParent.parent,
-			  let startIndex = afterRowGrandParent.firstIndexOfRow(afterRowParent) else { return }
+			  let startIndex = await afterRowGrandParent.firstIndexOfRow(afterRowParent) else { return }
 		
 		var rowMoves = [RowMove]()
 		for (index, row) in rows.enumerated() {
@@ -2325,7 +2413,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 
 	public func moveRowsDirectlyAfter(_ rows: [Row], afterRow: Row) async {
 		guard let afterRowParent = afterRow.parent,
-			  let startIndex = afterRowParent.firstIndexOfRow(afterRow) else { return }
+			  let startIndex = await afterRowParent.firstIndexOfRow(afterRow) else { return }
 		
 		var rowMoves = [RowMove]()
 		for (index, row) in rows.enumerated() {
@@ -2367,7 +2455,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		
 		// Move the rows in the tree
 		for rowMove in sortedRowMoves {
-			rowMove.row.parent?.removeRow(rowMove.row)
+			await rowMove.row.parent?.removeRow(rowMove.row)
 			
 			if let parentRow = rowMove.row.parent as? Row, await autoCompleteUncomplete(row: parentRow) {
 				if let parentRowIndex = parentRow.shadowTableIndex {
@@ -2379,10 +2467,10 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 				oldParentReloads.insert(oldParentShadowTableIndex)
 			}
 			
-			if rowMove.toChildIndex >= rowMove.toParent.rowCount {
-				rowMove.toParent.appendRow(rowMove.row)
+			if await rowMove.toChildIndex >= rowMove.toParent.rowCount {
+				await rowMove.toParent.appendRow(rowMove.row)
 			} else {
-				rowMove.toParent.insertRow(rowMove.row, at: rowMove.toChildIndex)
+				await rowMove.toParent.insertRow(rowMove.row, at: rowMove.toChildIndex)
 			}
 
 			if let parentRow = rowMove.toParent as? Row {
@@ -2395,8 +2483,8 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 
 		guard isBeingViewed else { return }
 
-		var changes = rebuildShadowTable()
-		var reloads = reloadsForParentAndChildren(rows: rowMoves.map { $0.row })
+		var changes = await rebuildShadowTable()
+		var reloads = await reloadsForParentAndChildren(rows: rowMoves.map { $0.row })
 		reloads.formUnion(oldParentReloads)
 		changes.append(OutlineElementChanges(section: adjustedRowsSection, reloads: reloads))
 		outlineElementsDidChange(changes)
@@ -2413,7 +2501,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		imagesFile = await ImagesFile(outline: self)
 		await imagesFile?.load()
 
-		prepareRowsForProcessing()
+		await prepareRowsForProcessing()
 	}
 	
 	public func unload() async {
@@ -2462,7 +2550,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	public func delete() async {
 		for link in outlineLinks ?? [EntityID]() {
 			if let outline = await Outliner.shared.findOutline(link)?.outline {
-				outline.deleteBacklink(id)
+				await outline.deleteBacklink(id)
 			}
 		}
 		
@@ -2481,67 +2569,6 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		imagesFile = nil
 
 		outlineDidDelete()
-	}
-	
-	public func duplicate() async -> Outline {
-		guard let account else { fatalError("Account should always be available.") }
-
-		let outline = await Outline(account: account, id: .outline(id.accountID, UUID().uuidString))
-
-		outline.title = title
-		outline.ownerName = ownerName
-		outline.ownerEmail = ownerEmail
-		outline.ownerURL = ownerURL
-		outline.isFilterOn = isFilterOn
-		outline.isCompletedFiltered = isCompletedFiltered
-		outline.isNotesFiltered = isNotesFiltered
-		outline.tagIDs = tagIDs
-		outline.outlineLinks = outlineLinks
-		
-		for linkedOutlineID in outline.outlineLinks ?? [EntityID]() {
-			if let linkedOutline = await Outliner.shared.findOutline(linkedOutlineID)?.outline {
-				linkedOutline.createBacklink(outline.id)
-			}
-		}
-		
-		guard let keyedRows else { return outline }
-
-		var rowIDMap = [String: String]()
-		var newKeyedRows = [String: Row]()
-		for key in keyedRows.keys {
-			if let row = keyedRows[key] {
-				let duplicateRow = row.duplicate(newOutline: outline)
-				newKeyedRows[duplicateRow.id] = duplicateRow
-				rowIDMap[row.id] = duplicateRow.id
-			}
-		}
-		
-		var newRowOrder = OrderedSet<String>()
-		for orderKey in rowOrder ?? OrderedSet<String>() {
-			if let newKey = rowIDMap[orderKey] {
-				newRowOrder.append(newKey)
-			}
-		}
-		outline.rowOrder = newRowOrder
-		
-		var updatedNewKeyedRows = [String: Row]()
-		for key in newKeyedRows.keys {
-			if let newKeyedRow = newKeyedRows[key] {
-				var updatedRowOrder = OrderedSet<String>()
-				for orderKey in newKeyedRow.rowOrder {
-					if let newKey = rowIDMap[orderKey] {
-						updatedRowOrder.append(newKey)
-					}
-				}
-				newKeyedRow.rowOrder = updatedRowOrder
-				updatedNewKeyedRows[newKeyedRow.id] = newKeyedRow
-			}
-			
-		}
-		
-		outline.keyedRows = updatedNewKeyedRows
-		
-		return outline
 	}
 	
 	func createBacklink(_ entityID: EntityID, updateCloudKit: Bool = true) {
@@ -2597,17 +2624,17 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	public func updateAllLinkRelationships() async {
 		var newOutlineLinks = [EntityID]()
 		
-		func linkVisitor(_ visited: Row) {
+		func linkVisitor(_ visited: Row) async {
 			if let topic = visited.topic {
 				newOutlineLinks.append(contentsOf: extractLinkToIDs(topic))
 			}
 			if let note = visited.note {
 				newOutlineLinks.append(contentsOf: extractLinkToIDs(note))
 			}
-			visited.rows.forEach { $0.visit(visitor: linkVisitor) }
+			for row in visited.rows { await row.visit(visitor: linkVisitor) }
 		}
 
-		rows.forEach { $0.visit(visitor: linkVisitor(_:)) }
+		for row in rows { await row.visit(visitor: linkVisitor) }
 		
 		let currentOutlineLinks = outlineLinks ?? [EntityID]()
 		let diff = newOutlineLinks.difference(from: currentOutlineLinks)
@@ -2647,9 +2674,9 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		
 	}
 	
-	func rebuildShadowTable() -> OutlineElementChanges {
+	func rebuildShadowTable() async -> OutlineElementChanges {
 		guard let oldShadowTable = shadowTable else { return OutlineElementChanges(section: adjustedRowsSection) }
-		rebuildTransientData()
+		await rebuildTransientData()
 		
 		var moves = Set<OutlineElementChanges.Move>()
 		var inserts = Set<Int>()
@@ -2693,37 +2720,8 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		return lhs.id == rhs.id
 	}
 	
-	public func hash(into hasher: inout Hasher) {
+	nonisolated public func hash(into hasher: inout Hasher) {
 		hasher.combine(id)
-	}
-	
-}
-
-// MARK: CustomDebugStringConvertible
-
-extension Outline: CustomDebugStringConvertible {
-	
-	public var debugDescription: String {
-		var output = ""
-		for row in rows {
-			output.append(dumpRow(level: 0, row: row))
-		}
-		return output
-	}
-	
-	private func dumpRow(level: Int, row: Row) -> String {
-		var output = ""
-		for _ in 0..<level {
-			output.append(" -- ")
-		}
-		output.append(row.debugDescription)
-		output.append("\n")
-		
-		for child in row.rows {
-			output.append(dumpRow(level: level + 1, row: child))
-		}
-		
-		return output
 	}
 	
 }
@@ -2818,7 +2816,7 @@ private extension Outline {
 		outlineSearchResultDidChange()
 	}
 	
-	func clearSearchResults() {
+	func clearSearchResults() async {
 		let reloads = Set(searchResultCoordinates.compactMap({ $0.row.shadowTableIndex }))
 		
 		currentSearchResult = -1
@@ -2826,11 +2824,11 @@ private extension Outline {
 
 		guard isBeingViewed else { return }
 		
-		func clearSearchVisitor(_ visited: Row) {
+		func clearSearchVisitor(_ visited: Row) async {
 			visited.clearSearchResults()
-			visited.rows.forEach { $0.visit(visitor: clearSearchVisitor) }
+			for row in visited.rows { await row.visit(visitor: clearSearchVisitor) }
 		}
-		rows.forEach { $0.visit(visitor: clearSearchVisitor(_:)) }
+		for row in rows { await row.visit(visitor: clearSearchVisitor) }
 		
 		outlineElementsDidChange(OutlineElementChanges(section: adjustedRowsSection, reloads: reloads))
 	}
@@ -2865,7 +2863,7 @@ private extension Outline {
 		guard isBeingViewed else { return (impacted, nil) }
 
 		if isCompletedFilterOn {
-			let changes = rebuildShadowTable()
+			let changes = await rebuildShadowTable()
 			outlineElementsDidChange(changes)
 			if let firstComplete = changes.deletes?.sorted().first, firstComplete > 0 {
 				return (impacted, firstComplete - 1)
@@ -2880,17 +2878,17 @@ private extension Outline {
 			if let shadowTableIndex = row.shadowTableIndex {
 				reloads.insert(shadowTableIndex)
 			
-				func reloadVisitor(_ visited: Row) {
+				func reloadVisitor(_ visited: Row) async {
 					if let index = visited.shadowTableIndex {
 						reloads.insert(index)
 					}
 					if visited.isExpanded {
-						visited.rows.forEach { $0.visit(visitor: reloadVisitor) }
+						for row in visited.rows { await row.visit(visitor: reloadVisitor) }
 					}
 				}
 
 				if row.isExpanded {
-					row.rows.forEach { $0.visit(visitor: reloadVisitor(_:)) }
+					for row in row.rows { await row.visit(visitor: reloadVisitor) }
 				}
 			}
 		}
@@ -2915,32 +2913,32 @@ private extension Outline {
 		return false
 	}
 
-	func isExpandAllUnavailable(container: RowContainer) -> Bool {
+	func isExpandAllUnavailable(container: RowContainer) async -> Bool {
 		if let row = container as? Row, row.isExpandable {
 			return false
 		}
 
 		var unavailable = true
 		
-		func expandedRowVisitor(_ visited: Row) {
+		func expandedRowVisitor(_ visited: Row) async {
 			for row in visited.rows {
 				unavailable = !row.isExpandable
 				if !unavailable {
 					break
 				}
-				row.visit(visitor: expandedRowVisitor)
+				await row.visit(visitor: expandedRowVisitor)
 				if !unavailable {
 					break
 				}
 			}
 		}
 
-		for row in container.rows {
+		for row in await container.rows {
 			unavailable = !row.isExpandable
 			if !unavailable {
 				break
 			}
-			row.visit(visitor: expandedRowVisitor)
+			await row.visit(visitor: expandedRowVisitor)
 			if !unavailable {
 				break
 			}
@@ -2949,7 +2947,7 @@ private extension Outline {
 		return unavailable
 	}
 	
-	func expandCollapse(rows: [Row], isExpanded: Bool) -> [Row] {
+	func expandCollapse(rows: [Row], isExpanded: Bool) async -> [Row] {
 		var impacted = [Row]()
 		
 		for row in rows {
@@ -2963,7 +2961,7 @@ private extension Outline {
 		
 		guard isBeingViewed else { return impacted }
 
-		var changes = rebuildShadowTable()
+		var changes = await rebuildShadowTable()
 		
 		let reloads = Set(rows.compactMap { $0.shadowTableIndex })
 		changes.append(OutlineElementChanges(section: adjustedRowsSection, reloads: reloads))
@@ -2972,7 +2970,7 @@ private extension Outline {
 		return impacted
 	}
 	
-	func expand(row: Row) {
+	func expand(row: Row) async {
 		guard !row.isExpanded, let rowShadowTableIndex = row.shadowTableIndex else { return }
 		
 		row.isExpanded = true
@@ -2983,23 +2981,19 @@ private extension Outline {
 
 		var shadowTableInserts = [Row]()
 
-		func visitor(_ visited: Row) {
+		func visitor(_ visited: Row) async {
 			let shouldFilter = isCompletedFilterOn && visited.isComplete ?? false
 			
 			if !shouldFilter {
 				shadowTableInserts.append(visited)
 
 				if visited.isExpanded {
-					visited.rows.forEach {
-						$0.visit(visitor: visitor)
-					}
+					for row in visited.rows { await row.visit(visitor: visitor) }
 				}
 			}
 		}
 
-		row.rows.forEach { row in
-			row.visit(visitor: visitor(_:))
-		}
+		for row in row.rows { await row.visit(visitor: visitor(_:))	}
 		
 		var inserts = Set<Int>()
 		for i in 0..<shadowTableInserts.count {
@@ -3013,32 +3007,32 @@ private extension Outline {
 		outlineElementsDidChange(changes)
 	}
 
-	func isCollapseAllUnavailable(container: RowContainer) -> Bool {
+	func isCollapseAllUnavailable(container: RowContainer) async -> Bool {
 		if let row = container as? Row, row.isCollapsable {
 			return false
 		}
 		
 		var unavailable = true
 		
-		func collapsedRowVisitor(_ visited: Row) {
+		func collapsedRowVisitor(_ visited: Row) async {
 			for row in visited.rows {
 				unavailable = !row.isCollapsable
 				if !unavailable {
 					break
 				}
-				row.visit(visitor: collapsedRowVisitor)
+				await row.visit(visitor: collapsedRowVisitor)
 				if !unavailable {
 					break
 				}
 			}
 		}
 
-		for row in container.rows {
+		for row in await container.rows {
 			unavailable = !row.isCollapsable
 			if !unavailable {
 				break
 			}
-			row.visit(visitor: collapsedRowVisitor)
+			await row.visit(visitor: collapsedRowVisitor)
 			if !unavailable {
 				break
 			}
@@ -3047,7 +3041,7 @@ private extension Outline {
 		return unavailable
 	}
 	
-	func collapse(row: Row)  {
+	func collapse(row: Row) async {
 		guard row.isExpanded else { return  }
 
 		row.isExpanded = false
@@ -3058,21 +3052,17 @@ private extension Outline {
 
 		var reloads = Set<Int>()
 
-		func visitor(_ visited: Row) {
+		func visitor(_ visited: Row) async {
 			if let shadowTableIndex = visited.shadowTableIndex {
 				reloads.insert(shadowTableIndex)
 			}
 
 			if visited.isExpanded {
-				visited.rows.forEach {
-					$0.visit(visitor: visitor)
-				}
+				for row in visited.rows { await row.visit(visitor: visitor)	}
 			}
 		}
 		
-		row.rows.forEach { row in
-			row.visit(visitor: visitor(_:))
-		}
+		for row in row.rows { await row.visit(visitor: visitor(_:))	}
 		
 		for reload in reloads.sorted(by: >) {
 			shadowTable?.remove(at: reload)
@@ -3084,29 +3074,29 @@ private extension Outline {
 		outlineElementsDidChange(changes)
 	}
 	
-	func prepareRowsForProcessing() {
-		func visitor(_ visited: Row) {
-			visited.rows.forEach { row in
+	func prepareRowsForProcessing() async {
+		func visitor(_ visited: Row) async {
+			for row in visited.rows {
 				row.parent = visited
-				row.visit(visitor: visitor)
+				await row.visit(visitor: visitor)
 			}
 		}
 		
-		rows.forEach { row in
+		for row in rows {
 			row.parent = self
-			row.visit(visitor: visitor(_:))
+			await row.visit(visitor: visitor(_:))
 		}
 	}
 	
-	func rebuildTransientData() {
+	func rebuildTransientData() async {
 		let transient = TransientDataVisitor(isCompletedFilterOn: isCompletedFilterOn, isSearching: isSearching)
 		
 		if let focusRow {
-			focusRow.visit(visitor: transient.visitor(_:))
+			await focusRow.visit(visitor: transient.visitor)
 		} else {
-			rows.forEach { row in
+			for row in rows {
 				row.parent = self
-				row.visit(visitor: transient.visitor(_:))
+				await row.visit(visitor: transient.visitor)
 			}
 		}
 		
@@ -3120,7 +3110,7 @@ private extension Outline {
 		}
 	}
 	
-	func reloadsForParentAndChildren(rows: [Row]) -> Set<Int> {
+	func reloadsForParentAndChildren(rows: [Row]) async -> Set<Int> {
 		var reloads = Set<Int>()
 		
 		for row in rows {
@@ -3131,17 +3121,17 @@ private extension Outline {
 				reloads.insert(shadowTableIndex - 1)
 			}
 			
-			func reloadVisitor(_ visited: Row) {
+			func reloadVisitor(_ visited: Row) async {
 				if let index = visited.shadowTableIndex {
 					reloads.insert(index)
 				}
 				if visited.isExpanded {
-					visited.rows.forEach { $0.visit(visitor: reloadVisitor) }
+					for row in visited.rows { await row.visit(visitor: reloadVisitor) }
 				}
 			}
 
 			if row.isExpanded {
-				row.rows.forEach { $0.visit(visitor: reloadVisitor(_:)) }
+				for row in row.rows { await row.visit(visitor: reloadVisitor) }
 			}
 		}
 
@@ -3237,7 +3227,7 @@ private extension Outline {
 			ancestorOutlineLinks = outlineLinks
 		}
 
-		outline.createBacklink(id)
+		await outline.createBacklink(id)
 		if outlineLinks == nil {
 			outlineLinks = [EntityID]()
 		}
@@ -3254,7 +3244,7 @@ private extension Outline {
 			ancestorOutlineLinks = outlineLinks
 		}
 
-		outline.deleteBacklink(id)
+		await outline.deleteBacklink(id)
 		outlineLinks?.removeFirst(object: entityID)
 
 		outlineMetaDataDidChange()
@@ -3359,7 +3349,18 @@ private extension Outline {
 public extension Array where Element == Outline {
 	
 	var title: String {
-		ListFormatter.localizedString(byJoining: self.compactMap({ $0.title }).sorted())
+		get async {
+			var titles = [String]()
+
+			for outline in self {
+				if let title = await outline.title {
+					titles.append(title)
+				}
+			}
+		
+			return ListFormatter.localizedString(byJoining: titles.sorted())
+		}
+		
 	}
 	
 }
