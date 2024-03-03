@@ -37,7 +37,7 @@ public struct AltLinkResolvingActions: OptionSet {
 	
 }
 
-public final class Row: NSObject, NSCopying, RowContainer, Codable, Identifiable {
+public actor Row: RowContainer, Codable, Identifiable, Equatable, Hashable {
 	
 	public static let typeIdentifier = "io.vincode.Zavala.Row"
 	
@@ -45,46 +45,52 @@ public final class Row: NSObject, NSCopying, RowContainer, Codable, Identifiable
 	public var shadowTableIndex: Int?
 
 	public var isCloudKit: Bool {
-		return outline?.isCloudKit ?? false
-	}
-
-	public var cloudKitMetaData: Data? {
-		didSet {
-			outline?.rowsFile?.markAsDirty()
+		get async {
+			return await outline?.isCloudKit ?? false
 		}
 	}
+
+	public private(set) var cloudKitMetaData: Data?
 	
 	public var isCloudKitMerging: Bool = false
 
-	public var id: String
+	public let id: String
 
 	public var isExpanded: Bool
-	public internal(set) var rows: [Row] {
-		get {
+	public var rows: [Row] {
+		get async {
 			guard let outline = self.outline else { return [Row]() }
-			return rowOrder.compactMap { outline.keyedRows?[$0] }
-		}
-		set {
-			guard let outline = self.outline else { return }
 			
-			outline.beginCloudKitBatchRequest()
-			outline.requestCloudKitUpdate(for: entityID)
-			
-			for id in rowOrder {
-				outline.keyedRows?.removeValue(forKey: id)
-				outline.requestCloudKitUpdate(for: entityID)
+			var result = [Row]()
+			for rowID in rowOrder {
+				if let keyedRow = await outline.keyedRows?[rowID] {
+					result.append(keyedRow)
+				}
 			}
-
-			var order = OrderedSet<String>()
-			for row in newValue {
-				order.append(row.id)
-				outline.keyedRows?[row.id] = row
-				outline.requestCloudKitUpdate(for: row.entityID)
-			}
-			rowOrder = order
 			
-			outline.endCloudKitBatchRequest()
+			return result
 		}
+//		set {
+//			guard let outline = self.outline else { return }
+//			
+//			outline.beginCloudKitBatchRequest()
+//			outline.requestCloudKitUpdate(for: entityID)
+//			
+//			for id in rowOrder {
+//				outline.keyedRows?.removeValue(forKey: id)
+//				outline.requestCloudKitUpdate(for: entityID)
+//			}
+//
+//			var order = OrderedSet<String>()
+//			for row in newValue {
+//				order.append(row.id)
+//				outline.keyedRows?[row.id] = row
+//				outline.requestCloudKitUpdate(for: row.entityID)
+//			}
+//			rowOrder = order
+//			
+//			outline.endCloudKitBatchRequest()
+//		}
 	}
 	
 	public var rowCount: Int {
@@ -92,10 +98,12 @@ public final class Row: NSObject, NSCopying, RowContainer, Codable, Identifiable
 	}
 
 	public var isAnyParentComplete: Bool {
-		if let parentRow = parent as? Row {
-			return parentRow.isComplete ?? false || parentRow.isAnyParentComplete
+		get async {
+			if let parentRow = parent as? Row {
+				return parentRow.isComplete ?? false || parentRow.isAnyParentComplete
+			}
+			return false
 		}
-		return false
 	}
 
 	public weak var outline: Outline? {
@@ -466,6 +474,11 @@ public final class Row: NSObject, NSCopying, RowContainer, Codable, Identifiable
 		}
 	}
 	
+	public func update(cloudKitMetaData: Data?) async {
+		self.cloudKitMetaData = cloudKitMetaData
+		await outline?.rowsFile?.markAsDirty()
+	}
+	
 	public func topicMarkdown(representation: DataRepresentation) -> String? {
 		return convertAttrString(topic, isInNotes: false, representation: representation)
 	}
@@ -568,16 +581,16 @@ public final class Row: NSObject, NSCopying, RowContainer, Codable, Identifiable
 		noteCache = nil
 	}
 
-	public func complete() {
+	public func complete() async {
 		guard isCompletable else { return }
 		isComplete = true
-		outline?.requestCloudKitUpdate(for: entityID)
+		await outline?.requestCloudKitUpdate(for: entityID)
 	}
 	
-	public func uncomplete() {
+	public func uncomplete() async {
 		guard isUncompletable else { return }
 		isComplete = false
-		outline?.requestCloudKitUpdate(for: entityID)
+		await outline?.requestCloudKitUpdate(for: entityID)
 	}
 
 	public func firstIndexOfRow(_ row: Row) -> Int? {
@@ -588,7 +601,7 @@ public final class Row: NSObject, NSCopying, RowContainer, Codable, Identifiable
 		return rowOrder.contains(row.id)
 	}
 	
-	public func insertRow(_ row: Row, at: Int) {
+	public func insertRow(_ row: Row, at: Int) async {
 		if isCloudKit && ancestorRowOrder == nil {
 			ancestorRowOrder = rowOrder
 		}
@@ -599,7 +612,7 @@ public final class Row: NSObject, NSCopying, RowContainer, Codable, Identifiable
 		outline?.requestCloudKitUpdates(for: [entityID, row.entityID])
 	}
 
-	public func removeRow(_ row: Row) {
+	public func removeRow(_ row: Row) async {
 		if isCloudKit && ancestorRowOrder == nil {
 			ancestorRowOrder = rowOrder
 		}
@@ -610,7 +623,7 @@ public final class Row: NSObject, NSCopying, RowContainer, Codable, Identifiable
 		outline?.requestCloudKitUpdates(for: [entityID, row.entityID])
 	}
 
-	public func appendRow(_ row: Row) {
+	public func appendRow(_ row: Row) async {
 		if isCloudKit && ancestorRowOrder == nil {
 			ancestorRowOrder = rowOrder
 		}
@@ -700,30 +713,14 @@ public final class Row: NSObject, NSCopying, RowContainer, Codable, Identifiable
 		await visitor(self)
 	}
 	
-	public override func isEqual(_ object: Any?) -> Bool {
-		guard let other = object as? Self else { return false }
-		if self === other { return true }
-		return id == other.id
+	public static func == (lhs: Row, rhs: Row) -> Bool {
+		return lhs.id == rhs.id
 	}
 	
-	public override var hash: Int {
-		var hasher = Hasher()
+	nonisolated public func hash(into hasher: inout Hasher) {
 		hasher.combine(id)
-		return hasher.finalize()
 	}
-	
-	public func copy(with zone: NSZone? = nil) -> Any {
-		return self
-	}
-	
-}
 
-// MARK: CustomDebugStringConvertible
-
-extension Row {
-	override public var debugDescription: String {
-		return "\(topic?.string ?? "") (\(id))"
-	}
 }
 
 // MARK: Helpers
