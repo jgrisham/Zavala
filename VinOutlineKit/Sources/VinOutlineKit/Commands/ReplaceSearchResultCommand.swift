@@ -16,13 +16,13 @@ public final class ReplaceSearchResultCommand: OutlineCommand {
 				delegate: OutlineCommandDelegate,
 				outline: Outline,
 				coordinates: [SearchResultCoordinates],
-				replacementText: String) {
+				replacementText: String) async {
 
 		self.coordinates = coordinates
 		self.replacementText = replacementText
 		
 		for coordinate in coordinates {
-			oldRowStrings.append((coordinate.row, coordinate.row.rowStrings))
+			await oldRowStrings.append((coordinate.row, coordinate.row.rowStrings))
 		}
 		
 		if let length = coordinates.first?.range.length {
@@ -34,7 +34,7 @@ public final class ReplaceSearchResultCommand: OutlineCommand {
 	}
 	
 	public override func perform() async {
-		outline.replaceSearchResults(coordinates, with: replacementText)
+		await outline.replaceSearchResults(coordinates, with: replacementText)
 	}
 	
 	public override func undo() async {

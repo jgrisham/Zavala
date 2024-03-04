@@ -13,11 +13,11 @@ public final class DeleteNoteCommand: OutlineCommand {
 	var newRowStrings: RowStrings?
 	var deletedRowNotes: [Row: NSAttributedString]?
 	
-	public init(actionName: String, undoManager: UndoManager, delegate: OutlineCommandDelegate, outline: Outline, rows: [Row], rowStrings: RowStrings?) {
+	public init(actionName: String, undoManager: UndoManager, delegate: OutlineCommandDelegate, outline: Outline, rows: [Row], rowStrings: RowStrings?) async {
 		self.rows = rows
 		
 		if rows.count == 1, let row = rows.first {
-			self.oldRowStrings = row.rowStrings
+			self.oldRowStrings = await row.rowStrings
 			self.newRowStrings = rowStrings
 		}
 
@@ -29,7 +29,7 @@ public final class DeleteNoteCommand: OutlineCommand {
 	}
 	
 	public override func undo() async {
-		outline.restoreNotes(deletedRowNotes ?? [Row: NSAttributedString]())
+		await outline.restoreNotes(deletedRowNotes ?? [Row: NSAttributedString]())
 	}
 	
 }

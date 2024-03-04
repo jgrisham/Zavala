@@ -39,11 +39,11 @@ public final class PasteRowCommand: OutlineCommand {
 	public override func undo() async {
 		var allRows = [Row]()
 		
-		func deleteVisitor(_ visited: Row) {
+		func deleteVisitor(_ visited: Row) async {
 			allRows.append(visited)
-			visited.rows.forEach { $0.visit(visitor: deleteVisitor) }
+			for row in await visited.rows { await row.visit(visitor: deleteVisitor) }
 		}
-		rows.forEach { $0.visit(visitor: deleteVisitor(_:)) }
+		for row in rows { await row.visit(visitor: deleteVisitor) }
 			
 		await outline.deleteRows(allRows)
 	}

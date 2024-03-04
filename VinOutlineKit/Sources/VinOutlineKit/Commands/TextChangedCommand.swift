@@ -20,10 +20,10 @@ public final class TextChangedCommand: OutlineCommand {
 				row: Row,
 				rowStrings: RowStrings,
 				isInNotes: Bool,
-				selection: NSRange) {
+				selection: NSRange) async {
 		self.row = row
 
-		oldRowStrings = row.rowStrings
+		oldRowStrings = await row.rowStrings
 		newRowStrings = rowStrings
 		
 		super.init(actionName: actionName, undoManager: undoManager, delegate: delegate, outline: outline)

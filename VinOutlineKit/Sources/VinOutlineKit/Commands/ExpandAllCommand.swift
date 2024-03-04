@@ -18,12 +18,12 @@ public final class ExpandAllCommand: OutlineCommand {
 	}
 	
 	public override func perform() async {
-		expandedRows = outline.expandAll(containers: containers)
+		expandedRows = await outline.expandAll(containers: containers)
 	}
 	
 	public override func undo() async {
 		guard let expandedRows else { return }
-		outline.collapse(rows: expandedRows)
+		await outline.collapse(rows: expandedRows)
 	}
 	
 }

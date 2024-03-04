@@ -12,22 +12,22 @@ public final class DeleteRowCommand: OutlineCommand {
 	var rowStrings: RowStrings?
 	var afterRows = [Row: Row]()
 	
-	public init(actionName: String, undoManager: UndoManager, delegate: OutlineCommandDelegate, outline: Outline, rows: [Row], rowStrings: RowStrings?) {
+	public init(actionName: String, undoManager: UndoManager, delegate: OutlineCommandDelegate, outline: Outline, rows: [Row], rowStrings: RowStrings?) async {
 		self.rows = rows
 
 		var allRows = Set<Row>()
 		
-		func deleteVisitor(_ visited: Row) {
+		func deleteVisitor(_ visited: Row) async {
 			allRows.insert(visited)
-			visited.rows.forEach { $0.visit(visitor: deleteVisitor) }
+			for row in await visited.rows { await row.visit(visitor: deleteVisitor) }
 		}
-		rows.forEach { $0.visit(visitor: deleteVisitor(_:)) }
+		for row in rows { await row.visit(visitor: deleteVisitor) }
 		
 		self.rows = Array(allRows)
 
 		for row in allRows {
-			if let rowShadowTableIndex = row.shadowTableIndex, rowShadowTableIndex > 0, let afterRow = outline.shadowTable?[rowShadowTableIndex - 1] {
-				afterRows[row] = afterRow.ancestorSibling(row)
+			if let rowShadowTableIndex = await row.shadowTableIndex, rowShadowTableIndex > 0, let afterRow = await outline.shadowTable?[rowShadowTableIndex - 1] {
+				afterRows[row] = await afterRow.ancestorSibling(row)
 			}
 		}
 

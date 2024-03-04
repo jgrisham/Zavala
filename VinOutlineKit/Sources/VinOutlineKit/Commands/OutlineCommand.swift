@@ -72,10 +72,10 @@ public class OutlineCommand {
 	}
 	
 	@MainActor
-	func saveCursorCoordinates() {
+	func saveCursorCoordinates() async {
 		let coordinates = delegate?.currentCoordinates
 		cursorCoordinates = coordinates
-		outline.cursorCoordinates = coordinates
+		await outline.update(cursorCoordinates: coordinates)
 	}
 	
 	@MainActor

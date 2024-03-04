@@ -84,7 +84,7 @@ actor CloudKitOutlineZoneDelegate: VCKZoneDelegate {
 		let updatesToSend = updates
 		let shareUpdatesToSend = shareUpdates
 		
-		Task { @MainActor in
+		Task {
 			for update in updatesToSend.values {
 				await account?.apply(update)
 			}
@@ -94,7 +94,7 @@ actor CloudKitOutlineZoneDelegate: VCKZoneDelegate {
 			// The outline will remove the share record data itself when its recordID gets removed.
 			for (shareRecordID, shareRecord) in shareUpdatesToSend {
 				if let outline = await account?.findOutline(shareRecordID: shareRecordID)?.outline {
-					outline.cloudKitShareRecord = shareRecord
+					await outline.update(cloudKitShareRecord: shareRecord)
 				}
 			}
 		}

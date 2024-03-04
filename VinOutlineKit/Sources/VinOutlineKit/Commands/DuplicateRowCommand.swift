@@ -22,7 +22,7 @@ public final class DuplicateRowCommand: OutlineCommand {
 		if let newRows {
 			await outline.createRows(newRows, afterRow: rows.sortedByDisplayOrder().first)
 		} else {
-			newRows = outline.duplicateRows(rows)
+			newRows = await outline.duplicateRows(rows)
 		}
 	}
 	

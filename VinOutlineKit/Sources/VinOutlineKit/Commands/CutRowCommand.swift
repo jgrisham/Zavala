@@ -12,21 +12,21 @@ public final class CutRowCommand: OutlineCommand {
 	var rows: [Row]
 	var afterRows = [Row: Row]()
 	
-	public init(actionName: String, undoManager: UndoManager, delegate: OutlineCommandDelegate, outline: Outline, rows: [Row]) {
+	public init(actionName: String, undoManager: UndoManager, delegate: OutlineCommandDelegate, outline: Outline, rows: [Row]) async {
 		self.rows = rows
 
 		var allRows = [Row]()
 		
-		func cutVisitor(_ visited: Row) {
+		func cutVisitor(_ visited: Row) async {
 			allRows.append(visited)
-			visited.rows.forEach { $0.visit(visitor: cutVisitor) }
+			for row in await visited.rows { await row.visit(visitor: cutVisitor) }
 		}
-		rows.forEach { $0.visit(visitor: cutVisitor(_:)) }
+		for row in rows { await row.visit(visitor: cutVisitor) }
 		
 		self.rows = allRows
 		
 		for row in allRows {
-			if let rowShadowTableIndex = row.shadowTableIndex, rowShadowTableIndex > 0, let afterRow = outline.shadowTable?[rowShadowTableIndex - 1] {
+			if let rowShadowTableIndex = await row.shadowTableIndex, rowShadowTableIndex > 0, let afterRow = await outline.shadowTable?[rowShadowTableIndex - 1] {
 				afterRows[row] = afterRow
 			}
 		}

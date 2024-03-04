@@ -17,12 +17,12 @@ public final class CollapseAllCommand: OutlineCommand {
 	}
 	
 	public override func perform() async {
-		collapsedRows = outline.collapseAll(containers: containers)
+		collapsedRows = await outline.collapseAll(containers: containers)
 	}
 	
 	public override func undo() async {
 		guard let collapsedRows else { return }
-		outline.expand(rows: collapsedRows)
+		await outline.expand(rows: collapsedRows)
 	}
 	
 }

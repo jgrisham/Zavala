@@ -456,17 +456,6 @@ public actor Outline: RowContainer, Identifiable, Equatable, Hashable, Codable {
 			}
 			return CursorCoordinates(row: row, isInNotes: isInNotes, selection: NSRange(location: location, length: length))
 		}
-		set {
-			if let coordinates = newValue {
-				selectionRowID = .row(id.accountID, id.outlineUUID, coordinates.row.id)
-			} else {
-				selectionRowID = nil
-			}
-			selectionIsInNotes = newValue?.isInNotes
-			selectionLocation = newValue?.selection.location
-			selectionLength = newValue?.selection.length
-			outlineMetaDataDidChange()
-		}
 	}
 	
 	public var isAnyRowCompleted: Bool {
@@ -1191,6 +1180,24 @@ public actor Outline: RowContainer, Identifiable, Equatable, Hashable, Codable {
 		
 		updated = Date()
 		requestCloudKitUpdate(for: id)
+	}
+	
+	public func update(cloudKitShareRecord: CKShare?) {
+		self.cloudKitShareRecord = cloudKitShareRecord
+	}
+	
+	public func update(cursorCoordinates: CursorCoordinates?) {
+		if let coordinates = cursorCoordinates {
+			selectionRowID = .row(id.accountID, id.outlineUUID, coordinates.row.id)
+		} else {
+			selectionRowID = nil
+		}
+		
+		selectionIsInNotes = cursorCoordinates?.isInNotes
+		selectionLocation = cursorCoordinates?.selection.location
+		selectionLength = cursorCoordinates?.selection.length
+		outlineMetaDataDidChange()
+
 	}
 	
 	public func deleteAllBacklinks() {

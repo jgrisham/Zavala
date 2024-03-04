@@ -14,11 +14,11 @@ public final class MoveRowRightCommand: OutlineCommand {
 	var oldRowStrings: RowStrings?
 	var newRowStrings: RowStrings?
 	
-	public init(actionName: String, undoManager: UndoManager, delegate: OutlineCommandDelegate, outline: Outline, rows: [Row], rowStrings: RowStrings?) {
+	public init(actionName: String, undoManager: UndoManager, delegate: OutlineCommandDelegate, outline: Outline, rows: [Row], rowStrings: RowStrings?) async {
 		self.rows = rows
 		
 		if rows.count == 1, let row = rows.first {
-			self.oldRowStrings = row.rowStrings
+			self.oldRowStrings = await row.rowStrings
 			self.newRowStrings = rowStrings
 		}
 

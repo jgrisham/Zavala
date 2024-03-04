@@ -21,14 +21,14 @@ public final class DeleteTagCommand: OutlineCommand {
 	public override func perform() async {
 		guard let tag = await outline.account?.findTag(name: tagName) else { return }
 		self.tag = tag
-		outline.deleteTag(tag)
+		await outline.deleteTag(tag)
 		await outline.account?.deleteTag(tag)
 	}
 	
 	public override func undo() async {
 		guard let tag else { return }
 		await outline.account?.createTag(tag)
-		outline.createTag(tag)
+		await outline.createTag(tag)
 	}
 	
 }

@@ -9,15 +9,15 @@ class WordCountVisitor {
 	var count = 0
 	
 	func visitor(_ visited: Row) async {
-		if let topic = visited.topic?.string {
+		if let topic = await visited.topic?.string {
 			count = count + topic.split(separator: " ", omittingEmptySubsequences: true).count
 		}
 		
-		if let note = visited.note?.string {
+		if let note = await visited.note?.string {
 			count = count + note.split(separator: " ", omittingEmptySubsequences: true).count
 		}
 
-		for row in visited.rows { await row.visit(visitor: self.visitor) }
+		for row in await visited.rows { await row.visit(visitor: self.visitor) }
 	}
 	
 }

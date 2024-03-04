@@ -16,16 +16,16 @@ public final class MoveRowLeftCommand: OutlineCommand {
 	var oldRowStrings: RowStrings?
 	var newRowStrings: RowStrings?
 	
-	public init(actionName: String, undoManager: UndoManager, delegate: OutlineCommandDelegate, outline: Outline, rows: [Row], rowStrings: RowStrings?) {
+	public init(actionName: String, undoManager: UndoManager, delegate: OutlineCommandDelegate, outline: Outline, rows: [Row], rowStrings: RowStrings?) async {
 		self.rows = rows
 		
 		for row in rows {
-			guard let oldParent = row.parent, let oldChildIndex = oldParent.firstIndexOfRow(row) else { continue }
+			guard let oldParent = await row.parent, let oldChildIndex = await oldParent.firstIndexOfRow(row) else { continue }
 			restoreMoves.append(Outline.RowMove(row: row, toParent: oldParent, toChildIndex: oldChildIndex))
 		}
 		
 		if rows.count == 1, let row = rows.first {
-			self.oldRowStrings = row.rowStrings
+			self.oldRowStrings = await row.rowStrings
 			self.newRowStrings = rowStrings
 		}
 

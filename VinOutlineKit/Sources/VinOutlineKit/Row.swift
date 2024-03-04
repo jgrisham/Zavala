@@ -41,8 +41,8 @@ public actor Row: RowContainer, Codable, Identifiable, Equatable, Hashable {
 	
 	public static let typeIdentifier = "io.vincode.Zavala.Row"
 	
-	public var parent: RowContainer?
-	public var shadowTableIndex: Int?
+	public private(set) var parent: RowContainer?
+	public private(set) var shadowTableIndex: Int?
 
 	public var isCloudKit: Bool {
 		get async {
@@ -100,7 +100,8 @@ public actor Row: RowContainer, Codable, Identifiable, Equatable, Hashable {
 	public var isAnyParentComplete: Bool {
 		get async {
 			if let parentRow = parent as? Row {
-				return parentRow.isComplete ?? false || parentRow.isAnyParentComplete
+				let isAnyParentComplete = await parentRow.isAnyParentComplete
+				return await parentRow.isComplete ?? false || isAnyParentComplete
 			}
 			return false
 		}
@@ -125,46 +126,41 @@ public actor Row: RowContainer, Codable, Identifiable, Equatable, Hashable {
 	var serverRowOrder: OrderedSet<String>?
 	var rowOrder: OrderedSet<String>
 
-	var isPartOfSearchResult = false {
-		didSet {
-			guard isPartOfSearchResult else { return }
-			
-			var parentRow = parent as? Row
-			while (parentRow != nil) {
-				parentRow!.isPartOfSearchResult = true
-				parentRow = parentRow?.parent as? Row
-			}
-		}
-	}
+	private(set) var isPartOfSearchResult = false
 	
 	private var _entityID: EntityID?
 	
 	public var trueLevel: Int {
-		var parentCount = 0
-		var parentRow = parent as? Row
-		
-		while parentRow != nil {
-			parentCount = parentCount + 1
-			parentRow = parentRow?.parent as? Row
+		get async {
+			var parentCount = 0
+			var parentRow = parent as? Row
+			
+			while parentRow != nil {
+				parentCount = parentCount + 1
+				parentRow = await parentRow?.parent as? Row
+			}
+			
+			return parentCount
 		}
-		
-		return parentCount
 	}
 	
 	public var currentLevel: Int {
-		guard self != outline?.focusRow else {
-			return 0
+		get async {
+			guard await self != outline?.focusRow else {
+				return 0
+			}
+			
+			var parentCount = await outline?.focusRow == nil ? 0 : 1
+			var parentRow = parent as? Row
+			
+			let focusRow = await outline?.focusRow
+			while parentRow != nil && parentRow != focusRow {
+				parentCount = parentCount + 1
+				parentRow = await parentRow?.parent as? Row
+			}
+			
+			return parentCount
 		}
-		
-		var parentCount = outline?.focusRow == nil ? 0 : 1
-		var parentRow = parent as? Row
-		
-		while parentRow != nil && parentRow != outline?.focusRow {
-			parentCount = parentCount + 1
-			parentRow = parentRow?.parent as? Row
-		}
-		
-		return parentCount
 	}
 	
 	public var isExpandable: Bool {
@@ -182,24 +178,26 @@ public actor Row: RowContainer, Codable, Identifiable, Equatable, Hashable {
 	}
 	
 	public var isAutoCompletable: Bool {
-		guard isCompletable else { return false }
-		
-		var foundOneChildCompleted = false
-		var foundOneChildUncompleted = false
-		
-		for child in rows {
-			if child.isUncompletable {
-				foundOneChildCompleted = true
+		get async {
+			guard isCompletable else { return false }
+			
+			var foundOneChildCompleted = false
+			var foundOneChildUncompleted = false
+			
+			for child in rows {
+				if child.isUncompletable {
+					foundOneChildCompleted = true
+				}
+				if child.isCompletable {
+					foundOneChildUncompleted = true
+				}
+				if foundOneChildCompleted && foundOneChildUncompleted {
+					return false
+				}
 			}
-			if child.isCompletable {
-				foundOneChildUncompleted = true
-			}
-			if foundOneChildCompleted && foundOneChildUncompleted {
-				return false
-			}
+			
+			return foundOneChildCompleted
 		}
-		
-		return foundOneChildCompleted
 	}
 	
 	public var isUncompletable: Bool {
@@ -474,9 +472,29 @@ public actor Row: RowContainer, Codable, Identifiable, Equatable, Hashable {
 		}
 	}
 	
+	public func update(parent: RowContainer?) async {
+		self.parent = parent
+	}
+	
+	public func update(shadowTableIndex: Int?) async {
+		self.shadowTableIndex = shadowTableIndex
+	}
+	
 	public func update(cloudKitMetaData: Data?) async {
 		self.cloudKitMetaData = cloudKitMetaData
 		await outline?.rowsFile?.markAsDirty()
+	}
+	
+	public func update(isPartOfSearchResult: Bool) async {
+		self.isPartOfSearchResult = isPartOfSearchResult
+		
+		guard isPartOfSearchResult else { return }
+		
+		var parentRow = parent as? Row
+		while (parentRow != nil) {
+			await parentRow!.update(isPartOfSearchResult: true)
+			parentRow = await parentRow?.parent as? Row
+		}
 	}
 	
 	public func topicMarkdown(representation: DataRepresentation) -> String? {

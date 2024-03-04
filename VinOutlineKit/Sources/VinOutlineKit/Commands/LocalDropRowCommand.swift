@@ -11,17 +11,18 @@ public final class LocalDropRowCommand: OutlineCommand {
 	var rowMoves = [Outline.RowMove]()
 	var restoreMoves = [Outline.RowMove]()
 	
-	public init(actionName: String, undoManager: UndoManager,
-		 delegate: OutlineCommandDelegate,
-		 outline: Outline,
-		 rows: [Row],
-		 toParent: RowContainer,
-		 toChildIndex: Int) {
+	public init(actionName: String,
+				undoManager: UndoManager,
+				delegate: OutlineCommandDelegate,
+				outline: Outline,
+				rows: [Row],
+				toParent: RowContainer,
+				toChildIndex: Int) async {
 		
 		for i in 0..<rows.count {
 			let row = rows[i]
 			rowMoves.append(Outline.RowMove(row: row, toParent: toParent, toChildIndex: toChildIndex + i))
-			guard let oldParent = row.parent, let oldChildIndex = oldParent.firstIndexOfRow(row) else { continue }
+			guard let oldParent = await row.parent, let oldChildIndex = await oldParent.firstIndexOfRow(row) else { continue }
 			restoreMoves.append(Outline.RowMove(row: row, toParent: oldParent, toChildIndex: oldChildIndex))
 		}
 

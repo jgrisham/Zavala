@@ -26,29 +26,31 @@ class TransientDataVisitor {
 		// Add to the Shadow Table if we haven't hit a collapsed entry
 		if addingToShadowTable {
 			
-			let shouldFilter = (isCompletedFilterOn && visited.isComplete ?? false) || (isSearching == .searching && !visited.isPartOfSearchResult)
+			let visitedIsComplete = await visited.isComplete ?? false
+			let visitedIsPartOfSearchResult = await visited.isPartOfSearchResult
+			let shouldFilter = (isCompletedFilterOn && visitedIsComplete) || (isSearching == .searching && !visitedIsPartOfSearchResult)
 			
 			if shouldFilter {
-				visited.shadowTableIndex = nil
+				await visited.update(shadowTableIndex: nil)
 			} else {
-				visited.shadowTableIndex = shadowTable.count
+				await visited.update(shadowTableIndex: shadowTable.count)
 				shadowTable.append(visited)
 			}
 			
-			if (!visited.isExpanded && isSearching == .notSearching) || shouldFilter {
+			if await (!visited.isExpanded && isSearching == .notSearching) || shouldFilter {
 				addingToShadowTable = false
 				addingToShadowTableSuspended = true
 			}
 			
 		} else {
 			
-			visited.shadowTableIndex = nil
-			
+			await visited.update(shadowTableIndex: nil)
+
 		}
 		
 		// Set all the Headline's children's parent and visit them
-		for row in visited.rows {
-			row.parent = visited
+		for row in await visited.rows {
+			await row.update(parent: visited)
 			await row.visit(visitor: visitor)
 		}
 
