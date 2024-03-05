@@ -14,15 +14,15 @@ public protocol RowContainer {
 	var rowCount: Int { get }
 
 	func containsRow(_: Row) -> Bool
-	func insertRow(_: Row, at: Int)
-	func removeRow(_: Row)
-	func appendRow(_: Row)
+	mutating func insertRow(_: Row, at: Int)
+	mutating func removeRow(_: Row)
+	mutating func appendRow(_: Row)
 	func firstIndexOfRow(_: Row) -> Int?
 }
 
 public extension RowContainer {
 	
-	func importRows(outline: Outline, rowNodes: [VinXML.XMLNode], images: [String:  Data]?) async {
+	mutating func importRows(outline: Outline, rowNodes: [VinXML.XMLNode], images: [String:  Data]?) async {
 		for rowNode in rowNodes {
 			let topicMarkdown = rowNode.attributes["text"]
 			let noteMarkdown = rowNode.attributes["_note"]

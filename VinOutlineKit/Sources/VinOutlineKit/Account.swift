@@ -53,7 +53,7 @@ public actor Account: Identifiable, Equatable {
 	public var isActive: Bool
 	
 	public private(set) var tags: [Tag]?
-	public private(set) var outlines: [Outline]?
+	public private(set) var keyedOutlines: [EntityID: Outline]?
 
 	public private(set) var sharedDatabaseChangeToken: Data?
 	public private(set) var zoneChangeTokens: [VCKChangeTokenKey: Data]?
@@ -86,15 +86,6 @@ public actor Account: Identifiable, Equatable {
 	var cloudKitManager: CloudKitManager?
 	
 	private let operationQueue = OperationQueue()
-
-	private var outlinesDictionaryNeedUpdate = true
-	private var _idToOutlinesDictionary = [String: Outline]()
-	private var idToOutlinesDictionary: [String: Outline] {
-		if outlinesDictionaryNeedUpdate {
-			rebuildOutlinesDictionary()
-		}
-		return _idToOutlinesDictionary
-	}
 
 	private var tagsDictionaryNeedUpdate = true
 	private var _idToTagsDictionary = [String: Tag]()
@@ -217,7 +208,7 @@ public actor Account: Identifiable, Equatable {
 			title = VinOutlineKitStringAssets.noTitle
 		}
 		
-		let outline = await Outline(account: self, parentID: id, title: title)
+		var outline = await Outline(account: self, parentID: id, title: title)
 		outlines?.append(outline)
 		accountOutlinesDidChange()
 
@@ -278,9 +269,6 @@ public actor Account: Identifiable, Equatable {
 		await outline.updateAllLinkRelationships()
 		await fixAltLinks(excluding: outline)
 		
-		await outline.forceSave()
-		await outline.unload()
-
 		return outline
 	}
 	
@@ -323,10 +311,9 @@ public actor Account: Identifiable, Equatable {
 			return
 		}
 		
-		if let outline = findOutline(outlineUUID: update.outlineID.outlineUUID) {
+		if var outline = findOutline(outlineUUID: update.outlineID.outlineUUID) {
 			await outline.load()
 			await outline.apply(update)
-			await outline.forceSave()
 			await outline.unload()
 		} else {
 			guard update.saveOutlineRecord != nil else {
@@ -382,15 +369,19 @@ public actor Account: Identifiable, Equatable {
 		}
 	}
 
-	public func findOutline(_ entityID: EntityID) -> Outline? {
-		return findOutline(outlineUUID: entityID.outlineUUID)
+	public func findOutline(_ entityID: EntityID) async -> Outline? {
+		var outline = keyedOutlines[entityID]
+		await outline?.load()
+		return outline
 	}
 	
-	public func findOutline(shareRecordID: CKRecord.ID) -> Outline? {
-		return outlines?.first(where: { $0.shareRecordID == shareRecordID })
+	public func findOutline(shareRecordID: CKRecord.ID) async -> Outline? {
+		var outline = outlines?.first(where: { $0.shareRecordID == shareRecordID })
+		await outline?.load()
+		return outline
 	}
 	
-	public func findOutline(filename: String) -> Outline? {
+	public func findOutline(filename: String) async -> Outline? {
 		var title = filename
 		var disambiguator: Int? = nil
 		
@@ -408,9 +399,17 @@ public actor Account: Identifiable, Equatable {
 
 		title = title.replacingOccurrences(of: "_", with: " ")
 		
-		return outlines?.filter({ outline in
+		var outline = outlines?.filter({ outline in
 			return outline.title == title && outline.disambiguator == disambiguator
 		}).first
+		
+		await outline?.load()
+		return outline
+	}
+	
+	public func updateOutline(_ outline: Outline) async {
+		await outline.unload()
+		keyedOutlines[outline.id] = outline
 	}
 	
 	@discardableResult
@@ -481,10 +480,6 @@ public actor Account: Identifiable, Equatable {
 	
 	public func findTag(name: String) -> Tag? {
 		return tags?.first(where: { $0.name == name })
-	}
-
-	func findOutline(outlineUUID: String) -> Outline? {
-		return idToOutlinesDictionary[outlineUUID]
 	}
 
 	func deleteAllOutlines(with zoneID: CKRecordZone.ID) async {

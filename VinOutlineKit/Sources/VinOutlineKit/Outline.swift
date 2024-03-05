@@ -35,7 +35,7 @@ public extension Notification.Name {
 	static let OutlineRemovedBacklinks = Notification.Name(rawValue: "OutlineRemovedBacklinks")
 }
 
-public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Codable {
+public struct Outline: RowContainer, Identifiable, Equatable, Hashable, Codable {
 	
 	public enum Section: Int {
 		case title = 0
@@ -262,11 +262,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	public var wordCount: Int {
 		get async {
 			let wordCountVisitor = WordCountVisitor()
-			
-			await load()
 			rows.forEach { $0.visit(visitor: wordCountVisitor.visitor)	}
-			await unload()
-			
 			return wordCountVisitor.count
 		}
 	}
@@ -387,25 +383,8 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		return cloudKitShareRecord != nil
 	}
 	
-	private var collapseAllInOutlineUnavailable = true
-	private var collapseAllInOutlineUnavailableNeedsUpdate = true
-	public var isCollapseAllInOutlineUnavailable: Bool {
-		if collapseAllInOutlineUnavailableNeedsUpdate {
-			collapseAllInOutlineUnavailable = isCollapseAllUnavailable(container: self)
-			collapseAllInOutlineUnavailableNeedsUpdate = false
-		}
-		return collapseAllInOutlineUnavailable
-	}
-	
-	private var expandAllInOutlineUnavailable = true
-	private var expandAllInOutlineUnavailableNeedsUpdate = true
-	public var isExpandAllInOutlineUnavailable: Bool {
-		if expandAllInOutlineUnavailableNeedsUpdate {
-			expandAllInOutlineUnavailable = isExpandAllUnavailable(container: self)
-			expandAllInOutlineUnavailableNeedsUpdate = false
-		}
-		return expandAllInOutlineUnavailable
-	}
+	public private(set) var isCollapseAllInOutlineUnavailable = true
+	public private(set) var isExpandAllInOutlineUnavailable = true
 	
 	public weak var account: Account?
 	
@@ -657,22 +636,23 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		imagesFile = await ImagesFile(outline: self)
 	}
 	
-	public func incrementBeingViewedCount() {
+	public mutating func incrementBeingViewedCount() {
 		beingViewedCount = beingViewedCount + 1
 	}
 
-	public func decrementBeingViewedCount() {
+	public mutating func decrementBeingViewedCount() {
 		beingViewedCount = beingViewedCount - 1
 	}
 
-	public func reassignAccount(_ accountID: Int) {
+	public mutating func reassignAccount(_ accountID: Int) {
 		self.id = .outline(accountID, id.outlineUUID)
 	}
-	public func prepareForViewing() {
+	
+	public mutating func prepareForViewing() {
 		rebuildTransientData()
 	}
 	
-	public func rowsFileDidLoad() {
+	public mutating func rowsFileDidLoad() {
 		guard isBeingViewed else { return }
 		
 		var changes = rebuildShadowTable()
@@ -682,7 +662,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		outlineElementsDidChange(changes)
 	}
 	
-	public func correctCorruption() {
+	public mutating func correctCorruption() {
 		guard let rowOrder, let keyedRows else { return }
 		
 		beginCloudKitBatchRequest()
@@ -744,7 +724,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		return rowOrder?.contains(row.id) ?? false
 	}
 
-	public func insertRow(_ row: Row, at: Int) {
+	public mutating func insertRow(_ row: Row, at: Int) {
 		if isCloudKit && ancestorRowOrder == nil {
 			ancestorRowOrder = rowOrder
 		}
@@ -763,7 +743,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		requestCloudKitUpdates(for: [id, row.entityID])
 	}
 
-	public func removeRow(_ row: Row) {
+	public mutating func removeRow(_ row: Row) {
 		if isCloudKit && ancestorRowOrder == nil {
 			ancestorRowOrder = rowOrder
 		}
@@ -774,7 +754,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		requestCloudKitUpdates(for: [id, row.entityID])
 	}
 
-	public func appendRow(_ row: Row) {
+	public mutating func appendRow(_ row: Row) {
 		if isCloudKit && ancestorRowOrder == nil {
 			ancestorRowOrder = rowOrder
 		}
@@ -793,7 +773,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		requestCloudKitUpdates(for: [id, row.entityID])
 	}
 	
-	public func createTag(_ tag: Tag) {
+	public mutating func createTag(_ tag: Tag) {
 		guard !hasTag(tag) else { return }
 		
 		if isCloudKit && ancestorTagIDs == nil {
@@ -818,7 +798,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		outlineElementsDidChange(changes)
 	}
 	
-	public func deleteTag(_ tag: Tag) {
+	public mutating func deleteTag(_ tag: Tag) {
 		guard let index = tagIDs?.firstIndex(where: { $0 == tag.id }) else { return }
 		
 		if isCloudKit && ancestorTagIDs == nil {
@@ -912,10 +892,8 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		return children
 	}
 	
-	public func printDoc() async -> NSAttributedString {
+	public func printDoc() -> NSAttributedString {
 		let print = NSMutableAttributedString()
-		await load()
-		
 		appendPrintTitle(attrString: print)
 		
 		let visitor = PrintDocVisitor()
@@ -924,14 +902,11 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		}
 		print.append(visitor.print)
 
-		await unload()
 		return print
 	}
 	
-	public func printList() async -> NSAttributedString {
+	public func printList() -> NSAttributedString {
 		let print = NSMutableAttributedString()
-		await load()
-		
 		appendPrintTitle(attrString: print)
 		
 		rows.forEach {
@@ -940,14 +915,12 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 			print.append(visitor.print)
 		}
 
-		await unload()
 		return print
 	}
 	
-	public func textContent() async -> String {
-		await load()
-		
+	public func textContent() -> String {
 		var textContent = "\(title ?? "")\n\n"
+
 		rows.forEach {
 			let visitor = StringVisitor()
 			$0.visit(visitor: visitor.visitor)
@@ -955,28 +928,24 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 			textContent.append("\n")
 		}
 		
-		await unload()
 		return textContent
 	}
 	
-	public func markdownDoc() async -> String {
-		await load()
-		
+	public func markdownDoc() -> String {
 		var md = "# \(title ?? "")"
+
 		let visitor = MarkdownDocVisitor()
 		rows.forEach {
 			$0.visit(visitor: visitor.visitor)
 		}
 		md.append(visitor.markdown)
 
-		await unload()
 		return md
 	}
 	
-	public func markdownList() async -> String {
-		await load()
-		
+	public func markdownList() -> String {
 		var md = "# \(title ?? "")\n\n"
+
 		rows.forEach {
 			let visitor = MarkdownListVisitor()
 			$0.visit(visitor: visitor.visitor)
@@ -984,13 +953,10 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 			md.append("\n")
 		}
 		
-		await unload()
 		return md
 	}
 	
 	public func opml(indentLevel: Int = 0) async -> String {
-		await load()
-
 		var opml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
 		opml.append("<!-- OPML generated by Zavala -->\n")
 		opml.append("<opml version=\"2.0\">\n")
@@ -1051,46 +1017,45 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		opml.append("</body>\n")
 		opml.append("</opml>\n")
 
-		await unload()
 		return opml
 	}
 	
-	public func update(title: String?) {
+	public mutating func update(title: String?) {
 		self.title = title
 		updated = Date()
 		outlineTitleDidChange()
 		requestCloudKitUpdate(for: id)
 	}
 	
-	public func update(disambiguator: Int) {
+	public mutating func update(disambiguator: Int) {
 		self.disambiguator = disambiguator
 		requestCloudKitUpdate(for: id)
 	}
 	
-	public func update(ownerName: String?) {
+	public mutating func update(ownerName: String?) {
 		self.ownerName = ownerName
 		updated = Date()
 		requestCloudKitUpdate(for: id)
 	}
 	
-	public func update(ownerEmail: String?) {
+	public mutating func update(ownerEmail: String?) {
 		self.ownerEmail = ownerEmail
 		updated = Date()
 		requestCloudKitUpdate(for: id)
 	}
 	
-	public func update(ownerURL: String?) {
+	public mutating func update(ownerURL: String?) {
 		self.ownerURL = ownerURL
 		updated = Date()
 		requestCloudKitUpdate(for: id)
 	}
 	
-	public func update(checkSpellingWhileTyping: Bool,
-					   correctSpellingAutomatically: Bool,
-					   autoLinkingEnabled: Bool,
-					   ownerName: String?,
-					   ownerEmail: String?,
-					   ownerURL: String?) {
+	public mutating func update(checkSpellingWhileTyping: Bool,
+								correctSpellingAutomatically: Bool,
+								autoLinkingEnabled: Bool,
+								ownerName: String?,
+								ownerEmail: String?,
+								ownerURL: String?) {
 		
 		var textPrefsChanged = false
 		
@@ -1118,7 +1083,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		requestCloudKitUpdate(for: id)
 	}
 	
-	public func deleteAllBacklinks() {
+	public mutating func deleteAllBacklinks() {
 		guard let outlineBacklinks else { return }
 		
 		for outlineBacklink in outlineBacklinks {
@@ -1126,7 +1091,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		}
 	}
 	
-	public func toggleFilterOn() -> OutlineElementChanges {
+	public mutating func toggleFilterOn() -> OutlineElementChanges {
 		isFilterOn = !(isFilterOn ?? false)
 		outlineMetaDataDidChange()
 		var changes = rebuildShadowTable()
@@ -1139,13 +1104,13 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		return changes
 	}
 	
-	public func toggleCompletedFilter() -> OutlineElementChanges {
+	public mutating func toggleCompletedFilter() -> OutlineElementChanges {
 		isCompletedFiltered = !(isCompletedFiltered ?? true)
 		outlineMetaDataDidChange()
 		return rebuildShadowTable()
 	}
 	
-	public func toggleNotesFilter() -> OutlineElementChanges {
+	public mutating func toggleNotesFilter() -> OutlineElementChanges {
 		isNotesFiltered = !(isNotesFiltered ?? true)
 		outlineMetaDataDidChange()
 		
@@ -1167,7 +1132,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		return true
 	}
 	
-	public func search(for searchText: String, options: SearchOptions) {
+	public mutating func search(for searchText: String, options: SearchOptions) {
 		guard self.searchText != searchText else {
 			return
 		}
@@ -1225,7 +1190,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		outlineElementsDidChange(OutlineElementChanges(section: adjustedRowsSection, reloads: reloads))
 	}
 		
-	public func nextSearchResult() {
+	public mutating func nextSearchResult() {
 		guard searchResultCoordinates.count > 0 else { return }
 		
 		let nextResult: Int
@@ -1238,7 +1203,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		changeSearchResult(nextResult)
 	}
 	
-	public func previousSearchResult() {
+	public mutating func previousSearchResult() {
 		guard searchResultCoordinates.count > 0 else { return }
 		
 		let previousResult: Int
@@ -1251,7 +1216,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		changeSearchResult(previousResult)
 	}
 	
-	public func endSearching() {
+	public mutating func endSearching() {
 		outlineSearchWillEnd()
 		isSearching = .notSearching
 		searchText = ""
@@ -1269,7 +1234,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		outlineSearchDidEnd()
 	}
 	
-	public func focusIn(_ row: Row) {
+	public mutating func focusIn(_ row: Row) {
 		self.focusRow = row
 		
 		var changes = rebuildShadowTable()
@@ -1293,7 +1258,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		return focusRow == nil
 	}
 	
-	public func focusOut() {
+	public mutating func focusOut() {
 		guard let reloadRow = self.focusRow else { return }
 		
 		self.focusRow = nil
@@ -1319,7 +1284,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		return images?[rowID]
 	}
 	
-	func updateImages(rowID: String, images: [Image]?) {
+	mutating func updateImages(rowID: String, images: [Image]?) {
 		guard self.images?[rowID] != images else { return }
 		
 		if self.images == nil {
@@ -1335,12 +1300,12 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		imagesFile?.markAsDirty()
 	}
 	
-	func removeImages(rowID: String) {
+	mutating func removeImages(rowID: String) {
 		self.images?.removeValue(forKey: rowID)
 		imagesFile?.markAsDirty()
 	}
 	
-	func createNotes(rows: [Row], rowStrings: RowStrings?) async -> [Row] {
+	mutating func createNotes(rows: [Row], rowStrings: RowStrings?) async -> [Row] {
 		beginCloudKitBatchRequest()
 		
 		if rowCount == 1, let row = rows.first, let texts = rowStrings {
@@ -1382,7 +1347,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	}
 	
 	@discardableResult
-	public func deleteNotes(rows: [Row], rowStrings: RowStrings? = nil) async -> [Row: NSAttributedString] {
+	public mutating func deleteNotes(rows: [Row], rowStrings: RowStrings? = nil) async -> [Row: NSAttributedString] {
 		beginCloudKitBatchRequest()
 		
 		if rowCount == 1, let row = rows.first, let texts = rowStrings {
@@ -1414,7 +1379,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		return impacted
 	}
 	
-	func restoreNotes(_ notes: [Row: NSAttributedString]) {
+	mutating func restoreNotes(_ notes: [Row: NSAttributedString]) {
 		beginCloudKitBatchRequest()
 		
 		for (row, note) in notes {
@@ -1432,8 +1397,10 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		
 	}
 	
-	public func deleteRows(_ rows: [Row], rowStrings: RowStrings? = nil) async {
-		collapseAllInOutlineUnavailableNeedsUpdate = true
+	public mutating func deleteRows(_ rows: [Row], rowStrings: RowStrings? = nil) async {
+		defer {
+			isCollapseAllInOutlineUnavailable = isCollapseAllUnavailable(container: self)
+		}
 		
 		beginCloudKitBatchRequest()
 		
@@ -1502,7 +1469,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		
 	}
 	
-	func joinRows(topRow: Row, bottomRow: Row) async {
+	mutating func joinRows(topRow: Row, bottomRow: Row) async {
 		beginCloudKitBatchRequest()
 		
 		guard let topTopic = topRow.topic,
@@ -1522,7 +1489,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		outlineElementsDidChange(changes)
 	}
 	
-	func createRow(_ row: Row, beforeRow: Row, rowStrings: RowStrings? = nil) async {
+	mutating func createRow(_ row: Row, beforeRow: Row, rowStrings: RowStrings? = nil) async {
 		beginCloudKitBatchRequest()
 		
 		if let texts = rowStrings {
@@ -1563,7 +1530,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		outlineElementsDidChange(changes)
 	}
 	
-	func createRow(_ row: Row, afterRow: Row? = nil, rowStrings: RowStrings? = nil) async {
+	mutating func createRow(_ row: Row, afterRow: Row? = nil, rowStrings: RowStrings? = nil) async {
 		beginCloudKitBatchRequest()
 		
 		if let afterRow, let texts = rowStrings {
@@ -1627,9 +1594,11 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	}
 
 	@discardableResult
-	func createRows(_ rows: [Row], afterRow: Row? = nil, rowStrings: RowStrings? = nil, prefersEnd: Bool = false) async -> Int? {
-		collapseAllInOutlineUnavailableNeedsUpdate = true
-		
+	mutating func createRows(_ rows: [Row], afterRow: Row? = nil, rowStrings: RowStrings? = nil, prefersEnd: Bool = false) async -> Int? {
+		defer {
+			isCollapseAllInOutlineUnavailable = isCollapseAllUnavailable(container: self)
+		}
+
 		beginCloudKitBatchRequest()
 		
 		if let afterRow, let texts = rowStrings {
@@ -1697,7 +1666,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		return inserts.count > 0 ? inserts[0] : nil
 	}
 
-	public func createRowsInsideAtStart(_ rows: [Row], afterRowContainer: RowContainer, rowStrings: RowStrings? = nil) async {
+	public mutating func createRowsInsideAtStart(_ rows: [Row], afterRowContainer: RowContainer, rowStrings: RowStrings? = nil) async {
 		beginCloudKitBatchRequest()
 		
 		if let texts = rowStrings, let afterRow = afterRowContainer as? Row {
@@ -1737,7 +1706,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		outlineElementsDidChange(changes)
 	}
 	
-	public func createRowsInsideAtEnd(_ rows: [Row], afterRowContainer: RowContainer) async {
+	public mutating func createRowsInsideAtEnd(_ rows: [Row], afterRowContainer: RowContainer) async {
 		beginCloudKitBatchRequest()
 
 		resetPreviouslyUsed(rows: rows)
@@ -1767,7 +1736,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		outlineElementsDidChange(changes)
 	}
 
-	public func createRowsDirectlyAfter(_ rows: [Row], afterRow: Row) async {
+	public mutating func createRowsDirectlyAfter(_ rows: [Row], afterRow: Row) async {
 		beginCloudKitBatchRequest()
 
 		resetPreviouslyUsed(rows: rows)
@@ -1803,7 +1772,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		return isMoveRowsLeftUnavailable(rows: rows)
 	}
 	
-	public func createRowsOutside(_ rows: [Row], afterRow: Row, rowStrings: RowStrings? = nil) async {
+	public mutating func createRowsOutside(_ rows: [Row], afterRow: Row, rowStrings: RowStrings? = nil) async {
 		beginCloudKitBatchRequest()
 		
 		resetPreviouslyUsed(rows: rows)
@@ -1844,7 +1813,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		outlineElementsDidChange(changes)
 	}
 
-	func duplicateRows(_ rows: [Row]) -> [Row] {
+	mutating func duplicateRows(_ rows: [Row]) -> [Row] {
 		beginCloudKitBatchRequest()
 
 		var newRows = [Row]()
@@ -1883,7 +1852,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		return newRows
 	}
 
-	func splitRow(newRow: Row, row: Row, topic: NSAttributedString, cursorPosition: Int) async {
+	mutating func splitRow(newRow: Row, row: Row, topic: NSAttributedString, cursorPosition: Int) async {
 		beginCloudKitBatchRequest()
 		
 		let newTopicRange = NSRange(location: cursorPosition, length: topic.length - cursorPosition)
@@ -1906,7 +1875,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		outlineElementsDidChange(changes)
 	}
 
-	public func updateRow(_ row: Row, rowStrings: RowStrings?, applyChanges: Bool) async {
+	public mutating func updateRow(_ row: Row, rowStrings: RowStrings?, applyChanges: Bool) async {
 		if let texts = rowStrings {
 			await updateRowStrings(row, texts)
 		}
@@ -1921,11 +1890,13 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	}
 	
 	@discardableResult
-	public func expand(rows: [Row]) -> [Row] {
+	public mutating func expand(rows: [Row]) -> [Row] {
+		defer {
+			isCollapseAllInOutlineUnavailable = isCollapseAllUnavailable(container: self)
+			isExpandAllInOutlineUnavailable = isExpandAllUnavailable(container: self)
+		}
+
 		let expandableRows = rows.filter { $0.isExpandable }
-		
-		expandAllInOutlineUnavailableNeedsUpdate = true
-		collapseAllInOutlineUnavailableNeedsUpdate = true
 
 		if rowCount == 1, let row = expandableRows.first {
 			expand(row: row)
@@ -1936,12 +1907,14 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	}
 	
 	@discardableResult
-	public func collapse(rows: [Row]) -> [Row] {
+	public mutating func collapse(rows: [Row]) -> [Row] {
+		defer {
+			isCollapseAllInOutlineUnavailable = isCollapseAllUnavailable(container: self)
+			isExpandAllInOutlineUnavailable = isExpandAllUnavailable(container: self)
+		}
+
 		let collapsableRows = rows.filter { $0.isCollapsable }
 
-		expandAllInOutlineUnavailableNeedsUpdate = true
-		collapseAllInOutlineUnavailableNeedsUpdate = true
-		
 		if rowCount == 1, let row = collapsableRows.first {
 			collapse(row: row)
 			return [row]
@@ -1959,9 +1932,11 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		return true
 	}
 	
-	func expandAll(containers: [RowContainer]) -> [Row] {
-		expandAllInOutlineUnavailableNeedsUpdate = true
-		collapseAllInOutlineUnavailableNeedsUpdate = true
+	mutating func expandAll(containers: [RowContainer]) -> [Row] {
+		defer {
+			isCollapseAllInOutlineUnavailable = isCollapseAllUnavailable(container: self)
+			isExpandAllInOutlineUnavailable = isExpandAllUnavailable(container: self)
+		}
 
 		var impacted = [Row]()
 		
@@ -2005,9 +1980,11 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		return true
 	}
 	
-	func collapseAll(containers: [RowContainer]) -> [Row] {
-		expandAllInOutlineUnavailableNeedsUpdate = true
-		collapseAllInOutlineUnavailableNeedsUpdate = true
+	mutating func collapseAll(containers: [RowContainer]) -> [Row] {
+		defer {
+			isCollapseAllInOutlineUnavailable = isCollapseAllUnavailable(container: self)
+			isExpandAllInOutlineUnavailable = isExpandAllUnavailable(container: self)
+		}
 
 		var impacted = [Row]()
 		var reloads = [Row]()
@@ -2061,7 +2038,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	}
 	
 	@discardableResult
-	public func complete(rows: [Row], rowStrings: RowStrings? = nil) async -> ([Row], Int?) {
+	public mutating func complete(rows: [Row], rowStrings: RowStrings? = nil) async -> ([Row], Int?) {
 		return await completeUncomplete(rows: rows, isComplete: true, rowStrings: rowStrings)
 	}
 	
@@ -2075,7 +2052,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	}
 	
 	@discardableResult
-	public func uncomplete(rows: [Row], rowStrings: RowStrings? = nil) async -> [Row] {
+	public mutating func uncomplete(rows: [Row], rowStrings: RowStrings? = nil) async -> [Row] {
 		let (impacted, _) = await completeUncomplete(rows: rows, isComplete: false, rowStrings: rowStrings)
 		return impacted
 	}
@@ -2089,8 +2066,10 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		return true
 	}
 	
-	func moveRowsRight(_ rows: [Row], rowStrings: RowStrings?) async -> [Row] {
-		collapseAllInOutlineUnavailableNeedsUpdate = true
+	mutating func moveRowsRight(_ rows: [Row], rowStrings: RowStrings?) async -> [Row] {
+		defer {
+			isCollapseAllInOutlineUnavailable = isCollapseAllUnavailable(container: self)
+		}
 
 		beginCloudKitBatchRequest()
 		
@@ -2171,8 +2150,10 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	}
 		
 	@discardableResult
-	func moveRowsLeft(_ rows: [Row], rowStrings: RowStrings?) async -> [Row] {
-		collapseAllInOutlineUnavailableNeedsUpdate = true
+	mutating func moveRowsLeft(_ rows: [Row], rowStrings: RowStrings?) async -> [Row] {
+		defer {
+			isCollapseAllInOutlineUnavailable = isCollapseAllUnavailable(container: self)
+		}
 
 		beginCloudKitBatchRequest()
 		
@@ -2237,7 +2218,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		return index == 0
 	}
 
-	func moveRowsUp(_ rows: [Row], rowStrings: RowStrings?) async {
+	mutating func moveRowsUp(_ rows: [Row], rowStrings: RowStrings?) async {
 		beginCloudKitBatchRequest()
 		
 		if rowCount == 1, let row = rows.first, let texts = rowStrings {
@@ -2273,7 +2254,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		return index == (last.parent?.rowCount ?? -1) - 1
 	}
 
-	func moveRowsDown(_ rows: [Row], rowStrings: RowStrings?) async {
+	mutating func moveRowsDown(_ rows: [Row], rowStrings: RowStrings?) async {
 		beginCloudKitBatchRequest()
 		
 		if rowCount == 1, let row = rows.first, let texts = rowStrings {
@@ -2295,7 +2276,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		outlineElementsDidChange(rebuildShadowTable())
 	}
 	
-	public func moveRowsInsideAtStart(_ rows: [Row], afterRowContainer: RowContainer) async {
+	public mutating func moveRowsInsideAtStart(_ rows: [Row], afterRowContainer: RowContainer) async {
 		var rowMoves = [RowMove]()
 		for (index, row) in rows.enumerated() {
 			rowMoves.append(RowMove(row: row, toParent: afterRowContainer, toChildIndex: index))
@@ -2303,7 +2284,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		await moveRows(rowMoves)
 	}
 	
-	public func moveRowsInsideAtEnd(_ rows: [Row], afterRowContainer: RowContainer) async {
+	public mutating func moveRowsInsideAtEnd(_ rows: [Row], afterRowContainer: RowContainer) async {
 		var rowMoves = [RowMove]()
 		for (index, row) in rows.enumerated() {
 			rowMoves.append(RowMove(row: row, toParent: afterRowContainer, toChildIndex: index + afterRowContainer.rowCount))
@@ -2311,7 +2292,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		await moveRows(rowMoves)
 	}
 	
-	public func moveRowsOutside(_ rows: [Row], afterRow: Row) async {
+	public mutating func moveRowsOutside(_ rows: [Row], afterRow: Row) async {
 		guard let afterRowParent = afterRow.parent as? Row,
 			  let afterRowGrandParent = afterRowParent.parent,
 			  let startIndex = afterRowGrandParent.firstIndexOfRow(afterRowParent) else { return }
@@ -2323,7 +2304,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		await moveRows(rowMoves)
 	}
 
-	public func moveRowsDirectlyAfter(_ rows: [Row], afterRow: Row) async {
+	public mutating func moveRowsDirectlyAfter(_ rows: [Row], afterRow: Row) async {
 		guard let afterRowParent = afterRow.parent,
 			  let startIndex = afterRowParent.firstIndexOfRow(afterRow) else { return }
 		
@@ -2334,7 +2315,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		await moveRows(rowMoves)
 	}
 
-	func moveRows(_ rowMoves: [RowMove], rowStrings: RowStrings? = nil) async {
+	mutating func moveRows(_ rowMoves: [RowMove], rowStrings: RowStrings? = nil) async {
 		beginCloudKitBatchRequest()
 		
 		if rowMoves.count == 1, let row = rowMoves.first?.row, let texts = rowStrings {
@@ -2402,7 +2383,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		outlineElementsDidChange(changes)
 	}
 	
-	public func load() async {
+	mutating func load() async {
 		beingUsedCount = beingUsedCount + 1
 		
 		guard rowsFile == nil, beingUsedCount == 1 else { return }
@@ -2416,7 +2397,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		prepareRowsForProcessing()
 	}
 	
-	public func unload() async {
+	mutating func unload() async {
 		if beingUsedCount > 0 {
 			beingUsedCount = beingUsedCount - 1
 		}
@@ -2446,20 +2427,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		imagesFile?.resume()
 	}
 	
-	public func save() async {
-		await rowsFile?.saveIfNecessary()
-		await imagesFile?.saveIfNecessary()
-	}
-	
-	public func forceSave() async {
-		rowsFile?.markAsDirty()
-		await rowsFile?.saveIfNecessary()
-		
-		imagesFile?.markAsDirty()
-		await imagesFile?.saveIfNecessary()
-	}
-	
-	public func delete() async {
+	public mutating func delete() async {
 		for link in outlineLinks ?? [EntityID]() {
 			if let outline = await Outliner.shared.findOutline(link)?.outline {
 				outline.deleteBacklink(id)
@@ -2486,7 +2454,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 	public func duplicate() async -> Outline {
 		guard let account else { fatalError("Account should always be available.") }
 
-		let outline = await Outline(account: account, id: .outline(id.accountID, UUID().uuidString))
+		var outline = await Outline(account: account, id: .outline(id.accountID, UUID().uuidString))
 
 		outline.title = title
 		outline.ownerName = ownerName
@@ -2544,7 +2512,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		return outline
 	}
 	
-	func createBacklink(_ entityID: EntityID, updateCloudKit: Bool = true) {
+	mutating func createBacklink(_ entityID: EntityID, updateCloudKit: Bool = true) {
 		if isCloudKit && ancestorOutlineBacklinks == nil {
 			ancestorOutlineBacklinks = outlineBacklinks
 		}
@@ -2571,7 +2539,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		}
 	}
 
-	func deleteBacklink(_ entityID: EntityID, updateCloudKit: Bool = true) {
+	mutating func deleteBacklink(_ entityID: EntityID, updateCloudKit: Bool = true) {
 		if isCloudKit && ancestorOutlineBacklinks == nil {
 			ancestorOutlineBacklinks = outlineBacklinks
 		}
@@ -2594,7 +2562,7 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		}
 	}
 
-	public func updateAllLinkRelationships() async {
+	public mutating func updateAllLinkRelationships() async {
 		var newOutlineLinks = [EntityID]()
 		
 		func linkVisitor(_ visited: Row) {
@@ -2614,10 +2582,8 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 		await processLinkDiff(diff)
 	}
 		
-	public func fixAltLinks() async {
+	public mutating func fixAltLinks() async {
 		guard hasAltLinks ?? false else { return }
-		
-		await load()
 		
 		if let keyedRows {
 			beginCloudKitBatchRequest()
@@ -2642,12 +2608,9 @@ public final class Outline: RowContainer, Identifiable, Equatable, Hashable, Cod
 			
 			endCloudKitBatchRequest()
 		}
-		
-		await unload()
-		
 	}
 	
-	func rebuildShadowTable() -> OutlineElementChanges {
+	mutating func rebuildShadowTable() -> OutlineElementChanges {
 		guard let oldShadowTable = shadowTable else { return OutlineElementChanges(section: adjustedRowsSection) }
 		rebuildTransientData()
 		
@@ -2748,7 +2711,7 @@ private extension Outline {
 		NotificationCenter.default.post(name: .OutlineSharingDidChange, object: self, userInfo: nil)
 	}
 
-	func outlineContentDidChange() {
+	mutating func outlineContentDidChange() {
 		self.updated = Date()
 		requestCloudKitUpdate(for: id)
 		rowsFile?.markAsDirty()
@@ -2795,7 +2758,7 @@ private extension Outline {
 		NotificationCenter.default.post(name: .OutlineRemovedBacklinks, object: self, userInfo: nil)
 	}
 	
-	func changeSearchResult(_ changeToResult: Int) {
+	mutating func changeSearchResult(_ changeToResult: Int) {
 		var reloads = Set<Int>()
 		
 		if currentSearchResult != -1 {
@@ -2818,7 +2781,7 @@ private extension Outline {
 		outlineSearchResultDidChange()
 	}
 	
-	func clearSearchResults() {
+	mutating func clearSearchResults() {
 		let reloads = Set(searchResultCoordinates.compactMap({ $0.row.shadowTableIndex }))
 		
 		currentSearchResult = -1
@@ -2836,7 +2799,7 @@ private extension Outline {
 	}
 	
 	@discardableResult
-	func completeUncomplete(rows: [Row], isComplete: Bool, rowStrings: RowStrings?) async -> ([Row], Int?) {
+	mutating func completeUncomplete(rows: [Row], isComplete: Bool, rowStrings: RowStrings?) async -> ([Row], Int?) {
 		beginCloudKitBatchRequest()
 		
 		if rowCount == 1, let row = rows.first, let texts = rowStrings {
@@ -2901,7 +2864,7 @@ private extension Outline {
 	}
 	
 	@discardableResult
-	func autoCompleteUncomplete(row: Row) async -> Bool {
+	mutating func autoCompleteUncomplete(row: Row) async -> Bool {
 		if row.isAutoCompletable {
 			await completeUncomplete(rows: [row], isComplete: true, rowStrings: nil)
 			return true
@@ -2949,7 +2912,7 @@ private extension Outline {
 		return unavailable
 	}
 	
-	func expandCollapse(rows: [Row], isExpanded: Bool) -> [Row] {
+	mutating func expandCollapse(rows: [Row], isExpanded: Bool) -> [Row] {
 		var impacted = [Row]()
 		
 		for row in rows {
@@ -2972,7 +2935,7 @@ private extension Outline {
 		return impacted
 	}
 	
-	func expand(row: Row) {
+	mutating func expand(row: Row) {
 		guard !row.isExpanded, let rowShadowTableIndex = row.shadowTableIndex else { return }
 		
 		row.isExpanded = true
@@ -3047,7 +3010,7 @@ private extension Outline {
 		return unavailable
 	}
 	
-	func collapse(row: Row)  {
+	mutating func collapse(row: Row)  {
 		guard row.isExpanded else { return  }
 
 		row.isExpanded = false
@@ -3098,7 +3061,7 @@ private extension Outline {
 		}
 	}
 	
-	func rebuildTransientData() {
+	mutating func rebuildTransientData() {
 		let transient = TransientDataVisitor(isCompletedFilterOn: isCompletedFilterOn, isSearching: isSearching)
 		
 		if let focusRow {
@@ -3157,7 +3120,7 @@ private extension Outline {
 		}
 	}
 	
-	func deleteLinkRelationships(for rows: [Row]) async {
+	mutating func deleteLinkRelationships(for rows: [Row]) async {
 		for row in rows {
 			if let topic = row.topic {
 				for linkToID in extractLinkToIDs(topic) {
@@ -3172,7 +3135,7 @@ private extension Outline {
 		}
 	}
 
-	func createLinkRelationships(for rows: [Row]) async {
+	mutating func createLinkRelationships(for rows: [Row]) async {
 		for row in rows {
 			if let topic = row.topic {
 				for linkToID in extractLinkToIDs(topic) {
@@ -3187,7 +3150,7 @@ private extension Outline {
 		}
 	}
 
-	func updateRowStrings(_ row: Row, _ rowStrings: RowStrings) async {
+	mutating func updateRowStrings(_ row: Row, _ rowStrings: RowStrings) async {
 		let oldTopic = row.topic
 		let oldNote = row.note
 
@@ -3209,14 +3172,14 @@ private extension Outline {
 
 	}
 	
-	func processLinkDiff(oldText: NSAttributedString?, newText: NSAttributedString?) async {
+	mutating func processLinkDiff(oldText: NSAttributedString?, newText: NSAttributedString?) async {
 		let oldTextDocLinks = oldText != nil ? extractLinkToIDs(oldText!) : [EntityID]()
 		let newTextDocLinks = newText != nil ? extractLinkToIDs(newText!) : [EntityID]()
 		let topicDiff = newTextDocLinks.difference(from: oldTextDocLinks)
 		await processLinkDiff(topicDiff)
 	}
 	
-	func processLinkDiff(_ diff: CollectionDifference<EntityID>) async {
+	mutating func processLinkDiff(_ diff: CollectionDifference<EntityID>) async {
 		guard !diff.isEmpty else { return }
 		
 		for change in diff {
@@ -3230,8 +3193,8 @@ private extension Outline {
 
 	}
 	
-	func createLinkRelationship(_ entityID: EntityID) async {
-		guard let outline = await Outliner.shared.findOutline(entityID)?.outline else { return }
+	mutating func createLinkRelationship(_ entityID: EntityID) async {
+		guard let outline = await Outliner.shared.findOutline(entityID) else { return }
 		
 		if isCloudKit && ancestorOutlineLinks == nil {
 			ancestorOutlineLinks = outlineLinks
@@ -3247,8 +3210,8 @@ private extension Outline {
 		requestCloudKitUpdate(for: id)
 	}
 
-	func deleteLinkRelationship(_ entityID: EntityID) async {
-		guard let outline = await Outliner.shared.findOutline(entityID)?.outline else { return }
+	mutating func deleteLinkRelationship(_ entityID: EntityID) async {
+		guard let outline = await Outliner.shared.findOutline(entityID) else { return }
 
 		if isCloudKit && ancestorOutlineLinks == nil {
 			ancestorOutlineLinks = outlineLinks
