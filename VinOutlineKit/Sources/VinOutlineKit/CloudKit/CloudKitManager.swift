@@ -134,9 +134,6 @@ public class CloudKitManager {
 				guard let self, self.isNetworkAvailable else { return }
 				Task {
 					do {
-						await self.requestsSemaphore.wait()
-						defer { self.requestsSemaphore.signal() }
-
 						try await self.sendChanges(userInitiated: false)
 						try await self.fetchAllChanges(userInitiated: false)
 					} catch {
@@ -148,9 +145,8 @@ public class CloudKitManager {
 	}
 	
 	func receiveRemoteNotification(userInfo: [AnyHashable : Any]) async {
-		await requestsSemaphore.wait()
-		defer { requestsSemaphore.signal() }
-
+		restartWorkTask()
+		
 		do {
 			if let dbNote = CKDatabaseNotification(fromRemoteNotificationDictionary: userInfo), dbNote.notificationType == .database {
 				try await sendChanges(userInitiated: false)
@@ -168,9 +164,8 @@ public class CloudKitManager {
 	}
 	
 	func sync() async {
-		await requestsSemaphore.wait()
-		defer { requestsSemaphore.signal() }
-
+		restartWorkTask()
+		
 		guard isNetworkAvailable else {
 			return
 		}
@@ -188,9 +183,6 @@ public class CloudKitManager {
 	}
 	
 	func userDidAcceptCloudKitShareWith(_ shareMetadata: CKShare.Metadata) async {
-		await requestsSemaphore.wait()
-		defer { requestsSemaphore.signal() }
-		
 		return await withCheckedContinuation { continuation in
 			let op = CKAcceptSharesOperation(shareMetadatas: [shareMetadata])
 			op.qualityOfService = CloudKitOutlineZone.qualityOfService
@@ -236,11 +228,9 @@ public class CloudKitManager {
 	
 	func resume() async {
 		await sync()
-		startWorkTask()
 	}
 	
 	func suspend() async {
-		stopWorkTask()
 		await sync()
 	}
 	
@@ -298,6 +288,11 @@ private extension CloudKitManager {
 		workTask = nil
 	}
 	
+	func restartWorkTask() {
+		stopWorkTask()
+		startWorkTask()
+	}
+	
 	@MainActor
 	func presentError(_ error: Error) {
 		errorHandler?.presentError(error, title: "CloudKit Syncing Error")
@@ -325,6 +320,9 @@ private extension CloudKitManager {
 	
 	@MainActor
 	func sendChanges(userInitiated: Bool) async throws {
+		await requestsSemaphore.wait()
+		defer { requestsSemaphore.signal() }
+
 		isSyncing = true
 		
 		guard let requests = CloudKitActionRequest.loadRequests(), !requests.isEmpty else {

@@ -200,41 +200,24 @@ extension Outline: VCKModel {
 		cloudKitMetaData = record.metadata
 		
         let serverTitle = record[Outline.CloudKitRecord.Fields.title] as? String
-        let newTitle = merge(client: title, ancestor: ancestorTitle, server: serverTitle)
-
-		if title != newTitle {
-			title = newTitle
+		if title != serverTitle {
+			title = serverTitle
 			if isBeingViewed {
 				outlineElementsDidChange(OutlineElementChanges(section: .title, reloads: Set([0])))
 			}
 		}
 
-        let serverDisambiguator = record[Outline.CloudKitRecord.Fields.disambiguator] as? Int
-        disambiguator = merge(client: disambiguator, ancestor: ancestorDisambiguator, server: serverDisambiguator)
+        disambiguator = record[Outline.CloudKitRecord.Fields.disambiguator] as? Int
 
-        let serverCreated = record[Outline.CloudKitRecord.Fields.created] as? Date
-        created = merge(client: created, ancestor: ancestorCreated, server: serverCreated)
+		created = record[Outline.CloudKitRecord.Fields.created] as? Date
+        updated = record[Outline.CloudKitRecord.Fields.updated] as? Date
+		autoLinkingEnabled = record[Outline.CloudKitRecord.Fields.autoLinkingEnabled] as? Bool
+		checkSpellingWhileTyping = record[Outline.CloudKitRecord.Fields.checkSpellingWhileTyping] as? Bool
+		correctSpellingAutomatically = record[Outline.CloudKitRecord.Fields.correctSpellingAutomatically] as? Bool
 
-        let serverUpdated = record[Outline.CloudKitRecord.Fields.updated] as? Date
-        updated = merge(client: updated, ancestor: ancestorUpdated, server: serverUpdated)
-
-		let serverAutolinkingEnabled = record[Outline.CloudKitRecord.Fields.autoLinkingEnabled] as? Bool
-		autoLinkingEnabled = merge(client: autoLinkingEnabled, ancestor: ancestorAutoLinkingEnabled, server: serverAutolinkingEnabled)
-
-		let serverCheckSpellingWhileTyping = record[Outline.CloudKitRecord.Fields.checkSpellingWhileTyping] as? Bool
-		checkSpellingWhileTyping = merge(client: checkSpellingWhileTyping, ancestor: ancestorCheckSpellingWhileTyping, server: serverCheckSpellingWhileTyping)
-
-		let serverCorrectSpellingAutomatically = record[Outline.CloudKitRecord.Fields.correctSpellingAutomatically] as? Bool
-		correctSpellingAutomatically = merge(client: correctSpellingAutomatically, ancestor: ancestorCorrectSpellingAutomatically, server: serverCorrectSpellingAutomatically)
-
-		let serverOwnerName = record[Outline.CloudKitRecord.Fields.ownerName] as? String
-        ownerName = merge(client: ownerName, ancestor: ancestorOwnerName, server: serverOwnerName)
-
-        let serverOwnerEmail = record[Outline.CloudKitRecord.Fields.ownerEmail] as? String
-        ownerEmail = merge(client: ownerEmail, ancestor: ancestorOwnerEmail, server: serverOwnerEmail)
-
-        let serverOwnerURL = record[Outline.CloudKitRecord.Fields.ownerURL] as? String
-        ownerURL = merge(client: ownerURL, ancestor: ancestorOwnerURL, server: serverOwnerURL)
+        ownerName = record[Outline.CloudKitRecord.Fields.ownerName] as? String
+        ownerEmail = record[Outline.CloudKitRecord.Fields.ownerEmail] as? String
+        ownerURL = record[Outline.CloudKitRecord.Fields.ownerURL] as? String
 
 		let updatedRowIDs = applyRowOrder(record)
 		await applyTags(record, account)
@@ -411,10 +394,10 @@ private extension Outline {
 		var updatedRowIDs = [String]()
 
 		if let serverRowOrder = record[Outline.CloudKitRecord.Fields.rowOrder] as? [String] {
-			let mergedRowOrder = merge(client: rowOrder, ancestor: ancestorRowOrder, server: OrderedSet(serverRowOrder))
+			let serverRowOrderedSet = OrderedSet(serverRowOrder)
 			
 			//  We only count newly added children as updated for reloading so that they can indent or outdent
-			let rowDiff = mergedRowOrder.difference(from: rowOrder ?? OrderedSet<String>())
+			let rowDiff = serverRowOrderedSet.difference(from: rowOrder ?? OrderedSet<String>())
 			for change in rowDiff {
 				switch change {
 				case .insert(_, let newRowID, _):
@@ -424,7 +407,7 @@ private extension Outline {
 				}
 			}
 			
-			rowOrder = mergedRowOrder
+			rowOrder = serverRowOrderedSet
 		} else {
 			rowOrder = OrderedSet<String>()
 		}
@@ -432,30 +415,27 @@ private extension Outline {
 		return updatedRowIDs
 	}
 	
-	func applyTags(_ record: CKRecord, _ account: Account) async {
-		let tagNames = await tags.map { $0.name }
-		let ancestorTagNames = await tags.map { $0.name }
-		let serverTagNames = record[Outline.CloudKitRecord.Fields.tagNames] as? [String] ?? [String]()
+
+	mutating func applyTags(_ record: CKRecord, _ account: Account) async {
+		let serverTagNames = record[Outline.CloudKitRecord.Fields.tagNames] as? [String] ?? []
+		var serverTags = [Tag]()
+		for name in serverTagNames {
+			serverTags.append(await account.createTag(name: name))
+		}
+		let serverTagIDs = serverTags.map({ $0.id })
 		
-		if let mergedTagNames = merge(client: tagNames, ancestor: ancestorTagNames, server: serverTagNames) {
-			var mergeTags = [Tag]()
-			for mergedTagName in mergedTagNames {
-				mergeTags.append(await account.createTag(name: mergedTagName))
-			}
-			let mergedTagIDs = mergeTags.map({ $0.id })
-			
-			if isBeingViewed && isSearching == .notSearching {
-				updateTagUI(mergedTagIDs, tagIDs ?? [])
-			}
-			
-			tagIDs = mergedTagIDs
-			
-			let tagNamesToDelete = Set(tagNames).subtracting(mergedTagNames)
-			for tagNameToDelete in tagNamesToDelete {
-				await account.deleteTag(name: tagNameToDelete)
-			}
-		} else {
-			tagIDs = nil
+		let oldTagNames = await tags.map { $0.name }
+		let oldTagIDs = tagIDs
+		
+		tagIDs = serverTagIDs
+
+		if isBeingViewed && isSearching == .notSearching {
+			updateTagUI(tagIDs ?? [], oldTagIDs ?? [])
+		}
+				
+		let tagNamesToDelete = Set(oldTagNames).subtracting(serverTagNames)
+		for tagNameToDelete in tagNamesToDelete {
+			await account.deleteTag(name: tagNameToDelete)
 		}
 	}
 	
@@ -486,36 +466,29 @@ private extension Outline {
 		outlineElementsDidChange(changes)
 	}
 	
-	func applyOutlineLinks(_ record: CKRecord) {
+	mutating func applyDocumentLinks(_ record: CKRecord) {
 		if let serverOutlineLinkDescs = record[Outline.CloudKitRecord.Fields.outlineLinks] as? [String] {
-			let serverOutlineLinks = serverOutlineLinkDescs.compactMap { EntityID(description: $0) }
-			outlineLinks = merge(client: outlineLinks, ancestor: ancestorOutlineLinks, server: serverOutlineLinks)
+			outlineLinks = serverOutlineLinkDescs.compactMap { EntityID(description: $0) }
 		} else {
 			outlineLinks = [EntityID]()
 		}
 	}
 	
-	func applyOutlineBacklinks(_ record: CKRecord) {
-		if let serverOutlineBacklinkDescs = record[Outline.CloudKitRecord.Fields.outlineBacklinks] as? [String] {
-			let serverOutlineBacklinks = serverOutlineBacklinkDescs.compactMap { EntityID(description: $0) }
-			
-			if let mergedOutlineBackLinks = merge(client: outlineBacklinks, ancestor: ancestorOutlineBacklinks, server: serverOutlineBacklinks) {
-				let outlineBacklinksDiff = mergedOutlineBackLinks.difference(from: outlineBacklinks ?? [])
-				
-				for change in outlineBacklinksDiff {
-					switch change {
-					case .insert(_, let documentBacklink, _):
-						createBacklink(documentBacklink, updateCloudKit: false)
-					case .remove(_, let documentBacklink, _):
-						deleteBacklink(documentBacklink, updateCloudKit: false)
-					}
-				}
+	mutating func applyDocumentBacklinks(_ record: CKRecord) {
+		let serverOutlineBacklinkDescs = record[Outline.CloudKitRecord.Fields.outlineBacklinks] as? [String] ?? []
+		let serverOutlineBacklinks = serverOutlineBacklinkDescs.compactMap { EntityID(description: $0) }
+		let outlineBacklinksDiff = serverOutlineBacklinks.difference(from: outlineBacklinks ?? [])
+		
+		for change in outlineBacklinksDiff {
+			switch change {
+			case .insert(_, let outlineBacklink, _):
+				createBacklink(outlineBacklink, updateCloudKit: false)
+			case .remove(_, let outlineBacklink, _):
+				deleteBacklink(outlineBacklink, updateCloudKit: false)
 			}
-		} else {
-			outlineBacklinks = [EntityID]()
 		}
 	}
-
+	
 	func outlineDidChangeBySync() {
 		NotificationCenter.default.post(name: .OutlineDidChangeBySync, object: self, userInfo: nil)
 	}
