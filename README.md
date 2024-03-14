@@ -2,6 +2,25 @@
 
 A dedicated outliner for macOS, iPadOS, and iOS.
 
+## Notes about this specific fork
+This is here to see what would have to be done to make this compatible with macOS 10.15 Catalina, OS X 10.9 Mavericks, or even Mac OS X 10.6 Snow Leopard.
+
+If Chromium-Legacy can do it, then so can I!
+
+<hr />
+
+Current status:
+* No work has been done towards this goal, as of March 2024.
+
+Notes:
+* For reference, version 1.0.1 was [listed in the Mac App Store as requiring iOS 14 / macOS 11](http://web.archive.org/web/20210702190114/https://apps.apple.com/us/app/zavala/id1546457750).
+
+<hr />
+
+<details>
+
+<summary>Info from the original project:</summary>
+
 ## Download
 
 Zavala 2.0 has been released! You can [download it in the App Store](https://apps.apple.com/us/app/zavala/id1546457750).
@@ -51,3 +70,6 @@ them is ultimately what got this project going.  In fact John [tweeted](https://
 > I would kill for a good simple outliner that synced across iOS and Mac, and had a great *simple* UI on all three platforms.
 
 If there was a mission statement for Zavala, that would be it.
+
+
+</details>
